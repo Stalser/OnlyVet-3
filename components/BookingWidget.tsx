@@ -6,10 +6,9 @@ import { doctors } from "../lib/data";
 import {
   servicesPricing,
   doctorServicesMap,
-  PriceItem,
+  type PriceItem,
 } from "../lib/pricing";
 import {
-  doctorSlots,
   getDoctorDates,
   getDoctorSlotsForDate,
 } from "../lib/doctorSchedule";
@@ -26,8 +25,8 @@ export default function BookingWidget() {
   const [date, setDate] = useState("");
   const [slotId, setSlotId] = useState("");
 
-  const [ownerName, setOwnerName] = useState("");       // ФИО клиента
-  const [species, setSpecies] = useState("");           // Вид животного
+  const [ownerName, setOwnerName] = useState("");   // ФИО клиента
+  const [species, setSpecies] = useState("");       // Вид животного
   const [petName, setPetName] = useState("");
 
   const [email, setEmail] = useState("");
@@ -44,24 +43,28 @@ export default function BookingWidget() {
     [doctorId]
   );
 
+  // услуги, которые может оказать врач (если врач выбран)
   const allowedServices: PriceItem[] = useMemo(() => {
     if (!doctorId) return servicesPricing;
     const codes = doctorServicesMap[doctorId] || [];
     return servicesPricing.filter((s) => codes.includes(s.code));
   }, [doctorId]);
 
+  // если initial service не подходит врачу — сбрасываем
   const selectedService = useMemo(
     () => allowedServices.find((s) => s.code === serviceCode),
     [allowedServices, serviceCode]
   );
 
+  // доступные даты по врачу
   const availableDates = useMemo(() => {
     if (!doctorId) return [] as string[];
     return getDoctorDates(doctorId);
   }, [doctorId]);
 
+  // доступные слоты по врачу и дате
   const dateSlots = useMemo(() => {
-    if (!doctorId || !date) return [] as typeof doctorSlots;
+    if (!doctorId || !date) return [];
     return getDoctorSlotsForDate(doctorId, date);
   }, [doctorId, date]);
 
@@ -71,8 +74,8 @@ export default function BookingWidget() {
     !!date &&
     !!slotId &&
     ownerName.trim() &&
-    petName.trim() &&
     species.trim() &&
+    petName.trim() &&
     email.trim() &&
     contact.trim() &&
     agreePersonal &&
@@ -83,7 +86,7 @@ export default function BookingWidget() {
     setDoctorId(id);
     setDate("");
     setSlotId("");
-    // если выбранная услуга не подходит новому врачу – сбрасываем
+
     if (serviceCode && doctorServicesMap[id]) {
       const codes = doctorServicesMap[id];
       if (!codes.includes(serviceCode)) {
@@ -100,11 +103,12 @@ export default function BookingWidget() {
     setResult(null);
 
     try {
-      // здесь позже будет реальный запрос в БД / Vetmanager
+      // TODO: сюда позже добавим запрос в Supabase / Vetmanager
       await new Promise((resolve) => setTimeout(resolve, 800));
       setResult(
-        "Запрос отправлен. Администратор свяжется с вами для подтверждения времени."
+        "Заявка отправлена. Администратор свяжется с вами для подтверждения времени."
       );
+
       setOwnerName("");
       setSpecies("");
       setPetName("");
@@ -125,18 +129,16 @@ export default function BookingWidget() {
       <div className="space-y-1">
         <h2 className="font-semibold text-base">Запись на консультацию</h2>
         <p className="text-xs text-gray-500">
-          Опишите проблему, выберите врача, услугу и удобное время — запрос
-          уйдёт администратору.
+          Выберите врача, услугу, дату и время. Укажите данные клиента и
+          питомца. Мы свяжемся с вами для подтверждения.
         </p>
       </div>
 
       {/* ВРАЧ */}
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">
-          Врач
-        </label>
+        <label className="block text-xs font-medium text-gray-700">Врач</label>
         <select
-          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
+          className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
           value={doctorId}
           onChange={(e) => handleDoctorChange(e.target.value)}
         >
@@ -155,7 +157,7 @@ export default function BookingWidget() {
           Услуга
         </label>
         <select
-          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
+          className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
           value={serviceCode}
           onChange={(e) => setServiceCode(e.target.value)}
         >
@@ -178,13 +180,11 @@ export default function BookingWidget() {
 
       {/* ДАТА */}
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">
-          Дата
-        </label>
+        <label className="block text-xs font-medium text-gray-700">Дата</label>
         {doctorId ? (
           availableDates.length ? (
             <select
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
+              className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
               value={date}
               onChange={(e) => {
                 setDate(e.target.value);
@@ -216,13 +216,11 @@ export default function BookingWidget() {
 
       {/* ВРЕМЯ */}
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">
-          Время
-        </label>
+        <label className="block text-xs font-medium text-gray-700">Время</label>
         {doctorId && date ? (
           dateSlots.length ? (
             <select
-              className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black bg-white"
+              className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black.bg-white"
               value={slotId}
               onChange={(e) => setSlotId(e.target.value)}
             >
@@ -245,16 +243,16 @@ export default function BookingWidget() {
         )}
       </div>
 
-      {/* ДАННЫЕ КЛИЕНТА И ПАЦИЕНТА */}
+      {/* КЛИЕНТ И ПАЦИЕНТ */}
       <div className="grid gap-3">
-        {/* ФИО клиента */}
+        {/* ФИО */}
         <div className="space-y-1">
-          <label className="block text-xs.font-medium text-gray-700">
+          <label className="block.text-xs font-medium text-gray-700">
             ФИО клиента <span className="text-red-500">*</span>
           </label>
           <input
             required
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
+            className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
             value={ownerName}
             onChange={(e) => setOwnerName(e.target.value)}
             placeholder="Например, Иванова Анна Сергеевна"
@@ -268,7 +266,7 @@ export default function BookingWidget() {
           </label>
           <select
             required
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black bg-white"
+            className="w-full rounded-xl border.border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black bg-white"
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
           >
@@ -281,12 +279,12 @@ export default function BookingWidget() {
 
         {/* Имя питомца */}
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700">
+          <label className="block.text-xs font-medium text-gray-700">
             Имя питомца <span className="text-red-500">*</span>
           </label>
           <input
             required
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black"
+            className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
             value={petName}
             onChange={(e) => setPetName(e.target.value)}
             placeholder="Например, Мурзик"
@@ -295,27 +293,27 @@ export default function BookingWidget() {
 
         {/* Email */}
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700">
+          <label className="block.text-xs font-medium text-gray-700">
             Email <span className="text-red-500">*</span>
           </label>
           <input
             type="email"
             required
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black"
+            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
           />
         </div>
 
-        {/* Контакт для связи */}
+        {/* Контакт */}
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700">
+          <label className="block.text-xs font-medium text-gray-700">
             Контакт для связи <span className="text-red-500">*</span>
           </label>
           <input
             required
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black"
+            className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
             value={contact}
             onChange={(e) => setContact(e.target.value)}
             placeholder="Телефон или Telegram"
@@ -324,11 +322,11 @@ export default function BookingWidget() {
 
         {/* Комментарий */}
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700">
+          <label className="block.text-xs font-medium text-gray-700">
             Комментарий
           </label>
           <textarea
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black min-h-[60px]"
+            className="w-full.rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black min-h-[60px]"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Кратко опишите проблему, ранее поставленные диагнозы..."
