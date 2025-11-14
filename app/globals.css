@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ====== BRAND BASE ====== */
+
+:root {
+  --bg-body: #f9fafb;
+  --bg-card: #ffffff;
+  --bg-navy: #0f172a;
+  --bg-soft: #e5f2ff;
+
+  --text-main: #111827;
+  --text-muted: #6b7280;
+
+  --accent: #f97316;      /* тёплый оранжевый */
+  --accent-soft: #ffedd5;
+  --border-soft: #e5e7eb;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", sans-serif;
+  background-color: var(--bg-body);
+  color: var(--text-main);
+}
+
+/* Tailwind уже навешивает стили, но чуть дополнительно выровняем типографику */
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.03em;
+}
+
+p {
+  line-height: 1.5;
+}
+
+/* ====== CONTAINER ====== */
+
+.container {
+  max-width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* ====== BUTTONS ====== */
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-black text-white px-4 py-2;
+}
+
+.btn-primary:hover {
+  @apply bg-gray-900;
+}
+
+.btn-outline {
+  @apply border border-gray-300 bg-white text-gray-800 px-4 py-2;
+}
+
+.btn-outline:hover {
+  @apply bg-gray-50;
+}
+
+.btn-ghost {
+  @apply text-gray-700 px-3 py-2;
+}
+
+.btn-ghost:hover {
+  @apply text-gray-900 bg-gray-50;
+}
+
+/* ====== NAVBAR / FOOTER (цвета из брендбука) ====== */
+
+header {
+  /* сам Navbar уже Tailwind-классами оформлен, но оставим фоновый цвет через Tailwind */
+}
+
+footer {
+  background-color: var(--bg-navy);
+  color: #ffffff;
+}
+
+/* ====== CARDS / БЛОКИ ====== */
+
+.card {
+  @apply rounded-2xl border border-gray-200 bg-white shadow-sm;
+}
+
+.card-soft {
+  background-color: var(--accent-soft);
+  border-color: transparent;
+}
+
+/* ====== LINKS ====== */
+
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ====== МЕЛОЧИ ====== */
+
+.badge {
+  @apply inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-700;
+}
+
+.badge-active {
+  @apply bg-black text-white border-black;
+}
