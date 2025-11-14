@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { doctors } from "../lib/data";
 import { servicesPricing } from "../lib/pricing";
 
+type ServiceAny = any; // упрощаем типизацию, чтобы не упираться в поля PriceItem
+
 export default function BookingWidget() {
   const searchParams = useSearchParams();
 
@@ -23,7 +25,7 @@ export default function BookingWidget() {
   const [comment, setComment] = useState("");
   const [time, setTime] = useState("");
 
-  // Временные слоты — пока статический список, позже привяжем к расписанию врача
+  // Временные слоты — пока статический список, позже привяжем к реальному расписанию
   const availableTimes = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"];
 
   const canSubmit =
@@ -43,6 +45,8 @@ export default function BookingWidget() {
       `Заявка отправлена:\nВрач: ${doctorId}\nУслуга: ${serviceCode}\nВремя: ${time}\nПитомец: ${petName} (${species})`
     );
   }
+
+  const services = servicesPricing as ServiceAny[];
 
   return (
     <form
@@ -81,14 +85,16 @@ export default function BookingWidget() {
         <select
           value={serviceCode}
           onChange={(e) => setServiceCode(e.target.value)}
-          className="rounded-xl border border-gray-300 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
+          className="rounded-xl border bordered-gray-300 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
         >
           <option value="">Выберите услугу</option>
-          {servicesPricing.map((s) => (
+          {services.map((s) => (
             <option key={s.code} value={s.code}>
               {s.name}
-              {" — "}
-              {s.price} ₽
+              {typeof s.price !== "undefined" && ` — ${s.price} ₽`}
+              {typeof s.priceRUB !== "undefined" &&
+                typeof s.price === "undefined" &&
+                ` — ${s.priceRUB} ₽`}
             </option>
           ))}
         </select>
@@ -96,7 +102,7 @@ export default function BookingWidget() {
         {serviceCode && (
           <p className="text-[11px] text-gray-500">
             {
-              servicesPricing.find((s) => s.code === serviceCode)
+              services.find((s) => s.code === serviceCode)
                 ?.description
             }
           </p>
