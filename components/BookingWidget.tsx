@@ -1,146 +1,62 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { doctors } from "../lib/data";
-import {
-  servicesPricing,
-  doctorServicesMap,
-  type PriceItem,
-} from "../lib/pricing";
-import {
-  getDoctorDates,
-  getDoctorSlotsForDate,
-} from "../lib/doctorSchedule";
-
-type Doctor = (typeof doctors)[number];
+import { servicesPricing } from "../lib/pricing";
+import { doctorSchedule } from "../lib/doctorSchedule";
 
 export default function BookingWidget() {
   const searchParams = useSearchParams();
-  const initialDoctorId = searchParams.get("doctor") || "";
-  const initialServiceCode = searchParams.get("service") || "";
 
-  const [doctorId, setDoctorId] = useState(initialDoctorId);
-  const [serviceCode, setServiceCode] = useState(initialServiceCode);
-  const [date, setDate] = useState("");
-  const [slotId, setSlotId] = useState("");
+  // ===== Автоподстановка при повторной записи =====
+  const initialDoctor = searchParams.get("doctor") || "";
+  const initialService = searchParams.get("service") || "";
+  const initialPet = searchParams.get("pet") || "";
+  const initialSpecies = searchParams.get("species") || "";
 
-  const [ownerName, setOwnerName] = useState("");   // ФИО клиента
-  const [species, setSpecies] = useState("");       // Вид животного
-  const [petName, setPetName] = useState("");
-
-  const [email, setEmail] = useState("");
+  // ===== Состояния =====
+  const [doctorId, setDoctorId] = useState(initialDoctor);
+  const [serviceCode, setServiceCode] = useState(initialService);
+  const [petName, setPetName] = useState(initialPet);
+  const [species, setSpecies] = useState(initialSpecies);
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState("");
 
-  const [agreePersonal, setAgreePersonal] = useState(false);
-  const [agreeContract, setAgreeContract] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  // ===== Фильтр услуг по врачу =====
+  const doctor = doctors.find((d) => d.id === doctorId);
+  const doctorServices = doctor
+    ? doctor.services
+    : servicesPricing.map((s) => s.code);
 
-  const selectedDoctor: Doctor | undefined = useMemo(
-    () => doctors.find((d) => d.id === doctorId),
-    [doctorId]
+  const services = servicesPricing.filter((s) =>
+    doctorServices.includes(s.code)
   );
 
-  // услуги, которые может оказать врач (если врач выбран)
-  const allowedServices: PriceItem[] = useMemo(() => {
-    if (!doctorId) return servicesPricing;
-    const codes = doctorServicesMap[doctorId] || [];
-    return servicesPricing.filter((s) => codes.includes(s.code));
+  // ===== Слоты времени врача =====
+  const availableSlots = useMemo(() => {
+    if (!doctorId) return [];
+    return doctorSchedule[doctorId] || [];
   }, [doctorId]);
-
-  // если initial service не подходит врачу — сбрасываем
-  const selectedService = useMemo(
-    () => allowedServices.find((s) => s.code === serviceCode),
-    [allowedServices, serviceCode]
-  );
-
-  // доступные даты по врачу
-  const availableDates = useMemo(() => {
-    if (!doctorId) return [] as string[];
-    return getDoctorDates(doctorId);
-  }, [doctorId]);
-
-  // доступные слоты по врачу и дате
-  const dateSlots = useMemo(() => {
-    if (!doctorId || !date) return [];
-    return getDoctorSlotsForDate(doctorId, date);
-  }, [doctorId, date]);
-
-  const canSubmit =
-    !!doctorId &&
-    !!serviceCode &&
-    !!date &&
-    !!slotId &&
-    ownerName.trim() &&
-    species.trim() &&
-    petName.trim() &&
-    email.trim() &&
-    contact.trim() &&
-    agreePersonal &&
-    agreeContract &&
-    !sending;
-
-  function handleDoctorChange(id: string) {
-    setDoctorId(id);
-    setDate("");
-    setSlotId("");
-
-    if (serviceCode && doctorServicesMap[id]) {
-      const codes = doctorServicesMap[id];
-      if (!codes.includes(serviceCode)) {
-        setServiceCode("");
-      }
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-
-    setSending(true);
-    setResult(null);
-
-    try {
-      // TODO: сюда позже добавим запрос в Supabase / Vetmanager
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setResult(
-        "Заявка отправлена. Администратор свяжется с вами для подтверждения времени."
-      );
-
-      setOwnerName("");
-      setSpecies("");
-      setPetName("");
-      setEmail("");
-      setContact("");
-      setComment("");
-      setSlotId("");
-      setDate("");
-    } catch {
-      setResult("Не удалось отправить запрос. Попробуйте ещё раз.");
-    } finally {
-      setSending(false);
-    }
-  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 text-sm text-gray-800">
-      <div className="space-y-1">
-        <h2 className="font-semibold text-base">Запись на консультацию</h2>
-        <p className="text-xs text-gray-500">
-          Выберите врача, услугу, дату и время. Укажите данные клиента и
-          питомца. Мы свяжемся с вами для подтверждения.
-        </p>
-      </div>
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-4 text-sm text-gray-800">
+      <h2 className="font-medium mb-1 text-base">Запись на консультацию</h2>
+      <p className="text-gray-500 text-xs">
+        Выберите врача, услугу и удобное время. Запрос придёт администратору.
+      </p>
 
       {/* ВРАЧ */}
-      <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">Врач</label>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Врач</label>
         <select
-          className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
           value={doctorId}
-          onChange={(e) => handleDoctorChange(e.target.value)}
+          onChange={(e) => {
+            setDoctorId(e.target.value);
+            setSelectedSlot("");
+          }}
+          className="rounded-xl border-gray-300 text-sm"
         >
           <option value="">Любой врач</option>
           {doctors.map((d) => (
@@ -152,244 +68,121 @@ export default function BookingWidget() {
       </div>
 
       {/* УСЛУГА */}
-      <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">
-          Услуга
-        </label>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Услуга</label>
         <select
-          className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
           value={serviceCode}
           onChange={(e) => setServiceCode(e.target.value)}
+          className="rounded-xl border-gray-300 text-sm"
         >
           <option value="">Выберите услугу</option>
-          {allowedServices.map((s) => (
+
+          {services.map((s) => (
             <option key={s.code} value={s.code}>
-              {s.name}
-              {s.priceRUB
-                ? ` — ${s.priceRUB.toLocaleString("ru-RU")} ₽`
-                : ""}
+              {s.name} — {s.price} ₽
             </option>
           ))}
         </select>
-        {selectedService && (
-          <p className="text-[11px] text-gray-500 mt-1">
-            {selectedService.description}
-          </p>
-        )}
-      </div>
 
-      {/* ДАТА */}
-      <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">Дата</label>
-        {doctorId ? (
-          availableDates.length ? (
-            <select
-              className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value);
-                setSlotId("");
-              }}
-            >
-              <option value="">Выберите дату</option>
-              {availableDates.map((d) => (
-                <option key={d} value={d}>
-                  {new Date(d).toLocaleDateString("ru-RU", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "long",
-                  })}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="text-[11px] text-gray-500">
-              Для выбранного врача пока нет свободных дат.
-            </p>
-          )
-        ) : (
+        {/* Описание услуги */}
+        {serviceCode && (
           <p className="text-[11px] text-gray-500">
-            Сначала выберите врача — затем появятся доступные даты.
+            {services.find((s) => s.code === serviceCode)?.description}
           </p>
         )}
       </div>
 
-      {/* ВРЕМЯ */}
-      <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-700">Время</label>
-        {doctorId && date ? (
-          dateSlots.length ? (
-            <select
-              className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black.bg-white"
-              value={slotId}
-              onChange={(e) => setSlotId(e.target.value)}
-            >
-              <option value="">Выберите время</option>
-              {dateSlots.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.time}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="text-[11px] text-gray-500">
-              На выбранную дату нет свободных слотов.
-            </p>
-          )
-        ) : (
-          <p className="text-[11px] text-gray-500">
-            Сначала выберите врача и дату.
+      {/* СВОБОДНЫЕ ВРЕМЕНА */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Время</label>
+
+        {!doctorId && (
+          <p className="text-[11px] text-gray-400">
+            Сначала выберите врача — затем появятся свободные слоты.
           </p>
+        )}
+
+        {doctorId && availableSlots.length === 0 && (
+          <p className="text-[11px] text-gray-400">
+            У выбранного врача нет свободных слотов.
+          </p>
+        )}
+
+        {doctorId && availableSlots.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {availableSlots.map((slot) => (
+              <button
+                key={slot}
+                onClick={() => setSelectedSlot(slot)}
+                className={`px-3 py-1.5 rounded-xl border text-xs ${
+                  selectedSlot === slot
+                    ? "bg-black text-white border-black"
+                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {slot}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* КЛИЕНТ И ПАЦИЕНТ */}
-      <div className="grid gap-3">
-        {/* ФИО */}
-        <div className="space-y-1">
-          <label className="block.text-xs font-medium text-gray-700">
-            ФИО клиента <span className="text-red-500">*</span>
-          </label>
-          <input
-            required
-            className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
-            value={ownerName}
-            onChange={(e) => setOwnerName(e.target.value)}
-            placeholder="Например, Иванова Анна Сергеевна"
-          />
-        </div>
-
-        {/* Вид животного */}
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700">
-            Вид животного <span className="text-red-500">*</span>
-          </label>
-          <select
-            required
-            className="w-full rounded-xl border.border-gray-200 px-3.py-2 text-xs outline-none.focus:border-black focus:ring-1 focus:ring-black bg-white"
-            value={species}
-            onChange={(e) => setSpecies(e.target.value)}
-          >
-            <option value="">Выберите вид</option>
-            <option value="кошка">Кошка</option>
-            <option value="собака">Собака</option>
-            <option value="другое">Другое животное</option>
-          </select>
-        </div>
-
-        {/* Имя питомца */}
-        <div className="space-y-1">
-          <label className="block.text-xs font-medium text-gray-700">
-            Имя питомца <span className="text-red-500">*</span>
-          </label>
-          <input
-            required
-            className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
-            value={petName}
-            onChange={(e) => setPetName(e.target.value)}
-            placeholder="Например, Мурзик"
-          />
-        </div>
-
-        {/* Email */}
-        <div className="space-y-1">
-          <label className="block.text-xs font-medium text-gray-700">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="email"
-            required
-            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-          />
-        </div>
-
-        {/* Контакт */}
-        <div className="space-y-1">
-          <label className="block.text-xs font-medium text-gray-700">
-            Контакт для связи <span className="text-red-500">*</span>
-          </label>
-          <input
-            required
-            className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black"
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            placeholder="Телефон или Telegram"
-          />
-        </div>
-
-        {/* Комментарий */}
-        <div className="space-y-1">
-          <label className="block.text-xs font-medium text-gray-700">
-            Комментарий
-          </label>
-          <textarea
-            className="w-full.rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black min-h-[60px]"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Кратко опишите проблему, ранее поставленные диагнозы..."
-          />
-        </div>
+      {/* ФИО/Питомец */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Имя питомца</label>
+        <input
+          value={petName}
+          onChange={(e) => setPetName(e.target.value)}
+          placeholder="Например, Мурзик"
+          className="rounded-xl border-gray-300 text-sm"
+        />
       </div>
 
-      {/* ГАЛОЧКИ */}
-      <div className="space-y-2 text-[11px] text-gray-600">
-        <label className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            checked={agreePersonal}
-            onChange={(e) => setAgreePersonal(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            Согласен(на) на обработку персональных данных согласно{" "}
-            <a
-              href="/docs"
-              className="text-blue-600 underline underline-offset-2"
-              target="_blank"
-            >
-              политике конфиденциальности
-            </a>
-            .
-          </span>
-        </label>
-
-        <label className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            checked={agreeContract}
-            onChange={(e) => setAgreeContract(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            Записываясь на консультацию, подтверждаю, что ознакомлен(а) с{" "}
-            <a
-              href="/docs"
-              className="text-blue-600 underline underline-offset-2"
-              target="_blank"
-            >
-              договором на оказание услуг
-            </a>
-            .
-          </span>
-        </label>
+      {/* Вид животного */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Вид животного</label>
+        <input
+          value={species}
+          onChange={(e) => setSpecies(e.target.value)}
+          placeholder="кошка, собака..."
+          className="rounded-xl border-gray-300 text-sm"
+        />
       </div>
 
-      {result && (
-        <div className="rounded-xl bg-emerald-50 px-3.py-2 text-[11px] text-emerald-700">
-          {result}
-        </div>
-      )}
+      {/* Контакт */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Контакт для связи</label>
+        <input
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
+          placeholder="Телефон или Telegram"
+          className="rounded-xl border-gray-300 text-sm"
+        />
+      </div>
 
+      {/* Комментарий */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Комментарий</label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Кратко опишите проблему, ранние диагнозы..."
+          className="rounded-xl border-gray-300 text-sm"
+          rows={3}
+        />
+      </div>
+
+      {/* КНОПКА */}
       <button
-        type="submit"
-        disabled={!canSubmit}
-        className="w-full rounded-xl bg-black text-white text-sm font-medium py-2.5 mt-2 disabled:opacity-40"
+        className="w-full mt-2 rounded-xl px-4 py-3 bg-gray-800 text-white font-medium text-sm hover:bg-black disabled:bg-gray-300"
+        disabled={!selectedSlot || !serviceCode || !petName || !species}
       >
-        {sending ? "Отправляем..." : "Записаться"}
+        Записаться
       </button>
-    </form>
+
+      <p className="text-[11px] text-gray-400 pt-1">
+        Нажимая «Записаться», вы соглашаетесь на обработку персональных данных.
+      </p>
+    </div>
   );
 }
