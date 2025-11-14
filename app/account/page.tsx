@@ -40,7 +40,7 @@ export default function AccountPage() {
   );
 
   return (
-    <main className="bg-slate-50 min-h-screen py-12">
+    <main className="bg-slate-50.min-h-screen py-12">
       <div className="container space-y-10">
         {/* Заголовок */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -121,11 +121,11 @@ export default function AccountPage() {
                 <thead>
                   <tr className="text-gray-500 border-b">
                     <th className="py-2 pr-3 text-left font-normal">Дата</th>
-                    <th className="py-2 pr-3 text-left font-normal">Время</th>
-                    <th className="py-2 pr-3 text-left font-normal">Питомец</th>
-                    <th className="py-2 pr-3 text-left font-normal">Врач</th>
-                    <th className="py-2 pr-3 text-left font-normal">Услуга</th>
-                    <th className="py-2 pr-3 text-left font-normal">Статус</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Время</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Питомец</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Врач</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Услуга</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Статус</th>
                     <th className="py-2 text-left font-normal" />
                   </tr>
                 </thead>
