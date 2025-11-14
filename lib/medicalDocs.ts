@@ -1,19 +1,14 @@
-// lib/medicalDocs.ts
-export const medicalDocuments = mockMedicalDocs;
+// Данные документов пользователя
+
 export type MedicalDocument = {
   id: string;
   appointmentId: string;
   petName: string;
   title: string;
-  type: "analysis" | "conclusion" | "prescription" | "other";
+  type: "analysis" | "conclusion" | "contract" | "other";
   createdAt: string;
-  url: string;
 };
 
-//
-// ❗️ Временная фейковая база, чтобы сборка проходила.
-// Позже заменим на Supabase.
-//
 export const mockMedicalDocs: MedicalDocument[] = [
   {
     id: "doc1",
@@ -21,28 +16,14 @@ export const mockMedicalDocs: MedicalDocument[] = [
     petName: "Мурзик",
     title: "Заключение врача",
     type: "conclusion",
-    createdAt: "2025-11-14T10:20:00",
-    url: "/docs/example.pdf",
+    createdAt: "2025-11-15T10:20:00"
   },
   {
     id: "doc2",
     appointmentId: "a1",
     petName: "Мурзик",
-    title: "Анализы крови",
+    title: "Общий анализ крови",
     type: "analysis",
-    createdAt: "2025-11-14T10:40:00",
-    url: "/docs/example.pdf",
-  },
+    createdAt: "2025-11-15T10:40:00"
+  }
 ];
-
-export function getDocsByAppointment(appointmentId: string) {
-  return mockMedicalDocs.filter((d) => d.appointmentId === appointmentId);
-}
-
-export function getDocsByPet(petName: string) {
-  return mockMedicalDocs.filter((d) => d.petName === petName);
-}
-
-export function getAllDocs() {
-  return mockMedicalDocs;
-}
