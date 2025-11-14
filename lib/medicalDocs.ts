@@ -1,5 +1,5 @@
 // lib/medicalDocs.ts
-
+export const medicalDocuments = mockMedicalDocs;
 export type MedicalDocument = {
   id: string;
   appointmentId: string;
