@@ -56,12 +56,11 @@ export default async function RegistrarClientDetailsPage({
                 </div>
 
                 {owner.city && (
-                  <div className="text-xs text-gray-700">
+                  <div className="text-xs text_gray-700">
                     Город: {owner.city}
                   </div>
                 )}
 
-                {/* extra_contacts мы пока не распарсиваем детально, просто фиксируем факт */}
                 {owner.extra_contacts && (
                   <div className="text-[11px] text-gray-500">
                     Дополнительные контакты хранятся в поле{" "}
@@ -116,7 +115,12 @@ export default async function RegistrarClientDetailsPage({
                           className="border-b last:border-0 hover:bg-gray-50"
                         >
                           <td className="px-2 py-2 align-top">
-                            {p.name}
+                            <Link
+                              href={`/backoffice/registrar/pets/${p.id}`}
+                              className="text-[11px] font-medium text-emerald-700 hover:underline"
+                            >
+                              {p.name}
+                            </Link>
                           </td>
                           <td className="px-2 py-2 align-top">
                             {p.species || "—"}
@@ -150,9 +154,9 @@ export default async function RegistrarClientDetailsPage({
                   <code className="rounded bg-gray-50 px-1">
                     appointments
                   </code>{" "}
-                  ещё не заполняется при создании записей. В новых
-                  консультациях, созданных через регистратуру с выбором
-                  клиента, это поле будет заполняться автоматически.
+                  ещё не заполняется для старых записей. Новые, созданные
+                  через регистратуру с выбором клиента, будут появляться
+                  здесь.
                 </p>
               )}
 
