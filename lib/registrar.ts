@@ -13,6 +13,7 @@ export type RegistrarAppointmentRow = {
   clientContact?: string;
   petName?: string;
   petSpecies?: string;
+  doctorId?: string;
   doctorName?: string;
   serviceName: string;
   serviceCode?: string;
@@ -32,7 +33,7 @@ async function getAppointmentsFromDb(): Promise<
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "id, date, time, client_name, client_contact, pet_name, pet_species, doctor_name, service_code, service_name, status, created_at"
+        "id, date, time, client_name, client_contact, pet_name, pet_species, doctor_id, doctor_name, service_code, service_name, status, created_at"
       )
       .order("date", { ascending: true })
       .order("time", { ascending: true });
@@ -59,6 +60,7 @@ async function getAppointmentsFromDb(): Promise<
         clientContact: row.client_contact ?? "",
         petName: row.pet_name ?? "",
         petSpecies: row.pet_species ?? "",
+        doctorId: row.doctor_id ?? undefined,
         doctorName: row.doctor_name ?? "Не назначен",
         serviceName: row.service_name ?? "Услуга",
         serviceCode: row.service_code ?? "",
@@ -101,6 +103,7 @@ async function getAppointmentsFromMocks(): Promise<
       clientContact: a.clientContact ?? "",
       petName: a.petName ?? "",
       petSpecies: a.petSpecies ?? "",
+      doctorId: a.doctorId ?? undefined,
       doctorName: doctor?.name ?? a.doctorName ?? "Не назначен",
       serviceName: service?.name ?? a.serviceName ?? "Услуга",
       serviceCode: service?.code ?? a.serviceCode ?? "",
