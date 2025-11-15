@@ -17,7 +17,8 @@ export default function Navbar() {
     }
 
     const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
+      // Здесь мы уверены, что supabase не null, поэтому используем supabase!
+      const { data } = await supabase!.auth.getUser();
       const metaRole =
         (data.user?.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
@@ -25,13 +26,14 @@ export default function Navbar() {
 
     getUser();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
+    const { data: sub } = supabase!.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
           setRole("guest");
         } else {
           const metaRole =
-            (session.user.user_metadata?.role as AuthRole | undefined) ?? "user";
+            (session.user.user_metadata?.role as AuthRole | undefined) ??
+            "user";
           setRole(metaRole === "staff" ? "staff" : "user");
         }
       }
@@ -44,7 +46,7 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     if (!supabase) return;
-    await supabase.auth.signOut();
+    await supabase!.auth.signOut();
     setRole("guest");
     if (typeof window !== "undefined") {
       window.location.href = "/";
@@ -72,7 +74,7 @@ export default function Navbar() {
           OnlyVet
         </Link>
 
-        {/* Основное меню */}
+        {/* Меню */}
         <nav className="hidden sm:flex items-center gap-4 text-xs text-gray-700">
           <Link href="/services" className="hover:text-black transition-colors">
             Услуги
@@ -95,7 +97,7 @@ export default function Navbar() {
             {authLabel}
           </Link>
 
-          {/* Кнопка "Выйти" только если авторизован */}
+          {/* Выйти */}
           {isLoggedIn && (
             <button
               type="button"
