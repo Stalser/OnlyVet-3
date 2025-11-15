@@ -7,6 +7,7 @@ import {
 } from "@/lib/registrar";
 import { getOwnersSummary } from "@/lib/clients";
 import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
+import { RegistrarRecentConsultationsClient } from "@/components/registrar/RegistrarRecentConsultationsClient";
 
 export default async function RegistrarDashboardPage() {
   const [appointments, owners] = await Promise.all([
@@ -36,17 +37,13 @@ export default async function RegistrarDashboardPage() {
         {/* Мини-картотека клиентов */}
         <RegistrarClientsMini owners={owners} />
 
-        {/* Последние консультации */}
+        {/* Последние консультации с мини-фильтрами */}
         <section className="rounded-2xl border bg-white p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">
                 Последние консультации и заявки
               </h2>
-              <p className="text-xs text-gray-500">
-                Показаны последние {appointments.length} записей,
-                отсортированные по дате.
-              </p>
             </div>
             <Link
               href="/backoffice/registrar/consultations"
@@ -56,99 +53,7 @@ export default async function RegistrarDashboardPage() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                  <th className="px-2 py-2">№</th>
-                  <th className="px-2 py-2">Дата / время</th>
-                  <th className="px-2 py-2">Клиент</th>
-                  <th className="px-2 py-2">Питомец</th>
-                  <th className="px-2 py-2">Врач</th>
-                  <th className="px-2 py-2">Услуга</th>
-                  <th className="px-2 py-2">Статус</th>
-                  <th className="px-2 py-2 text-right">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {appointments.map((a, index) => (
-                  <tr
-                    key={a.id}
-                    className="border-b last:border-0 hover:bg-gray-50"
-                  >
-                    <td className="px-2 py-2 align-top">
-                      {index + 1}
-                    </td>
-                    <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                      <div>{a.dateLabel}</div>
-                      {a.createdLabel && (
-                        <div className="text-[10px] text-gray-400">
-                          создано: {a.createdLabel}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px] font-medium">
-                        {a.clientName}
-                      </div>
-                      {a.clientContact && (
-                        <div className="text-[10px] text-gray-500">
-                          {a.clientContact}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px]">
-                        {a.petName || "—"}
-                      </div>
-                      {a.petSpecies && (
-                        <div className="text-[10px] text-gray-500">
-                          {a.petSpecies}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px]">
-                        {a.doctorName || "Не назначен"}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px]">{a.serviceName}</div>
-                      {a.serviceCode && (
-                        <div className="text-[10px] text-gray-500">
-                          {a.serviceCode}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        {a.statusLabel}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 align-top text-right">
-                      <Link
-                        href={`/backoffice/registrar/consultations/${a.id}`}
-                        className="text-[11px] font-medium text-emerald-700 hover:underline"
-                      >
-                        Открыть
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-
-                {appointments.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-2 py-8 text-center text-xs text-gray-400"
-                    >
-                      Пока нет ни одной консультации.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <RegistrarRecentConsultationsClient appointments={appointments} />
         </section>
       </main>
     </RoleGuard>
