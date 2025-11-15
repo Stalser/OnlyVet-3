@@ -1,30 +1,158 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { doctors } from "@/lib/data";
 import { servicesPricing } from "@/lib/pricing";
 import { useRouter } from "next/navigation";
 
+type OwnerOption = {
+  id: string;   // user_id в owner_profiles, строкой
+  label: string;
+};
+
+type PetOption = {
+  id: string;   // pets.id (uuid)
+  label: string;
+  species?: string | null;
+};
+
 export function RegistrarCreateAppointment() {
   const router = useRouter();
 
+  // врач / услуга
   const [doctorId, setDoctorId] = useState<string>(
     doctors[0]?.id ?? ""
   );
   const [serviceCode, setServiceCode] = useState<string>(
     servicesPricing[0]?.code ?? ""
   );
-  const [clientName, setClientName] = useState(""); // пока не используем в БД
-  const [clientContact, setClientContact] = useState(""); // тоже
+
+  // визуальные данные клиента (пока не сохраняем отдельно)
+  const [clientName, setClientName] = useState("");
+  const [clientContact, setClientContact] = useState("");
+
+  // питомец
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
+
+  // дата/время
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+
+  // ошибки/загрузка
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
   );
+
+  // клиенты и их питомцы
+  const [owners, setOwners] = useState<OwnerOption[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(true);
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>("");
+
+  const [pets, setPets] = useState<PetOption[]>([]);
+  const [petsLoading, setPetsLoading] = useState(false);
+  const [selectedPetId, setSelectedPetId] = useState<string>("");
+
+  // ▫️ грузим список клиентов (owner_profiles)
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadOwners() {
+      if (!supabase) {
+        setOwnersLoading(false);
+        return;
+      }
+
+      setOwnersLoading(true);
+      const { data, error } = await supabase
+        .from("owner_profiles")
+        .select("*")
+        .order("full_name", { ascending: true });
+
+      if (!ignore) {
+        if (!error && data) {
+          const opts: OwnerOption[] = data.map((o: any) => ({
+            id: String(o.user_id),
+            label: o.full_name || `Клиент ${o.user_id}`,
+          }));
+          setOwners(opts);
+          if (opts.length > 0) {
+            setSelectedOwnerId(opts[0].id);
+          }
+        }
+        setOwnersLoading(false);
+      }
+    }
+
+    loadOwners();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // ▫️ грузим питомцев выбранного клиента
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPets() {
+      if (!supabase || !selectedOwnerId) {
+        setPets([]);
+        return;
+      }
+
+      setPetsLoading(true);
+
+      const ownerKey = parseInt(selectedOwnerId, 10);
+      if (Number.isNaN(ownerKey)) {
+        setPets([]);
+        setPetsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("pets")
+        .select("*")
+        .eq("owner_id", ownerKey)
+        .order("name", { ascending: true });
+
+      if (!ignore) {
+        if (!error && data) {
+          const opts: PetOption[] = data.map((p: any) => ({
+            id: String(p.id),
+            label: p.name || "Без имени",
+            species: p.species ?? null,
+          }));
+          setPets(opts);
+        } else {
+          setPets([]);
+        }
+        setPetsLoading(false);
+      }
+    }
+
+    loadPets();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedOwnerId]);
+
+  // ▫️ при выборе питомца подставляем имя/вид, если ещё пусто
+  useEffect(() => {
+    if (!selectedPetId) return;
+    const pet = pets.find((p) => p.id === selectedPetId);
+    if (!pet) return;
+
+    setPetName((prev) => prev || pet.label);
+    setPetSpecies((prev) => prev || pet.species || "");
+  }, [selectedPetId, pets]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -44,19 +172,28 @@ export function RegistrarCreateAppointment() {
     setSaving(true);
     setErrorMessage(null);
 
-    // Собираем дату/время в один timestamptz
-    // (для простоты используем локальную зону, Supabase примет ISO-строку)
     const startsAt = new Date(`${date}T${time}`);
+
+    // owner_id — bigint
+    let owner_id: number | null = null;
+    if (selectedOwnerId) {
+      const parsed = parseInt(selectedOwnerId, 10);
+      if (!Number.isNaN(parsed)) owner_id = parsed;
+    }
+
+    // pet_id — uuid (строка)
+    const pet_id = selectedPetId || null;
 
     const { data, error } = await supabase
       .from("appointments")
       .insert({
-        // user_id, owner_id, doctor_id можно добавить позже, когда привяжем к реальным сущностям
         starts_at: startsAt.toISOString(),
         status: "запрошена",
         pet_name: petName || null,
         species: petSpecies || null,
         service_code: serviceCode,
+        owner_id,
+        pet_id,
       })
       .select("id")
       .single();
@@ -68,17 +205,17 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // Сбрасываем форму
+    // сброс формы
     setClientName("");
     setClientContact("");
     setPetName("");
     setPetSpecies("");
     setDate("");
     setTime("");
+    setSelectedPetId("");
 
     setSaving(false);
 
-    // Обновляем список и переходим на карточку
     router.refresh();
     router.push(`/backoffice/registrar/consultations/${data.id}`);
   };
@@ -89,9 +226,9 @@ export function RegistrarCreateAppointment() {
         Создать новую консультацию
       </h2>
       <p className="text-xs text-gray-500">
-        Регистратор может вручную создать запись: по звонку, мессенджеру
-        или при обращении постоянного клиента. Позже здесь появится
-        привязка к карточке клиента и пациента.
+        Регистратор может создать запись на основании обращения клиента.
+        При выборе клиента и питомца консультация будет привязана к их
+        картотеке.
       </p>
 
       {errorMessage && (
@@ -104,15 +241,45 @@ export function RegistrarCreateAppointment() {
         onSubmit={handleSubmit}
         className="grid gap-3 md:grid-cols-2"
       >
-        {/* Клиент (пока только визуально, в БД не сохраняем) */}
+        {/* Клиент */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
-            Клиент (пока без сохранения в БД)
+            Клиент
           </div>
           <div className="space-y-2">
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Имя клиента
+                Клиент из картотеки (owner_profiles)
+              </label>
+              {ownersLoading ? (
+                <div className="text-[11px] text-gray-400">
+                  Загружаем клиентов…
+                </div>
+              ) : owners.length === 0 ? (
+                <div className="text-[11px] text-gray-400">
+                  Клиентов пока нет в таблице owner_profiles.
+                </div>
+              ) : (
+                <select
+                  value={selectedOwnerId}
+                  onChange={(e) => {
+                    setSelectedOwnerId(e.target.value);
+                    setSelectedPetId("");
+                  }}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  {owners.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Имя клиента (для примечаний)
               </label>
               <input
                 type="text"
@@ -122,6 +289,7 @@ export function RegistrarCreateAppointment() {
                 placeholder="Например, Иван Иванов"
               />
             </div>
+
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Контакт (телефон / e-mail / Telegram)
@@ -143,6 +311,41 @@ export function RegistrarCreateAppointment() {
             Питомец
           </div>
           <div className="space-y-2">
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Питомец из базы (pets)
+              </label>
+              {selectedOwnerId && petsLoading && (
+                <div className="text-[11px] text-gray-400">
+                  Загружаем питомцев…
+                </div>
+              )}
+              {selectedOwnerId && !petsLoading && pets.length > 0 && (
+                <select
+                  value={selectedPetId}
+                  onChange={(e) => setSelectedPetId(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  <option value="">Не выбрано</option>
+                  {pets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedOwnerId && !petsLoading && pets.length === 0 && (
+                <div className="text-[11px] text-gray-400">
+                  У этого клиента пока нет ни одного питомца в таблице pets.
+                </div>
+              )}
+              {!selectedOwnerId && (
+                <div className="text-[11px] text-gray-400">
+                  Сначала выберите клиента, чтобы увидеть его питомцев.
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Имя питомца
@@ -170,7 +373,7 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Врач и услуга (пока только услуга уходит в БД) */}
+        {/* Врач и услуга */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
             Врач и услуга
@@ -247,9 +450,7 @@ export function RegistrarCreateAppointment() {
               disabled={saving}
               className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
-              {saving
-                ? "Создаём консультацию…"
-                : "Создать консультацию"}
+              {saving ? "Создаём консультацию…" : "Создать консультацию"}
             </button>
           </div>
         </div>
