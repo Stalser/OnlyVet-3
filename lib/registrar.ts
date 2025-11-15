@@ -31,7 +31,7 @@ async function getAppointmentsFromDb(
   let query = supabase
     .from("appointments")
     .select(
-      "id, starts_at, created_at, owner_id, status, pet_name, species, service_code, doctor_id"
+      "id, starts_at, created_at, owner_id, status, pet_name, species, service_code, doctor_id, contact_info"
     )
     .order("starts_at", { ascending: false });
 
@@ -73,7 +73,8 @@ async function getAppointmentsFromDb(
     );
     const serviceName = service?.name ?? "Услуга";
 
-    // Клиент — пока нет owner-привязки, позже добавим
+    // Клиента пока не тащим из owner_profiles — позже добавим,
+    // сейчас хотя бы есть контакт
     const clientName = "Без имени";
 
     return {
@@ -81,7 +82,7 @@ async function getAppointmentsFromDb(
       dateLabel,
       createdLabel,
       clientName,
-      clientContact: "",
+      clientContact: row.contact_info ?? "",
       petName: row.pet_name ?? "",
       petSpecies: row.species ?? "",
       doctorId: row.doctor_id ?? undefined,
@@ -93,27 +94,21 @@ async function getAppointmentsFromDb(
   });
 }
 
-/**
- * Все консультации (для страницы "Все консультации и заявки").
- */
+/** Все консультации (для страницы "Все консультации и заявки"). */
 export async function getRegistrarAppointments(): Promise<
   RegistrarAppointmentRow[]
 > {
   return getAppointmentsFromDb();
 }
 
-/**
- * Последние N консультаций (для дашборда регистратуры).
- */
+/** Последние N консультаций (для дашборда регистратуры). */
 export async function getRecentRegistrarAppointments(
   limit = 10
 ): Promise<RegistrarAppointmentRow[]> {
   return getAppointmentsFromDb(limit);
 }
 
-/**
- * Получить одну консультацию по id.
- */
+/** Одна консультация по id. */
 export async function getRegistrarAppointmentById(
   id: string
 ): Promise<RegistrarAppointmentRow | null> {
