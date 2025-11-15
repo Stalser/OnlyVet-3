@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
-import { getRegistrarAppointments } from "@/lib/registrar";
 import { RegistrarCreateAppointment } from "@/components/registrar/RegistrarCreateAppointment";
+import { getRecentRegistrarAppointments } from "@/lib/registrar";
 
 export default async function RegistrarDashboardPage() {
-  const appointments = await getRegistrarAppointments();
+  const appointments = await getRecentRegistrarAppointments(10);
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-        <header className="flex items-center justify_between">
+        <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               Кабинет регистратуры
@@ -25,20 +25,23 @@ export default async function RegistrarDashboardPage() {
         {/* Блок создания новой консультации */}
         <RegistrarCreateAppointment />
 
-        {/* Таблица всех консультаций */}
+        {/* Таблица последних консультаций */}
         <section className="rounded-2xl border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">
-                Все консультации и заявки
+                Последние консультации и заявки
               </h2>
               <p className="text-xs text-gray-500">
-                Список всех записей по клиентам и врачам
-                {appointments.length === 0
-                  ? ""
-                  : ` (${appointments.length})`}
+                Показаны последние {appointments.length} записей, отсортированные по дате.
               </p>
             </div>
+            <Link
+              href="/backoffice/registrar/consultations"
+              className="text-xs font-medium text-emerald-700 hover:underline"
+            >
+              Все консультации и заявки
+            </Link>
           </div>
 
           <div className="overflow-x-auto">
