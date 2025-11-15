@@ -15,7 +15,11 @@ export function RoleGuard({
   const { user, loading } = useCurrentUser();
 
   if (loading) {
-    return <div className="p-4 text-gray-500 text-sm">Загрузка…</div>;
+    return (
+      <div className="p-4 text-sm text-gray-500">
+        Проверяем доступ…
+      </div>
+    );
   }
 
   if (!user || !allowed.includes(user.role)) {
