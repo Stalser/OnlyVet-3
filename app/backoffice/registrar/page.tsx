@@ -2,14 +2,22 @@ import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { RegistrarCreateAppointment } from "@/components/registrar/RegistrarCreateAppointment";
-import { getRecentRegistrarAppointments } from "@/lib/registrar";
+import {
+  getRecentRegistrarAppointments,
+} from "@/lib/registrar";
+import { getOwnersSummary } from "@/lib/clients";
+import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
 
 export default async function RegistrarDashboardPage() {
-  const appointments = await getRecentRegistrarAppointments(10);
+  const [appointments, owners] = await Promise.all([
+    getRecentRegistrarAppointments(10),
+    getOwnersSummary(),
+  ]);
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+        {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -22,10 +30,13 @@ export default async function RegistrarDashboardPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Блок создания новой консультации */}
+        {/* Создание консультации */}
         <RegistrarCreateAppointment />
 
-        {/* Таблица последних консультаций */}
+        {/* Мини-картотека клиентов */}
+        <RegistrarClientsMini owners={owners} />
+
+        {/* Последние консультации */}
         <section className="rounded-2xl border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -33,7 +44,8 @@ export default async function RegistrarDashboardPage() {
                 Последние консультации и заявки
               </h2>
               <p className="text-xs text-gray-500">
-                Показаны последние {appointments.length} записей, отсортированные по дате.
+                Показаны последние {appointments.length} записей,
+                отсортированные по дате.
               </p>
             </div>
             <Link
