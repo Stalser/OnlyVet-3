@@ -81,7 +81,7 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-6">
-        <div className="text-xs text-gray-500 flex justify-between.items-center">
+        <div className="text-xs text-gray-500 flex justify-between items-center">
           <Link href="/staff" className="hover:text-gray-800">
             ← Назад в кабинет сотрудника
           </Link>
@@ -129,7 +129,7 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
         <div className="grid lg:grid-cols-3 gap-4 items-start">
           {/* Заметки врача — левый большой блок */}
           <section className="lg:col-span-2">
-            <NotesBlock />
+            <NotesBlock appointmentId={sourceAppointment.id} />
           </section>
 
           {/* Правая колонка: заметки администратора, пациент, клиент, документы */}
@@ -144,7 +144,6 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
                 особенности владельца, нюансы общения, технические детали
                 связи, комментарии по оплате и т.п.
               </p>
-              {/* Пока заглушка. Позже можно подгружать реальные данные из БД */}
               <p className="text-xs text-gray-700">
                 Нет особых пометок. Пациент впервые обращается в OnlyVet.{" "}
                 (заглушка)
@@ -294,7 +293,7 @@ function TimerBlock() {
       <button
         type="button"
         onClick={reset}
-        className="rounded-lg px-2.py-1 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
+        className="rounded-lg px-2 py-1 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
       >
         Сброс
       </button>
@@ -302,9 +301,9 @@ function TimerBlock() {
   );
 }
 
-/* ---------- Заметки врача: редактор + файлы ---------- */
+/* ---------- Заметки врача: редактор + файлы + сохранение в appointment_notes ---------- */
 
-function NotesBlock() {
+function NotesBlock({ appointmentId }: { appointmentId: string }) {
   const editorRef = useRef<HTMLDivElement | null>(null);
 
   type Attachment = {
@@ -316,6 +315,37 @@ function NotesBlock() {
 
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Загрузка уже сохранённой заметки
+  useEffect(() => {
+    if (!supabase || !editorRef.current) return;
+
+    const loadNote = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("appointment_notes")
+          .select("content")
+          .eq("appointment_id", appointmentId)
+          .maybeSingle();
+
+        if (error) {
+          console.error(error);
+          setLoadError("Не удалось загрузить заметки из базы.");
+          return;
+        }
+
+        if (data && data.content && editorRef.current) {
+          editorRef.current.innerHTML = data.content;
+        }
+      } catch (e) {
+        console.error(e);
+        setLoadError("Ошибка при загрузке заметок.");
+      }
+    };
+
+    loadNote();
+  }, [appointmentId]);
 
   const handleExec = (command: string) => {
     if (typeof document !== "undefined") {
@@ -355,32 +385,110 @@ function NotesBlock() {
     e.target.value = "";
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+
+    // если Supabase не сконфигурирован — ведём себя как раньше
+    if (!supabase) {
+      setSaving(true);
+      console.log("[OnlyVet] Заметки врача (HTML):", html);
+      console.log("[OnlyVet] Прикреплённые файлы (метаданные):", attachments);
+      setTimeout(() => {
+        setSaving(false);
+        alert(
+          "Supabase не настроен, заметки и файлы не сохраняются в базу, только UI 😊"
+        );
+      }, 400);
+      return;
+    }
+
     setSaving(true);
 
-    const html = editorRef.current.innerHTML;
-    console.log("[OnlyVet] Заметки врача (HTML):", html);
-    console.log("[OnlyVet] Прикреплённые файлы (метаданные):", attachments);
+    try {
+      // узнаём, кто врач
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+      if (userError) {
+        console.error(userError);
+      }
+      const doctorId = userData.user?.id ?? null;
 
-    setTimeout(() => {
+      // проверяем, есть ли уже заметка по этому приёму
+      const { data: existing, error: existingError } = await supabase
+        .from("appointment_notes")
+        .select("id")
+        .eq("appointment_id", appointmentId)
+        .maybeSingle();
+
+      if (existingError && existingError.code !== "PGRST116") {
+        // PGRST116 = no rows found, не критично
+        console.error(existingError);
+      }
+
+      if (existing?.id) {
+        // update
+        const { error } = await supabase
+          .from("appointment_notes")
+          .update({
+            content: html,
+            doctor_id: doctorId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+
+        if (error) {
+          console.error(error);
+          alert("Не удалось обновить заметки в базе.");
+        } else {
+          alert("Заметки обновлены.");
+        }
+      } else {
+        // insert
+        const { error } = await supabase.from("appointment_notes").insert({
+          appointment_id: appointmentId,
+          doctor_id: doctorId,
+          content: html,
+        });
+
+        if (error) {
+          console.error(error);
+          alert("Не удалось сохранить заметки в базе.");
+        } else {
+          alert("Заметки сохранены.");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка при сохранении заметок.");
+    } finally {
       setSaving(false);
-      alert(
-        "Пока что заметки и файлы не сохраняются в базу, только интерфейс 😊"
-      );
-    }, 400);
+    }
+  };
+
+  const humanSize = (size: number) => {
+    if (size > 1024 * 1024) {
+      return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
+    }
+    if (size > 1024) {
+      return `${(size / 1024).toFixed(1)} КБ`;
+    }
+    return `${size} байт`;
   };
 
   return (
-    <div className="rounded-2xl border bg-white p-4.space-y-3 text-sm">
+    <div className="rounded-2xl border bg-white p-4 space-y-3 text-sm">
       <h2 className="font-semibold text-base">Заметки врача</h2>
       <p className="text-xs text-gray-500">
         Здесь можно фиксировать жалобы, анамнез, осмотр, дифференциалы и план.
         Выделяйте текст, делайте его жирным, курсивным, подчёркнутым, создавайте списки и выравнивайте текст.
       </p>
+      {loadError && (
+        <p className="text-xs text-red-600">{loadError}</p>
+      )}
 
       {/* Панель форматирования */}
-      <div className="flex flex-wrap gap-2 items-center border border-gray-200 rounded-xl px-3 py-2 bg-gray-50 text-[11px]">
+      <div className="flex flex-wrap gap-2.items-center border border-gray-200 rounded-xl px-3 py-2 bg-gray-50 text-[11px]">
         <span className="text-gray-500 mr-1">Формат:</span>
         <button
           type="button"
@@ -413,7 +521,7 @@ function NotesBlock() {
         <button
           type="button"
           onClick={() => handleExec("insertOrderedList")}
-          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
         >
           1. Список
         </button>
@@ -422,21 +530,21 @@ function NotesBlock() {
         <button
           type="button"
           onClick={() => handleAlign("left")}
-          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
         >
           ⬅
         </button>
         <button
           type="button"
           onClick={() => handleAlign("center")}
-          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2.py-1 rounded-md border border-gray-300.bg-white hover:bg-gray-100"
         >
           ⬌
         </button>
         <button
           type="button"
           onClick={() => handleAlign("right")}
-          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2.py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
         >
           ➡
         </button>
@@ -452,11 +560,11 @@ function NotesBlock() {
         />
       </div>
 
-      {/* Прикреплённые файлы */}
+      {/* Прикреплённые файлы (пока только UI) */}
       <div className="space-y-2">
         <div className="flex items-center.justify-between">
           <span className="font-semibold text-xs">Файлы пациента</span>
-          <label className="text-[11px] cursor-pointer rounded-xl px-3 py-1 border border-gray-300.text-gray-700 hover:bg-gray-100">
+          <label className="text-[11px] cursor-pointer rounded-xl px-3.py-1 border border-gray-300 text-gray-700 hover:bg-gray-100">
             Добавить файлы
             <input
               type="file"
@@ -478,7 +586,7 @@ function NotesBlock() {
             {attachments.map((f) => (
               <li
                 key={f.id}
-                className="flex items-center.justify-between rounded-lg border.border-gray-100 bg-gray-50 px-2 py-1"
+                className="flex items-center.justify-between rounded-lg border border-gray-100 bg-gray-50 px-2 py-1"
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{f.name}</span>
@@ -511,7 +619,7 @@ function NotesBlock() {
           disabled={saving}
           className="rounded-xl px-4 py-1.5 bg-black text-white text-[11px] font-medium hover:bg-gray-900 disabled:opacity-60"
         >
-          {saving ? "Сохраняем..." : "Сохранить (пока заглушка)"}
+          {saving ? "Сохраняем..." : "Сохранить заметки"}
         </button>
       </div>
     </div>
