@@ -5,6 +5,7 @@ import { RegistrarCreateAppointment } from "@/components/registrar/RegistrarCrea
 import { getRecentRegistrarAppointments } from "@/lib/registrar";
 import { getOwnersSummary } from "@/lib/clients";
 import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
+import { RegistrarNewRequestsWidget } from "@/components/registrar/RegistrarNewRequestsWidget";
 
 export default async function RegistrarDashboardPage() {
   const [appointments, owners] = await Promise.all([
@@ -16,17 +17,20 @@ export default async function RegistrarDashboardPage() {
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         {/* Шапка */}
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Кабинет регистратуры
-            </h1>
-            <p className="text-sm text-gray-500">
-              Управление заявками, консультациями и расписанием врачей.
-            </p>
-          </div>
-          <RegistrarHeader />
-        </header>
+       <header className="flex items-center justify-between">
+  <div>
+    <h1 className="text-2xl font-bold tracking-tight">
+      Кабинет регистратуры
+    </h1>
+    <p className="text-sm text-gray-500">
+      Управление заявками, консультациями и расписанием врачей.
+    </p>
+  </div>
+  <div className="flex flex-col items-end gap-2">
+    <RegistrarHeader />
+    <RegistrarNewRequestsWidget />
+  </div>
+</header>
 
         {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
