@@ -14,6 +14,16 @@ export function useCurrentUser() {
     async function load() {
       setLoading(true);
 
+      // 🔒 защита от null: если по типу supabase может быть null — просто выходим
+      if (!supabase) {
+        if (!ignore) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // 1. Берём текущего auth-пользователя
       const {
         data: { user: authUser },
       } = await supabase.auth.getUser();
@@ -26,7 +36,8 @@ export function useCurrentUser() {
         return;
       }
 
-      const { data: roleRow, error } = await supabase
+      // 2. Берём роль из public.user_roles
+      const { data: roleRow } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", authUser.id)
