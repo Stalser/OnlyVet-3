@@ -157,3 +157,4 @@ export default async function RegistrarDashboardPage() {
     </RoleGuard>
   );
 }
+.
