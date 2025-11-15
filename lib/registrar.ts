@@ -23,28 +23,33 @@ export type RegistrarAppointmentRow = {
  * Берём список приёмов из БД Supabase (public.appointments)
  * и приводим к формату, удобному для регистратуры.
  */
-async function getAppointmentsFromDb(): Promise<
-  RegistrarAppointmentRow[]
-> {
+async function getAppointmentsFromDb(
+  limit?: number
+): Promise<RegistrarAppointmentRow[]> {
   if (!supabase) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("appointments")
     .select(
       "id, starts_at, created_at, owner_id, status, pet_name, species, service_code, doctor_id"
     )
     .order("starts_at", { ascending: false });
 
+  if (typeof limit === "number") {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
+
   if (error || !data) {
     return [];
   }
 
   return data.map((row: any, index: number) => {
-    // Конвертируем дату/время
+    // Дата/время
     let dateLabel = "—";
     if (row.starts_at) {
       const d = new Date(row.starts_at);
-      // Можно потом настроить формат под тебя
       dateLabel = d.toLocaleString("ru-RU", {
         day: "2-digit",
         month: "2-digit",
@@ -58,17 +63,17 @@ async function getAppointmentsFromDb(): Promise<
       ? new Date(row.created_at).toLocaleString("ru-RU")
       : "";
 
-    // Врачи: doctor_id есть, doctor_name берём из моков doctors
+    // Врач
     const doc = doctors.find((d: any) => d.id === row.doctor_id);
     const doctorName = doc?.name ?? "Не назначен";
 
-    // Услуги: service_code есть, имя — из servicesPricing
+    // Услуга
     const service = servicesPricing.find(
       (s: any) => s.code === row.service_code
     );
     const serviceName = service?.name ?? "Услуга";
 
-    // Клиента пока в этой таблице нет — добавим позже через owner_id
+    // Клиент — пока нет owner-привязки, позже добавим
     const clientName = "Без имени";
 
     return {
@@ -89,13 +94,21 @@ async function getAppointmentsFromDb(): Promise<
 }
 
 /**
- * Публичная функция для кабинета регистратуры:
- * сейчас только из БД, моки больше не используем.
+ * Все консультации (для страницы "Все консультации и заявки").
  */
 export async function getRegistrarAppointments(): Promise<
   RegistrarAppointmentRow[]
 > {
   return getAppointmentsFromDb();
+}
+
+/**
+ * Последние N консультаций (для дашборда регистратуры).
+ */
+export async function getRecentRegistrarAppointments(
+  limit = 10
+): Promise<RegistrarAppointmentRow[]> {
+  return getAppointmentsFromDb(limit);
 }
 
 /**
