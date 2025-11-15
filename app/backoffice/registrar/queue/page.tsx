@@ -1,8 +1,8 @@
+import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { RegistrarActions } from "@/components/registrar/RegistrarActions";
 import { getRegistrarAppointments } from "@/lib/registrar";
-import Link from "next/link";
 
 export default async function RegistrarQueuePage() {
   const all = await getRegistrarAppointments();
@@ -26,7 +26,7 @@ export default async function RegistrarQueuePage() {
             </h1>
             <p className="text-sm text-gray-500">
               Заявки со статусом “запрошена”. Здесь регистратор может
-              подтверждать, переносить или отменять обращения клиентов.
+              подтверждать, перенести или отменить обращения клиентов.
             </p>
           </div>
           <RegistrarHeader />
@@ -73,6 +73,7 @@ export default async function RegistrarQueuePage() {
                   </div>
 
                   <div className="grid gap-2 md:grid-cols-3">
+                    {/* Клиент */}
                     <div>
                       <div className="text-[11px] font-semibold text-gray-700">
                         Клиент
@@ -87,6 +88,7 @@ export default async function RegistrarQueuePage() {
                       )}
                     </div>
 
+                    {/* Питомец */}
                     <div>
                       <div className="text-[11px] font-semibold text-gray-700">
                         Питомец
@@ -101,6 +103,7 @@ export default async function RegistrarQueuePage() {
                       )}
                     </div>
 
+                    {/* Услуга / врач */}
                     <div>
                       <div className="text-[11px] font-semibold text-gray-700">
                         Услуга / врач
@@ -115,7 +118,6 @@ export default async function RegistrarQueuePage() {
                   </div>
 
                   <div className="mt-3 border-t border-gray-200 pt-3">
-                    {/* Используем уже существующий блок действий регистратуры */}
                     <RegistrarActions
                       appointmentId={a.id}
                       currentStatus={a.statusLabel}
