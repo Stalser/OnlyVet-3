@@ -4,6 +4,7 @@ import {
   getRegistrarAppointmentById,
   type RegistrarAppointmentRow,
 } from "@/lib/registrar";
+import { RegistrarActions } from "@/components/registrar/RegistrarActions";
 
 interface PageProps {
   params: {
@@ -53,13 +54,12 @@ export default async function RegistrarConsultationPage({
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
               Консультация с идентификатором{" "}
-              <span className="font-mono">{params.id}</span> не найдена в
-              мок-данных.
+              <span className="font-mono">{params.id}</span> не найдена.
             </p>
           </section>
         )}
 
-        {/* Если запись найдена — отображаем подробности */}
+        {/* Если запись найдена — подробности */}
         {appointment && (
           <>
             {/* ======= Блок "Основная информация" ======= */}
@@ -103,8 +103,7 @@ export default async function RegistrarConsultationPage({
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Позже здесь будет ссылка на карточку клиента
-                      (реальная интеграция).
+                      Позже здесь будет ссылка на карточку клиента.
                     </div>
                   </div>
 
@@ -121,7 +120,7 @@ export default async function RegistrarConsultationPage({
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Тут будет ссылка на карточку пациента / Vetmanager.
+                      Тут будет связка с карточкой пациента / Vetmanager.
                     </div>
                   </div>
                 </div>
@@ -156,12 +155,15 @@ export default async function RegistrarConsultationPage({
                   </h3>
                   <div className="rounded-xl bg-gray-50 p-3 text-[11px] text-gray-500">
                     <p>
-                      Сейчас данные берутся из мок-файлов
+                      Сейчас данные берутся из таблицы{" "}
+                      <code className="mx-1 rounded bg-white px-1">
+                        public.appointments
+                      </code>{" "}
+                      (если она заполнена), иначе — из мок-файла{" "}
                       <code className="mx-1 rounded bg-white px-1">
                         lib/appointments.ts
                       </code>
-                      и будут заменены на реальные данные Supabase /
-                      Vetmanager.
+                      . Позже здесь будет связка с Vetmanager.
                     </p>
                   </div>
                 </div>
@@ -173,33 +175,11 @@ export default async function RegistrarConsultationPage({
               <h2 className="text-base font-semibold">
                 Действия регистратуры
               </h2>
-              <p className="text-xs text-gray-500">
-                Позже эти кнопки будут менять статус, время и врача в
-                реальной базе данных.
-              </p>
 
-              <div className="flex flex-wrap gap-2 mt-2">
-                <button
-                  type="button"
-                  className="rounded-xl border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                >
-                  Подтвердить консультацию
-                </button>
-
-                <button
-                  type="button"
-                  className="rounded-xl border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Перенести / изменить время
-                </button>
-
-                <button
-                  type="button"
-                  className="rounded-xl border border-red-500 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-                >
-                  Отменить консультацию
-                </button>
-              </div>
+              <RegistrarActions
+                appointmentId={appointment.id}
+                currentStatus={appointment.statusLabel}
+              />
             </section>
           </>
         )}
