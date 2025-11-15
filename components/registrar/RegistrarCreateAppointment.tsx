@@ -206,7 +206,7 @@ export function RegistrarCreateAppointment() {
               >
                 {servicesPricing.map((s) => (
                   <option key={s.code} value={s.code}>
-                    {s.name} ({s.price} ₽)
+                    {s.name}
                   </option>
                 ))}
               </select>
