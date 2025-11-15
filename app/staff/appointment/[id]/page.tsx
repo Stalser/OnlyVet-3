@@ -41,6 +41,7 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
   );
 
   const dateLabel = `${sourceAppointment.date} в ${sourceAppointment.time}`;
+  const hasPersonalAccount = !!sourceAppointment.userId;
 
   const handleFinish = async () => {
     if (status === "завершена") return;
@@ -77,12 +78,10 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
     }
   };
 
-  const hasPersonalAccount = !!sourceAppointment.userId;
-
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-6">
-        <div className="text-xs text-gray-500 flex justify-between items-center">
+        <div className="text-xs text-gray-500 flex justify-between.items-center">
           <Link href="/staff" className="hover:text-gray-800">
             ← Назад в кабинет сотрудника
           </Link>
@@ -108,18 +107,21 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
             )}
           </div>
 
-          <div className="flex flex-col sm:items-end gap-3">
-            <TimerBlock />
-            {status !== "завершена" && (
-              <button
-                type="button"
-                onClick={handleFinish}
-                disabled={savingStatus}
-                className="rounded-xl px-4 py-2 bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {savingStatus ? "Сохраняем..." : "Завершить приём"}
-              </button>
-            )}
+          {/* Таймер + кнопка завершения, на одной линии */}
+          <div className="flex flex-col sm:items-end gap-2">
+            <div className="flex items-center gap-2">
+              <TimerBlock />
+              {status !== "завершена" && (
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  disabled={savingStatus}
+                  className="rounded-xl px-4 py-2 bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {savingStatus ? "Сохраняем..." : "Завершить приём"}
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -130,8 +132,25 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
             <NotesBlock />
           </section>
 
-          {/* Правая колонка: пациент, клиент, документы */}
+          {/* Правая колонка: заметки администратора, пациент, клиент, документы */}
           <section className="space-y-4">
+            {/* Заметки администратора / регистратора */}
+            <div className="rounded-2xl border bg-white p-4 space-y-2 text-sm">
+              <h2 className="font-semibold text-base">
+                Заметки администратора
+              </h2>
+              <p className="text-xs text-gray-500">
+                Здесь регистратор может оставить важную информацию для врача:
+                особенности владельца, нюансы общения, технические детали
+                связи, комментарии по оплате и т.п.
+              </p>
+              {/* Пока заглушка. Позже можно подгружать реальные данные из БД */}
+              <p className="text-xs text-gray-700">
+                Нет особых пометок. Пациент впервые обращается в OnlyVet.{" "}
+                (заглушка)
+              </p>
+            </div>
+
             {/* Пациент */}
             <div className="rounded-2xl border bg-white p-4 space-y-2 text-sm">
               <h2 className="font-semibold text-base">Пациент</h2>
@@ -139,7 +158,6 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
                 <InfoRow label="Имя питомца" value={sourceAppointment.petName} />
                 <InfoRow label="Вид животного" value={sourceAppointment.species} />
                 <InfoRow label="Услуга" value={sourceAppointment.serviceName} />
-                <InfoRow label="Статус" value={status} />
               </div>
             </div>
 
@@ -148,6 +166,10 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
               <h2 className="font-semibold text-base">Клиент</h2>
               <div className="grid gap-2 text-xs text-gray-700">
                 <InfoRow label="Имя владельца" value="Иванова Анна (заглушка)" />
+                <InfoRow
+                  label="Email"
+                  value="test1@onlyvet.com (заглушка)"
+                />
                 <InfoRow
                   label="Контакт для связи"
                   value="+7 900 000-00-00 / @username"
@@ -226,7 +248,7 @@ function DocumentItem({ doc }: { doc: MedicalDocument }) {
   );
 }
 
-/* ---------- Таймер ---------- */
+/* ---------- Таймер: компактный прямоугольник рядом с кнопкой ---------- */
 
 function TimerBlock() {
   const [seconds, setSeconds] = useState(0);
@@ -257,27 +279,25 @@ function TimerBlock() {
     .padStart(2, "0");
 
   return (
-    <div className="rounded-2xl border bg-white px-4 py-3 text-xs flex flex-col items-stretch gap-2 min-w-[220px]">
-      <div className="text-gray-500 text-[11px]">Время консультации</div>
-      <div className="text-2xl font-mono text-gray-900">
+    <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs">
+      <span className="text-gray-500 text-[11px]">Таймер</span>
+      <span className="font-mono text-sm text-gray-900">
         {h}:{m}:{s}
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={toggle}
-          className="flex-1 rounded-xl px-3 py-1.5 bg-black text-white text-[11px] font-medium hover:bg-gray-900"
-        >
-          {running ? "Пауза" : "Старт"}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-xl px-3.py-1.5 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
-        >
-          Сброс
-        </button>
-      </div>
+      </span>
+      <button
+        type="button"
+        onClick={toggle}
+        className="rounded-lg px-2 py-1 bg-black text-white text-[11px] hover:bg-gray-900"
+      >
+        {running ? "Пауза" : "Старт"}
+      </button>
+      <button
+        type="button"
+        onClick={reset}
+        className="rounded-lg px-2.py-1 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
+      >
+        Сброс
+      </button>
     </div>
   );
 }
@@ -351,31 +371,21 @@ function NotesBlock() {
     }, 400);
   };
 
-  const humanSize = (size: number) => {
-    if (size > 1024 * 1024) {
-      return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
-    }
-    if (size > 1024) {
-      return `${(size / 1024).toFixed(1)} КБ`;
-    }
-    return `${size} байт`;
-  };
-
   return (
-    <div className="rounded-2xl border bg-white p-4 space-y-3 text-sm">
+    <div className="rounded-2xl border bg-white p-4.space-y-3 text-sm">
       <h2 className="font-semibold text-base">Заметки врача</h2>
       <p className="text-xs text-gray-500">
         Здесь можно фиксировать жалобы, анамнез, осмотр, дифференциалы и план.
         Выделяйте текст, делайте его жирным, курсивным, подчёркнутым, создавайте списки и выравнивайте текст.
       </p>
 
-      {/* Панель инструментов */}
+      {/* Панель форматирования */}
       <div className="flex flex-wrap gap-2 items-center border border-gray-200 rounded-xl px-3 py-2 bg-gray-50 text-[11px]">
         <span className="text-gray-500 mr-1">Формат:</span>
         <button
           type="button"
           onClick={() => handleExec("bold")}
-          className="px-2.py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100 font-semibold"
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100 font-semibold"
         >
           B
         </button>
@@ -396,14 +406,14 @@ function NotesBlock() {
         <button
           type="button"
           onClick={() => handleExec("insertUnorderedList")}
-          className="px-2 py-1 rounded-md.border border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
         >
           • Список
         </button>
         <button
           type="button"
           onClick={() => handleExec("insertOrderedList")}
-          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
         >
           1. Список
         </button>
@@ -412,21 +422,21 @@ function NotesBlock() {
         <button
           type="button"
           onClick={() => handleAlign("left")}
-          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
         >
           ⬅
         </button>
         <button
           type="button"
           onClick={() => handleAlign("center")}
-          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
         >
           ⬌
         </button>
         <button
           type="button"
           onClick={() => handleAlign("right")}
-          className="px-2 py-1 rounded-md.border border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md border.border-gray-300 bg-white hover:bg-gray-100"
         >
           ➡
         </button>
@@ -444,9 +454,9 @@ function NotesBlock() {
 
       {/* Прикреплённые файлы */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center.justify-between">
           <span className="font-semibold text-xs">Файлы пациента</span>
-          <label className="text-[11px] cursor-pointer rounded-xl px-3 py-1 border border-gray-300 text-gray-700 hover:bg-gray-100">
+          <label className="text-[11px] cursor-pointer rounded-xl px-3 py-1 border border-gray-300.text-gray-700 hover:bg-gray-100">
             Добавить файлы
             <input
               type="file"
@@ -468,7 +478,7 @@ function NotesBlock() {
             {attachments.map((f) => (
               <li
                 key={f.id}
-                className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-2 py-1"
+                className="flex items-center.justify-between rounded-lg border.border-gray-100 bg-gray-50 px-2 py-1"
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{f.name}</span>
