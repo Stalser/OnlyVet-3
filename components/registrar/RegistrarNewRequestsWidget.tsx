@@ -47,14 +47,15 @@ export function RegistrarNewRequestsWidget() {
   useEffect(() => {
     if (!supabase) return;
 
-    const channel = supabase
+    const client = supabase; // фикс для TS: локальная не-null переменная
+
+    const channel = client
       .channel("appointments_new_requests")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "appointments" },
-        async (payload) => {
-          // проще всего при каждом изменении пересчитать количество
-          const { count, error } = await supabase
+        async () => {
+          const { count, error } = await client
             .from("appointments")
             .select("id", { count: "exact", head: true })
             .eq("status", "запрошена");
@@ -67,7 +68,7 @@ export function RegistrarNewRequestsWidget() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      client.removeChannel(channel);
     };
   }, []);
 
