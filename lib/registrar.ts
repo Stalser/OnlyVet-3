@@ -8,6 +8,7 @@ export type RegistrarAppointmentRow = {
   id: string;
   dateLabel: string;
   createdLabel: string;
+  startsAt?: string | null;
   clientName: string;
   clientContact?: string;
   petName?: string;
@@ -46,10 +47,12 @@ async function getAppointmentsFromDb(
   }
 
   return data.map((row: any, index: number) => {
-    // Дата/время
+    const startsAt: string | null = row.starts_at ?? null;
+
+    // Дата/время в человекочитаемом виде
     let dateLabel = "—";
-    if (row.starts_at) {
-      const d = new Date(row.starts_at);
+    if (startsAt) {
+      const d = new Date(startsAt);
       dateLabel = d.toLocaleString("ru-RU", {
         day: "2-digit",
         month: "2-digit",
@@ -73,13 +76,14 @@ async function getAppointmentsFromDb(
     );
     const serviceName = service?.name ?? "Услуга";
 
-    // Клиента пока не тянем из owner_profiles — позже можно будет подтянуть ФИО.
+    // Клиента пока не тянем из owner_profiles — позже добавим ФИО
     const clientName = "Без имени";
 
     return {
       id: String(row.id ?? index),
       dateLabel,
       createdLabel,
+      startsAt,
       clientName,
       clientContact: row.contact_info ?? "",
       petName: row.pet_name ?? "",
@@ -103,7 +107,8 @@ export async function getRegistrarAppointments(): Promise<
 /** Последние N консультаций (для дашборда регистратуры). */
 export async function getRecentRegistrarAppointments(
   limit = 10
-): Promise<RegistrarAppointmentRow[]> {
+): Promise<RegistrarAppointmentRow[]>
+{
   return getAppointmentsFromDb(limit);
 }
 
