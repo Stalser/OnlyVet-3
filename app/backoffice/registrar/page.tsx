@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { getRegistrarAppointments } from "@/lib/registrar";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { getRegistrarAppointments } from "@/lib/registrar";
 
 export default async function RegistrarDashboardPage() {
   const appointments = await getRegistrarAppointments();
@@ -9,16 +10,16 @@ export default async function RegistrarDashboardPage() {
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         <header className="flex items-center justify-between">
-  <div>
-    <h1 className="text-2xl font-bold tracking-tight">
-      Кабинет регистратуры
-    </h1>
-    <p className="text-sm text-gray-500">
-      Управление заявками, консультациями и расписанием врачей.
-    </p>
-  </div>
-  <RegistrarHeader />
-</header>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Кабинет регистратуры
+            </h1>
+            <p className="text-sm text-gray-500">
+              Управление заявками, консультациями и расписанием врачей.
+            </p>
+          </div>
+          <RegistrarHeader />
+        </header>
 
         <section className="rounded-2xl border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -31,7 +32,7 @@ export default async function RegistrarDashboardPage() {
                 мок-данных).
               </p>
             </div>
-            {/* фильтры по дате/врачу/статусу добавим позже */}
+            {/* Фильтры по дате/врачу/статусу добавим позже */}
           </div>
 
           <div className="overflow-x-auto">
@@ -104,13 +105,12 @@ export default async function RegistrarDashboardPage() {
                       </span>
                     </td>
                     <td className="px-2 py-2 align-top text-right">
-                      {/* Позже сделаем настоящую карточку консультации */}
-                      <button
-                        type="button"
+                      <Link
+                        href={`/backoffice/registrar/consultations/${a.id}`}
                         className="text-[11px] font-medium text-emerald-700 hover:underline"
                       >
                         Открыть
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
