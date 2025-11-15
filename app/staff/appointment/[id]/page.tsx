@@ -267,9 +267,149 @@ function TimerBlock() {
 
 /* ---------- Заметки врача: редактор + файлы (пока без БД) ---------- */
 
+/* ---------- Заметки врача: редактор + файлы (пока без БД) ---------- */
+
 function NotesBlock() {
   const editorRef = useRef<HTMLDivElement | null>(null);
 
   type Attachment = {
     id: string;
-    name
+    name: string;
+    size?: string;
+    type?: string;
+    uploadedAt: string;
+  };
+
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = () => {
+    setIsSaving(true);
+    const content = editorRef.current?.innerText ?? "";
+    // TODO: здесь потом будет вызов API для сохранения заметок в БД
+    console.log("Saving notes draft:", content, attachments);
+    setTimeout(() => {
+      setIsSaving(false);
+    }, 400);
+  };
+
+  const handleClear = () => {
+    if (editorRef.current) {
+      editorRef.current.innerText = "";
+    }
+  };
+
+  const handleAttachmentChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
+      id: `${file.name}-${file.lastModified}`,
+      name: file.name,
+      size: `${(file.size / 1024).toFixed(1)} KB`,
+      type: file.type || "file",
+      uploadedAt: new Date().toISOString(),
+    }));
+
+    setAttachments((prev) => [...prev, ...newAttachments]);
+    // чтобы можно было выбрать тот же файл снова
+    e.target.value = "";
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  return (
+    <div className="rounded-2xl border bg-white p-4 space-y-3">
+      <header className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="font-semibold text-base">Заметки врача</h2>
+          <p className="text-xs text-gray-500">
+            Здесь вы можете вести рабочие заметки по приёму. В будущем этот
+            блок будет сохраняться в БД и попадать в итоговый отчёт.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+          >
+            Очистить
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            disabled={isSaving}
+          >
+            {isSaving ? "Сохраняем..." : "Сохранить черновик"}
+          </button>
+        </div>
+      </header>
+
+      <div
+        ref={editorRef}
+        className="min-h-[160px] rounded-xl border bg-gray-50 px-3 py-2 text-sm focus-within:outline-none"
+        contentEditable
+        suppressContentEditableWarning
+      >
+        {/* Пусто по умолчанию — врач сам начнёт писать */}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <span className="font-medium">Вложения</span>
+            <span className="text-[10px] text-gray-400">
+              (анализы, выписки, изображения)
+            </span>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+            <span>Добавить файлы</span>
+            <input
+              type="file"
+              multiple
+              onChange={handleAttachmentChange}
+              className="hidden"
+            />
+          </label>
+        </div>
+
+        {attachments.length === 0 && (
+          <p className="text-xs text-gray-400">
+            Файлы пока не прикреплены.
+          </p>
+        )}
+
+        {attachments.length > 0 && (
+          <ul className="space-y-1 text-xs">
+            {attachments.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center justify-between rounded-lg bg-gray-50 px-2 py-1"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium text-gray-800 truncate">
+                    {a.name}
+                  </span>
+                  <span className="text-[10px] text-gray-500">
+                    {a.size}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachment(a.id)}
+                  className="text-[11px] text-red-500 hover:text-red-600"
+                >
+                  Удалить
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
