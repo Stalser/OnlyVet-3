@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
 function startOfWeek(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay(); // 0-вс, 1-пн...
-  const diff = (day === 0 ? -6 : 1 - day); // понедельник
+  const diff = day === 0 ? -6 : 1 - day; // перенос к понедельнику
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -24,28 +25,55 @@ function addDays(date: Date, days: number): Date {
 
 export function RegistrarCalendarWeek({ appointments }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [doctorFilter, setDoctorFilter] = useState<string>("all");
 
-  const { weekStart, days, slots, apptsByDayHour } = useMemo(() => {
+  // Список врачей из текущих консультаций
+  const doctors = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          appointments
+            .map((a) => a.doctorName || "")
+            .filter((d) => d.trim().length > 0 && d !== "Не назначен")
+        )
+      ),
+    [appointments]
+  );
+
+  const {
+    weekStart,
+    days,
+    slots,
+    apptsByDayHour,
+  } = useMemo(() => {
     const now = new Date();
     const baseStart = startOfWeek(now);
     const weekStart = addDays(baseStart, weekOffset * 7);
 
-    // 7 дней: Пн-Вс
+    // Фильтруем консультации по врачу, если выбран
+    const source = appointments.filter((a) => {
+      if (!a.startsAt) return false; // без даты/времени — не отображаем
+      if (
+        doctorFilter !== "all" &&
+        (a.doctorName || "").toLowerCase() !== doctorFilter.toLowerCase()
+      ) {
+        return false;
+      }
+      return true;
+    });
+
     const days = Array.from({ length: 7 }).map((_, i) => {
       const d = addDays(weekStart, i);
       return d;
     });
 
-    // Часы, например 9–21
     const slots = Array.from({ length: 13 }).map((_, i) => 9 + i); // 9..21
 
-    // Группируем приёмы по дню и часу
     const apptsByDayHour: Record<string, RegistrarAppointmentRow[]> = {};
 
-    appointments.forEach((a) => {
+    source.forEach((a) => {
       if (!a.startsAt) return;
       const d = new Date(a.startsAt);
-      // Только те, что попадают в неделю
       const dayDiff = Math.floor(
         (d.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -58,7 +86,7 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
     });
 
     return { weekStart, days, slots, apptsByDayHour };
-  }, [appointments, weekOffset]);
+  }, [appointments, weekOffset, doctorFilter]);
 
   const formatDayHeader = (d: Date) =>
     d.toLocaleDateString("ru-RU", {
@@ -70,18 +98,47 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
   const formatHour = (h: number) =>
     `${h.toString().padStart(2, "0")}:00`;
 
+  const weekRangeLabel = (() => {
+    const end = addDays(weekStart, 6);
+    const startStr = weekStart.toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+    const endStr = end.toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    return `${startStr} — ${endStr}`;
+  })();
+
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      {/* Заголовок + фильтры */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">
             Календарь записей (неделя)
           </h2>
           <p className="text-xs text-gray-500">
-            Сетка по неделе. Можно листать недели назад/вперёд.
+            Период: {weekRangeLabel}. Показаны консультации с заполненным
+            временем начала (starts_at).
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <select
+            value={doctorFilter}
+            onChange={(e) => setDoctorFilter(e.target.value)}
+            className="rounded-xl border px-2 py-1.5 text-xs"
+          >
+            <option value="all">Все врачи</option>
+            {doctors.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             onClick={() => setWeekOffset((o) => o - 1)}
@@ -94,7 +151,7 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
             onClick={() => setWeekOffset(0)}
             className="rounded-xl border px-2 py-1 hover:bg-gray-50"
           >
-            Текущая неделя
+            Текущая
           </button>
           <button
             type="button"
@@ -106,6 +163,7 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
         </div>
       </div>
 
+      {/* Таблица календаря */}
       <div className="overflow-x-auto">
         <table className="min-w-full border-separate border-spacing-0 text-xs">
           <thead>
@@ -130,6 +188,7 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
                 <td className="sticky left-0 z-10 border-t bg-white px-2 py-1 text-[11px] text-gray-600">
                   {formatHour(hour)}
                 </td>
+
                 {/* Ячейки по дням */}
                 {days.map((_, dayIdx) => {
                   const key = `${dayIdx}-${hour}`;
@@ -137,29 +196,31 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
                   return (
                     <td
                       key={key}
-                      className="border-t px-1 py-1 align-top"
+                      className="border-t px-1 py-1 align-top min-w-[80px]"
                     >
                       {cellAppts.length > 0 && (
                         <div className="space-y-1">
                           {cellAppts.map((a) => (
-                            <div
+                            <Link
                               key={a.id}
-                              className="rounded-lg bg-emerald-50 px-2 py-1 text-[10px] text-emerald-900 shadow-sm"
+                              href={`/backoffice/registrar/consultations/${a.id}`}
                             >
-                              <div className="font-semibold">
-                                {a.serviceName}
+                              <div className="rounded-lg bg-emerald-50 px-2 py-1 text-[10px] text-emerald-900 shadow-sm hover:bg-emerald-100">
+                                <div className="font-semibold line-clamp-1">
+                                  {a.serviceName}
+                                </div>
+                                {a.petName && (
+                                  <div className="text-[10px] text-emerald-900 line-clamp-1">
+                                    {a.petName}
+                                  </div>
+                                )}
+                                {a.doctorName && (
+                                  <div className="text-[9px] text-emerald-800 line-clamp-1">
+                                    {a.doctorName}
+                                  </div>
+                                )}
                               </div>
-                              {a.petName && (
-                                <div className="text-[10px] text-emerald-900">
-                                  {a.petName}
-                                </div>
-                              )}
-                              {a.doctorName && (
-                                <div className="text-[9px] text-emerald-800">
-                                  {a.doctorName}
-                                </div>
-                              )}
-                            </div>
+                            </Link>
                           ))}
                         </div>
                       )}
