@@ -73,8 +73,7 @@ async function getAppointmentsFromDb(
     );
     const serviceName = service?.name ?? "Услуга";
 
-    // Клиента пока не тащим из owner_profiles — позже добавим,
-    // сейчас хотя бы есть контакт
+    // Клиента пока не тянем из owner_profiles — позже можно будет подтянуть ФИО.
     const clientName = "Без имени";
 
     return {
