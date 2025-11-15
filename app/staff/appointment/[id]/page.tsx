@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  type ChangeEvent,
+} from "react";
 
 import { appointments, type Appointment } from "../../../../lib/appointments";
 import { mockMedicalDocs, type MedicalDocument } from "../../../../lib/medicalDocs";
