@@ -15,8 +15,8 @@ export function RegistrarCreateAppointment() {
   const [serviceCode, setServiceCode] = useState<string>(
     servicesPricing[0]?.code ?? ""
   );
-  const [clientName, setClientName] = useState("");
-  const [clientContact, setClientContact] = useState("");
+  const [clientName, setClientName] = useState(""); // пока не используем в БД
+  const [clientContact, setClientContact] = useState(""); // тоже
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
   const [date, setDate] = useState("");
@@ -34,9 +34,9 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    if (!doctorId || !serviceCode || !date || !time) {
+    if (!serviceCode || !date || !time) {
       setErrorMessage(
-        "Заполните врача, услугу, дату и время. Остальные поля — по возможности."
+        "Заполните услугу, дату и время. Остальные поля — по возможности."
       );
       return;
     }
@@ -44,34 +44,31 @@ export function RegistrarCreateAppointment() {
     setSaving(true);
     setErrorMessage(null);
 
-    const doctor = doctors.find((d) => d.id === doctorId);
-    const service = servicesPricing.find((s) => s.code === serviceCode);
+    // Собираем дату/время в один timestamptz
+    // (для простоты используем локальную зону, Supabase примет ISO-строку)
+    const startsAt = new Date(`${date}T${time}`);
 
     const { data, error } = await supabase
       .from("appointments")
       .insert({
-        client_name: clientName || "Без имени",
-        client_contact: clientContact || null,
-        pet_name: petName || null,
-        pet_species: petSpecies || null,
-        doctor_id: doctorId,
-        doctor_name: doctor?.name ?? null,
-        service_code: serviceCode,
-        service_name: service?.name ?? null,
-        date,
-        time,
+        // user_id, owner_id, doctor_id можно добавить позже, когда привяжем к реальным сущностям
+        starts_at: startsAt.toISOString(),
         status: "запрошена",
+        pet_name: petName || null,
+        species: petSpecies || null,
+        service_code: serviceCode,
       })
       .select("id")
       .single();
 
     if (error || !data) {
+      console.error(error);
       setErrorMessage("Не удалось создать консультацию. Попробуйте ещё раз.");
       setSaving(false);
       return;
     }
 
-    // Сброс формы
+    // Сбрасываем форму
     setClientName("");
     setClientContact("");
     setPetName("");
@@ -107,10 +104,10 @@ export function RegistrarCreateAppointment() {
         onSubmit={handleSubmit}
         className="grid gap-3 md:grid-cols-2"
       >
-        {/* Клиент */}
+        {/* Клиент (пока только визуально, в БД не сохраняем) */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
-            Клиент
+            Клиент (пока без сохранения в БД)
           </div>
           <div className="space-y-2">
             <div>
@@ -173,7 +170,7 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Врач и услуга */}
+        {/* Врач и услуга (пока только услуга уходит в БД) */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
             Врач и услуга
@@ -181,7 +178,7 @@ export function RegistrarCreateAppointment() {
           <div className="space-y-2">
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Врач
+                Врач (пока только визуально)
               </label>
               <select
                 value={doctorId}
