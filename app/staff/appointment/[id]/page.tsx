@@ -47,11 +47,8 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
 
     setSavingStatus(true);
     setStatusError(null);
-
-    // Обновляем статус в UI сразу
     setStatus("завершена");
 
-    // Если Supabase не сконфигурирован — только UI
     if (!supabase) {
       console.warn(
         "[OnlyVet] Supabase не сконфигурирован, статус изменён только в UI"
@@ -61,7 +58,6 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
     }
 
     try {
-      // Здесь предполагается существование таблицы public.appointments в БД
       const { error } = await supabase!
         .from("appointments")
         .update({ status: "завершена" })
@@ -81,6 +77,8 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
     }
   };
 
+  const hasPersonalAccount = !!sourceAppointment.userId;
+
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-6">
@@ -91,7 +89,7 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
           <span className="text-gray-400">Приём #{sourceAppointment.id}</span>
         </div>
 
-        {/* Шапка: основная информация + таймер + завершение */}
+        {/* Шапка */}
         <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold">
@@ -125,13 +123,19 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
           </div>
         </header>
 
+        {/* Основной контент: слева заметки, справа инфо */}
         <div className="grid lg:grid-cols-3 gap-4 items-start">
-          {/* Левая часть: пациент, клиент, документы */}
-          <section className="lg:col-span-2 space-y-4">
+          {/* Заметки врача — левый большой блок */}
+          <section className="lg:col-span-2">
+            <NotesBlock />
+          </section>
+
+          {/* Правая колонка: пациент, клиент, документы */}
+          <section className="space-y-4">
             {/* Пациент */}
             <div className="rounded-2xl border bg-white p-4 space-y-2 text-sm">
               <h2 className="font-semibold text-base">Пациент</h2>
-              <div className="grid sm:grid-cols-2 gap-2 text-xs text-gray-700">
+              <div className="grid gap-2 text-xs text-gray-700">
                 <InfoRow label="Имя питомца" value={sourceAppointment.petName} />
                 <InfoRow label="Вид животного" value={sourceAppointment.species} />
                 <InfoRow label="Услуга" value={sourceAppointment.serviceName} />
@@ -139,15 +143,25 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Клиент (пока заглушка) */}
+            {/* Клиент */}
             <div className="rounded-2xl border bg-white p-4 space-y-2 text-sm">
               <h2 className="font-semibold text-base">Клиент</h2>
-              <div className="grid sm:grid-cols-2 gap-2 text-xs text-gray-700">
+              <div className="grid gap-2 text-xs text-gray-700">
                 <InfoRow label="Имя владельца" value="Иванова Анна (заглушка)" />
                 <InfoRow
                   label="Контакт для связи"
                   value="+7 900 000-00-00 / @username"
                 />
+                <div>
+                  <div className="text-gray-500 text-[11px]">
+                    Личный кабинет
+                  </div>
+                  <div className="font-medium">
+                    {hasPersonalAccount
+                      ? "Есть (зарегистрирован в OnlyVet)"
+                      : "Нет (только гостевой пользователь)"}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -168,11 +182,6 @@ export default function StaffAppointmentWorkspace({ params }: PageProps) {
               )}
             </div>
           </section>
-
-          {/* Правая часть: заметки врача */}
-          <section className="space-y-4">
-            <NotesBlock />
-          </section>
         </div>
       </div>
     </main>
@@ -189,8 +198,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-/* ---------- Документ пациента ---------- */
 
 function DocumentItem({ doc }: { doc: MedicalDocument }) {
   const dateLabel = new Date(doc.createdAt).toLocaleDateString("ru-RU", {
@@ -219,7 +226,7 @@ function DocumentItem({ doc }: { doc: MedicalDocument }) {
   );
 }
 
-/* ---------- Таймер консультации ---------- */
+/* ---------- Таймер ---------- */
 
 function TimerBlock() {
   const [seconds, setSeconds] = useState(0);
@@ -266,7 +273,7 @@ function TimerBlock() {
         <button
           type="button"
           onClick={reset}
-          className="rounded-xl px-3 py-1.5 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
+          className="rounded-xl px-3.py-1.5 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
         >
           Сброс
         </button>
@@ -275,7 +282,7 @@ function TimerBlock() {
   );
 }
 
-/* ---------- Заметки врача с форматированием и файлами ---------- */
+/* ---------- Заметки врача: редактор + файлы ---------- */
 
 function NotesBlock() {
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -292,6 +299,19 @@ function NotesBlock() {
 
   const handleExec = (command: string) => {
     if (typeof document !== "undefined") {
+      document.execCommand(command, false);
+      editorRef.current?.focus();
+    }
+  };
+
+  const handleAlign = (align: "left" | "center" | "right") => {
+    if (typeof document !== "undefined") {
+      const command =
+        align === "left"
+          ? "justifyLeft"
+          : align === "center"
+          ? "justifyCenter"
+          : "justifyRight";
       document.execCommand(command, false);
       editorRef.current?.focus();
     }
@@ -325,7 +345,9 @@ function NotesBlock() {
 
     setTimeout(() => {
       setSaving(false);
-      alert("Пока что заметки и файлы не сохраняются в базу, только UI 😊");
+      alert(
+        "Пока что заметки и файлы не сохраняются в базу, только интерфейс 😊"
+      );
     }, 400);
   };
 
@@ -344,7 +366,7 @@ function NotesBlock() {
       <h2 className="font-semibold text-base">Заметки врача</h2>
       <p className="text-xs text-gray-500">
         Здесь можно фиксировать жалобы, анамнез, осмотр, дифференциалы и план.
-        Можно выделять текст, делать его жирным, курсивным, добавлять списки и прикреплять файлы.
+        Выделяйте текст, делайте его жирным, курсивным, подчёркнутым, создавайте списки и выравнивайте текст.
       </p>
 
       {/* Панель инструментов */}
@@ -353,7 +375,7 @@ function NotesBlock() {
         <button
           type="button"
           onClick={() => handleExec("bold")}
-          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100 font-semibold"
+          className="px-2.py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100 font-semibold"
         >
           B
         </button>
@@ -366,15 +388,52 @@ function NotesBlock() {
         </button>
         <button
           type="button"
+          onClick={() => handleExec("underline")}
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100 underline"
+        >
+          U
+        </button>
+        <button
+          type="button"
           onClick={() => handleExec("insertUnorderedList")}
-          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+          className="px-2 py-1 rounded-md.border border-gray-300 bg-white hover:bg-gray-100"
         >
           • Список
+        </button>
+        <button
+          type="button"
+          onClick={() => handleExec("insertOrderedList")}
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+        >
+          1. Список
+        </button>
+
+        <span className="text-gray-500 mx-2">Выравнивание:</span>
+        <button
+          type="button"
+          onClick={() => handleAlign("left")}
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+        >
+          ⬅
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAlign("center")}
+          className="px-2 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
+        >
+          ⬌
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAlign("right")}
+          className="px-2 py-1 rounded-md.border border-gray-300 bg-white hover:bg-gray-100"
+        >
+          ➡
         </button>
       </div>
 
       {/* Редактор */}
-      <div className="rounded-2xl border border-gray-200 bg-white min-h-[220px] max-h-[420px] overflow-auto px-3 py-2 text-xs leading-relaxed">
+      <div className="rounded-2xl border border-gray-200 bg-white min-h-[260px] max-h-[520px] overflow-auto px-3 py-2 text-xs leading-relaxed">
         <div
           ref={editorRef}
           contentEditable
@@ -434,16 +493,27 @@ function NotesBlock() {
         )}
       </div>
 
+      {/* Сохранение */}
       <div className="flex justify-end">
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-xl px-4.py-1.5 bg.black text.white text-[11px] font-medium hover:bg-gray-900 disabled:opacity-60"
+          className="rounded-xl px-4 py-1.5 bg-black text-white text-[11px] font-medium hover:bg-gray-900 disabled:opacity-60"
         >
           {saving ? "Сохраняем..." : "Сохранить (пока заглушка)"}
         </button>
       </div>
     </div>
   );
+}
+
+function humanSize(size: number) {
+  if (size > 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
+  }
+  if (size > 1024) {
+    return `${(size / 1024).toFixed(1)} КБ`;
+  }
+  return `${size} байт`;
 }
