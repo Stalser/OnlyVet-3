@@ -59,3 +59,15 @@ export async function getRegistrarAppointments(): Promise<
     };
   });
 }
+
+/**
+ * Получить одну консультацию по id для карточки регистратуры.
+ * Пока ищем среди мок-данных.
+ */
+export async function getRegistrarAppointmentById(
+  id: string
+): Promise<RegistrarAppointmentRow | null> {
+  const all = await getRegistrarAppointments();
+  const found = all.find((a) => a.id === id);
+  return found ?? null;
+}
