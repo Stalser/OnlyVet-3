@@ -3,6 +3,7 @@
 import { appointments } from "./appointments";
 import { doctors } from "./data";
 import { servicesPricing } from "./pricing";
+import { supabase } from "./supabaseClient";
 
 export type RegistrarAppointmentRow = {
   id: string;
@@ -19,14 +20,63 @@ export type RegistrarAppointmentRow = {
 };
 
 /**
- * Временная функция: берём мок-данные из lib/appointments.ts
- * и приводим их к формату, удобному для регистратуры.
- * Позже здесь будет запрос в реальную БД.
+ * Попытаться получить список приёмов из БД Supabase.
+ * Если что-то не так — вернём null, и выше пойдём по мок-данным.
  */
-export async function getRegistrarAppointments(): Promise<
+async function getAppointmentsFromDb(): Promise<
+  RegistrarAppointmentRow[] | null
+> {
+  try {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .select(
+        "id, date, time, client_name, client_contact, pet_name, pet_species, doctor_name, service_code, service_name, status, created_at"
+      )
+      .order("date", { ascending: true })
+      .order("time", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return null;
+    }
+
+    return data.map((row: any, index: number) => {
+      const dateLabel =
+        (row.date && row.time
+          ? `${row.date} ${row.time}`
+          : row.date || row.time) || "—";
+
+      const createdLabel = row.created_at
+        ? new Date(row.created_at).toLocaleString("ru-RU")
+        : "";
+
+      return {
+        id: String(row.id ?? index),
+        dateLabel,
+        createdLabel,
+        clientName: row.client_name ?? "Без имени",
+        clientContact: row.client_contact ?? "",
+        petName: row.pet_name ?? "",
+        petSpecies: row.pet_species ?? "",
+        doctorName: row.doctor_name ?? "Не назначен",
+        serviceName: row.service_name ?? "Услуга",
+        serviceCode: row.service_code ?? "",
+        statusLabel: row.status ?? "неизвестно",
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Старый способ: собрать данные из моков lib/appointments.ts.
+ * Останется как резерв на случай пустой БД.
+ */
+async function getAppointmentsFromMocks(): Promise<
   RegistrarAppointmentRow[]
 > {
-  // appointments сейчас — моковый массив. Не заморачиваем TS-типами.
   return (appointments as any[]).map((a, index) => {
     const doctor =
       doctors.find((d: any) => d.id === a.doctorId) ?? null;
@@ -34,7 +84,6 @@ export async function getRegistrarAppointments(): Promise<
     const service =
       servicesPricing.find((s: any) => s.code === a.serviceCode) ?? null;
 
-    // Пытаемся собрать удобный вид даты/времени
     const dateLabel =
       a.dateLabel ||
       (a.date && a.time
@@ -61,8 +110,22 @@ export async function getRegistrarAppointments(): Promise<
 }
 
 /**
- * Получить одну консультацию по id для карточки регистратуры.
- * Пока ищем среди мок-данных.
+ * Публичная функция для кабинета регистратуры:
+ * сначала пытаемся прочитать из БД, если там пусто — из моков.
+ */
+export async function getRegistrarAppointments(): Promise<
+  RegistrarAppointmentRow[]
+> {
+  const fromDb = await getAppointmentsFromDb();
+  if (fromDb && fromDb.length > 0) {
+    return fromDb;
+  }
+  return getAppointmentsFromMocks();
+}
+
+/**
+ * Получить одну консультацию по id (БД или моки — в зависимости от того,
+ * что сейчас используется).
  */
 export async function getRegistrarAppointmentById(
   id: string
