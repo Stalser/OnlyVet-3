@@ -5,6 +5,7 @@ import {
   type RegistrarAppointmentRow,
 } from "@/lib/registrar";
 import { RegistrarActions } from "@/components/registrar/RegistrarActions";
+import { RegistrarAssignSlot } from "@/components/registrar/RegistrarAssignSlot";
 
 interface PageProps {
   params: {
@@ -171,7 +172,7 @@ export default async function RegistrarConsultationPage({
             </section>
 
             {/* ======= Блок "Действия регистратуры" ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
               <h2 className="text-base font-semibold">
                 Действия регистратуры
               </h2>
@@ -180,6 +181,13 @@ export default async function RegistrarConsultationPage({
                 appointmentId={appointment.id}
                 currentStatus={appointment.statusLabel}
               />
+
+              <div className="border-t border-gray-100 pt-4 mt-2">
+                <RegistrarAssignSlot
+                  appointmentId={appointment.id}
+                  doctorId={appointment.doctorId}
+                />
+              </div>
             </section>
           </>
         )}
