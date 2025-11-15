@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -31,14 +33,15 @@ export default function DoctorProfilePage({ params }: PageProps) {
     : [];
   const services =
     doctorServiceCodes.length > 0
-      ? servicesPricing.filter((s) => doctorServiceCodes.includes(s.code))
-      : servicesPricing;
+      ? servicesPricing.filter((s: any) => doctorServiceCodes.includes(s.code))
+      : (servicesPricing as any[]);
 
   const bookingBase = `/booking?doctor=${doctor.id}`;
 
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-8">
+        {/* Навигация назад */}
         <div className="text-xs text-gray-500">
           <Link href="/doctors" className="hover:text-gray-800">
             ← Ко всем врачам
@@ -85,34 +88,43 @@ export default function DoctorProfilePage({ params }: PageProps) {
           </p>
 
           <div className="space-y-2">
-            {services.map((s) => (
-              <div
-                key={s.code}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs"
-              >
-                <div>
-                  <div className="font-medium">{s.name}</div>
-                  {s.description && (
-                    <div className="text-gray-600 text-[11px] mt-0.5">
-                      {s.description}
-                    </div>
-                  )}
+            {services.map((s: any) => {
+              const price =
+                typeof s.priceRUB !== "undefined"
+                  ? s.priceRUB
+                  : typeof s.price !== "undefined"
+                  ? s.price
+                  : null;
+
+              return (
+                <div
+                  key={s.code}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs"
+                >
+                  <div>
+                    <div className="font-medium">{s.name}</div>
+                    {s.description && (
+                      <div className="text-gray-600 text-[11px] mt-0.5">
+                        {s.description}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {price !== null && (
+                      <div className="text-gray-800 font-semibold">
+                        {price.toLocaleString("ru-RU")} ₽
+                      </div>
+                    )}
+                    <Link
+                      href={`${bookingBase}&service=${s.code}`}
+                      className="rounded-xl px-3 py-1.5 bg-black text-white text-[11px] font-medium hover:bg-gray-900"
+                    >
+                      Записаться на эту услугу
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {typeof s.price !== "undefined" && (
-                    <div className="text-gray-800 font-semibold">
-                      {s.price.toLocaleString("ru-RU")} ₽
-                    </div>
-                  )}
-                  <Link
-                    href={`${bookingBase}&service=${s.code}`}
-                    className="rounded-xl px-3 py-1.5 bg-black text-white text-[11px] font-medium hover:bg-gray-900"
-                  >
-                    Записаться на эту услугу
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
