@@ -1,253 +1,218 @@
-"use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { getRegistrarAppointments } from "@/lib/registrar";
 
-import {
-  appointments,
-  type Appointment,
-  currentDoctorId,
-} from "../../lib/appointments";
-import { doctors } from "../../lib/data";
+function getStatusBadge(status: string) {
+  const s = status.toLowerCase();
 
-type Doctor = (typeof doctors)[number] | any;
-type StatusFilter = "all" | Appointment["status"];
+  if (s.includes("запрош")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700",
+    };
+  }
+  if (s.includes("подтверж")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700",
+    };
+  }
+  if (s.includes("отмен")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700",
+    };
+  }
+  if (s.includes("заверш")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600",
+    };
+  }
 
-export default function StaffPage() {
-  const doctorId = currentDoctorId ?? "ivanova";
-  const doctor = (doctors as Doctor[]).find((d) => d.id === doctorId);
+  return {
+    label: status || "неизвестен",
+    className:
+      "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700",
+  };
+}
 
-  const myAppointments = useMemo(
-    () => appointments.filter((a) => a.doctorId === doctorId),
-    [doctorId]
-  );
+export default async function StaffDashboardPage() {
+  const appointments = await getRegistrarAppointments();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const now = new Date();
 
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const upcoming = appointments.filter((a) => {
+    if (!a.startsAt) return false;
+    const d = new Date(a.startsAt);
+    return d >= now && !a.statusLabel.toLowerCase().includes("отмен");
+  });
 
-  const filterByStatus = (list: Appointment[]) =>
-    list.filter((a) => statusFilter === "all" || a.status === statusFilter);
+  const todayCount = appointments.filter((a) => {
+    if (!a.startsAt) return false;
+    const d = new Date(a.startsAt);
+    const sameDay =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    return sameDay;
+  }).length;
 
-  const todayAppointments = useMemo(
-    () => filterByStatus(myAppointments.filter((a) => a.date === todayStr)),
-    [myAppointments, todayStr, statusFilter]
-  );
+  const completedCount = appointments.filter((a) =>
+    a.statusLabel.toLowerCase().includes("заверш")
+  ).length;
 
-  const upcomingAppointments = useMemo(
-    () => filterByStatus(myAppointments.filter((a) => a.date > todayStr)),
-    [myAppointments, todayStr, statusFilter]
-  );
-
-  const pastAppointments = useMemo(
-    () => filterByStatus(myAppointments.filter((a) => a.date < todayStr)),
-    [myAppointments, todayStr, statusFilter]
-  );
-
-  const notCompleted = useMemo(
-    () => myAppointments.filter((a) => a.status !== "завершена"),
-    [myAppointments]
-  );
-
-  const stats = useMemo(() => {
-    const total = myAppointments.length;
-    const todayCount = myAppointments.filter((a) => a.date === todayStr).length;
-    const confirmed = myAppointments.filter(
-      (a) => a.status === "подтверждена"
-    ).length;
-    const requested = myAppointments.filter(
-      (a) => a.status === "запрошена"
-    ).length;
-    const unfinished = myAppointments.filter(
-      (a) => a.status !== "завершена"
-    ).length;
-    return { total, todayCount, confirmed, requested, unfinished };
-  }, [myAppointments, todayStr]);
+  const cancelledCount = appointments.filter((a) =>
+    a.statusLabel.toLowerCase().includes("отмен")
+  ).length;
 
   return (
-    <main className="bg-slate-50 min-h-screen py-12">
-      <div className="container space-y-8">
-        {/* Шапка */}
-        <header className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold">
-            Кабинет сотрудника
-          </h1>
-          {doctor && (
-            <p className="text-sm text-gray-700">
-              {doctor.name} — {doctor.speciality}
+    <RoleGuard allowed={["vet", "admin"]}>
+      <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+        {/* Шапка кабинета врача */}
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Кабинет врача
+            </h1>
+            <p className="text-sm text-gray-500">
+              Ваши онлайн-консультации, пациенты и расписание приёмов.
             </p>
-          )}
-          <p className="text-xs text-gray-500 max-w-xl">
-            Здесь отображаются ваши приёмы, расписание и документы по пациентам.
-          </p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            {/* пока используем RegistrarHeader как общий блок "Сейчас работает" */}
+            <RegistrarHeader />
+            <Link
+              href="/staff/calendar"
+              className="text-[11px] font-medium text-emerald-700 hover:underline"
+            >
+              Календарь приёмов →
+            </Link>
+          </div>
         </header>
 
-        {/* Мини-дашборд */}
-        <section className="grid sm:grid-cols-5 gap-3 text-xs">
-          <StatCard label="Всего записей" value={stats.total} hint="За всё время" />
-          <StatCard label="Сегодня" value={stats.todayCount} hint="Приёмов на сегодня" />
-          <StatCard label="Подтверждено" value={stats.confirmed} hint="Подтверждённые записи" />
-          <StatCard label="Запросы" value={stats.requested} hint="Записи в статусе «запрошена»" />
-          <StatCard label="Неотработано" value={stats.unfinished} hint="Статус ≠ «завершена»" />
+        {/* Мини-дашборд врача */}
+        <section className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border bg-white p-3">
+            <div className="text-[11px] text-gray-500">Приёмы сегодня</div>
+            <div className="mt-1 text-2xl font-semibold text-gray-900">
+              {todayCount}
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-white p-3">
+            <div className="text-[11px] text-gray-500">Ближайшие записи</div>
+            <div className="mt-1 text-2xl font-semibold text-gray-900">
+              {upcoming.length}
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-white p-3">
+            <div className="text-[11px] text-gray-500">Завершено</div>
+            <div className="mt-1 text-2xl font-semibold text-gray-900">
+              {completedCount}
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-white p-3">
+            <div className="text-[11px] text-gray-500">Отменено</div>
+            <div className="mt-1 text-2xl font-semibold text-gray-900">
+              {cancelledCount}
+            </div>
+          </div>
         </section>
 
-        {/* Фильтр по статусу */}
-        <section className="rounded-2xl border bg-white p-4 text-xs flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-gray-500">Фильтр по статусу:</span>
-            <select
-              className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+        {/* Таблица предстоящих приёмов (можем считать, что это зона "фокус врача") */}
+        <section className="rounded-2xl border bg-white p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">
+              Предстоящие консультации
+            </h2>
+            <Link
+              href="/backoffice/registrar/consultations"
+              className="text-xs font-medium text-emerald-700 hover:underline"
             >
-              <option value="all">Все</option>
-              <option value="запрошена">Запрошены</option>
-              <option value="подтверждена">Подтверждены</option>
-              <option value="завершена">Завершены</option>
-            </select>
+              Открыть общий список →
+            </Link>
           </div>
-          <div className="text-[11px] text-gray-500">
-            Актуальных записей: {todayAppointments.length + upcomingAppointments.length}
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                  <th className="px-2 py-2">Дата / время</th>
+                  <th className="px-2 py-2">Пациент</th>
+                  <th className="px-2 py-2">Услуга</th>
+                  <th className="px-2 py-2">Статус</th>
+                  <th className="px-2 py-2 text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcoming.map((a) => {
+                  const badge = getStatusBadge(a.statusLabel);
+                  return (
+                    <tr
+                      key={a.id}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        <div>{a.dateLabel}</div>
+                        {a.createdLabel && (
+                          <div className="text-[10px] text-gray-400">
+                            создано: {a.createdLabel}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <div className="text-[11px]">
+                          {a.petName || "Без имени"}
+                        </div>
+                        {a.petSpecies && (
+                          <div className="text-[10px] text-gray-500">
+                            {a.petSpecies}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <div className="text-[11px]">{a.serviceName}</div>
+                        {a.serviceCode && (
+                          <div className="text-[10px] text-gray-500">
+                            {a.serviceCode}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <span className={badge.className}>{badge.label}</span>
+                      </td>
+                      <td className="px-2 py-2 align-top text-right">
+                        <Link
+                          href={`/backoffice/registrar/consultations/${a.id}`}
+                          className="text-[11px] font-medium text-emerald-700 hover:underline"
+                        >
+                          Открыть карточку →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {upcoming.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-2 py-8 text-center text-xs text-gray-400"
+                    >
+                      Предстоящих консультаций нет.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
-
-        {/* Сегодня */}
-        <SectionBlock title="Сегодня" emptyText="На сегодня записей нет.">
-          {todayAppointments.map((a) => (
-            <StaffAppointmentCard key={a.id} a={a} />
-          ))}
-        </SectionBlock>
-
-        {/* Ближайшие записи */}
-        <SectionBlock
-          title="Ближайшие записи"
-          emptyText="Ближайших записей пока нет."
-        >
-          {upcomingAppointments.map((a) => (
-            <StaffAppointmentCard key={a.id} a={a} />
-          ))}
-        </SectionBlock>
-
-        {/* Прошедшие приёмы */}
-        <SectionBlock
-          title="Прошедшие приёмы"
-          emptyText="Прошедших приёмов пока нет."
-        >
-          {pastAppointments.map((a) => (
-            <StaffAppointmentCard key={a.id} a={a} />
-          ))}
-        </SectionBlock>
-
-        {/* Неотработанные */}
-        <SectionBlock
-          title="Неотработанные записи"
-          emptyText="Все записи закрыты."
-        >
-          {notCompleted.map((a) => (
-            <StaffAppointmentCard key={a.id} a={a} highlightUnfinished />
-          ))}
-        </SectionBlock>
-      </div>
-    </main>
-  );
-}
-
-/* ---------- мини-карточка статистики ---------- */
-
-function StatCard(props: { label: string; value: number; hint?: string }) {
-  return (
-    <div className="rounded-2xl border bg-white p-3 flex flex-col gap-1">
-      <div className="text-[11px] text-gray-500">{props.label}</div>
-      <div className="text-lg font-semibold">{props.value}</div>
-      {props.hint && (
-        <div className="text-[11px] text-gray-400">{props.hint}</div>
-      )}
-    </div>
-  );
-}
-
-/* ---------- блок секции ---------- */
-
-function SectionBlock(props: {
-  title: string;
-  emptyText: string;
-  children: React.ReactNode;
-}) {
-  const isEmpty =
-    !props.children ||
-    (Array.isArray(props.children) && props.children.length === 0);
-
-  return (
-    <section className="rounded-2xl border bg-white p-4 space-y-3 text-sm">
-      <h2 className="font-semibold text-base">{props.title}</h2>
-      {isEmpty ? (
-        <p className="text-xs text-gray-500">{props.emptyText}</p>
-      ) : (
-        <div className="space-y-2 text-xs">{props.children}</div>
-      )}
-    </section>
-  );
-}
-
-/* ---------- карточка приёма для врача ---------- */
-
-function StaffAppointmentCard({
-  a,
-  highlightUnfinished,
-}: {
-  a: Appointment;
-  highlightUnfinished?: boolean;
-}) {
-  const dateLabel = new Date(`${a.date}T${a.time}`).toLocaleDateString(
-    "ru-RU",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    }
-  );
-
-  const statusColor =
-    a.status === "подтверждена"
-      ? "text-emerald-700 bg-emerald-50"
-      : a.status === "запрошена"
-      ? "text-amber-700 bg-amber-50"
-      : a.status === "завершена"
-      ? "text-gray-700 bg-gray-50"
-      : "text-red-700 bg-red-50";
-
-  const borderClasses = highlightUnfinished
-    ? "border-amber-300 bg-amber-50"
-    : "border-gray-100 bg-gray-50";
-
-  return (
-    <article
-      className={`border rounded-xl px-3 py-2 flex flex-col gap-1 ${borderClasses}`}
-    >
-      <div className="flex justify-between items-center">
-        <div className="font-medium">
-          {a.time} — {a.petName}{" "}
-          <span className="text-gray-500 text-[11px]">({a.species})</span>
-        </div>
-        <div className="text-[11px] text-gray-500">{dateLabel}</div>
-      </div>
-      <div className="text-[11px] text-gray-600">
-        Услуга: {a.serviceName}
-      </div>
-      <div className="flex justify-between items-center text-[11px] mt-1">
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusColor}`}
-        >
-          {a.status}
-        </span>
-        <Link
-          href={`/staff/appointment/${a.id}`}
-          className="text-blue-600 underline underline-offset-2"
-        >
-          Открыть рабочее место
-        </Link>
-      </div>
-    </article>
+      </main>
+    </RoleGuard>
   );
 }
