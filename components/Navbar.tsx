@@ -4,26 +4,40 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-type AuthState = "unknown" | "guest" | "user";
+type AuthRole = "guest" | "user" | "staff";
 
 export default function Navbar() {
-  const [authState, setAuthState] = useState<AuthState>("unknown");
+  const [role, setRole] = useState<AuthRole>("guest");
 
   useEffect(() => {
     if (!supabase) {
-      setAuthState("guest");
+      setRole("guest");
       return;
     }
 
     // первичная проверка сессии
     supabase.auth.getSession().then(({ data }) => {
-      setAuthState(data.session ? "user" : "guest");
+      const session = data.session;
+      if (!session) {
+        setRole("guest");
+      } else {
+        const metaRole =
+          (session.user.user_metadata?.role as AuthRole | undefined) ?? "user";
+        setRole(metaRole === "staff" ? "staff" : "user");
+      }
     });
 
-    // подписка на изменения auth-состояния
+    // подписка на изменение сессии
     const { data: sub } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setAuthState(session ? "user" : "guest");
+        if (!session) {
+          setRole("guest");
+        } else {
+          const metaRole =
+            (session.user.user_metadata?.role as AuthRole | undefined) ??
+            "user";
+          setRole(metaRole === "staff" ? "staff" : "user");
+        }
       }
     );
 
@@ -32,10 +46,16 @@ export default function Navbar() {
     };
   }, []);
 
-  const isUser = authState === "user";
+  let authLabel = "Вход";
+  let authHref = "/auth/login";
 
-  const authLinkHref = isUser ? "/account" : "/auth/login";
-  const authLinkLabel = isUser ? "Личный кабинет" : "Вход";
+  if (role === "user") {
+    authLabel = "Личный кабинет";
+    authHref = "/account";
+  } else if (role === "staff") {
+    authLabel = "Кабинет сотрудника";
+    authHref = "/staff";
+  }
 
   return (
     <header className="border-b border-gray-100 bg-white/90 backdrop-blur-sm">
@@ -45,7 +65,7 @@ export default function Navbar() {
           OnlyVet
         </Link>
 
-        {/* Навигация */}
+        {/* Основные разделы */}
         <nav className="hidden sm:flex items-center gap-4 text-xs text-gray-700">
           <Link
             href="/services"
@@ -67,17 +87,17 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        {/* Правый блок: Вход / Личный кабинет + Записаться */}
+        {/* Правый блок */}
         <div className="flex items-center gap-3">
-          {/* Вход / ЛК */}
+          {/* Вход / ЛК / Кабинет сотрудника */}
           <Link
-            href={authLinkHref}
+            href={authHref}
             className="text-xs text-gray-700 hover:text-black underline underline-offset-2"
           >
-            {authLinkLabel}
+            {authLabel}
           </Link>
 
-          {/* Кнопка "Записаться" */}
+          {/* Записаться */}
           <Link
             href="/booking"
             className="rounded-xl px-4 py-1.5 bg-black text-white text-xs font-medium hover:bg-gray-900"
