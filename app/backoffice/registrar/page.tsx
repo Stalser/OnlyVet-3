@@ -27,6 +27,7 @@ export default async function RegistrarDashboardPage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <RegistrarHeader />
+            {/* ССЫЛКА НА КАЛЕНДАРЬ В ШАПКЕ */}
             <Link
               href="/backoffice/registrar/calendar"
               className="text-[11px] font-medium text-emerald-700 hover:underline"
@@ -38,6 +39,26 @@ export default async function RegistrarDashboardPage() {
 
         {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
+
+        {/* БЛОК КАЛЕНДАРЯ В ТЕЛЕ СТРАНИЦЫ — ЕГО СЛОЖНО НЕ ЗАМЕТИТЬ */}
+        <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-emerald-900">
+              Календарь записей
+            </h2>
+            <p className="text-xs text-emerald-800 max-w-md">
+              Недельный календарный вид всех консультаций. Удобно, чтобы
+              видеть занятость врачей и свободные окна. Нажмите кнопку
+              справа, чтобы открыть.
+            </p>
+          </div>
+          <Link
+            href="/backoffice/registrar/calendar"
+            className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-emerald-700"
+          >
+            Открыть календарь
+          </Link>
+        </section>
 
         {/* Мини-картотека клиентов */}
         <RegistrarClientsMini owners={owners} />
