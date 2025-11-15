@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import type { AppUser } from "./types";
+import type { AppUser, UserRole } from "./types";
 
 export function useCurrentUser() {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -14,7 +14,6 @@ export function useCurrentUser() {
     async function load() {
       setLoading(true);
 
-      // 1. Получаем auth пользователя
       const {
         data: { user: authUser },
       } = await supabase.auth.getUser();
@@ -27,14 +26,13 @@ export function useCurrentUser() {
         return;
       }
 
-      // 2. Получаем поле role из auth.users
-      const { data: profile, error } = await supabase
-        .from("profiles") // если у тебя таблицы profiles нет — заменим ниже
+      const { data: roleRow, error } = await supabase
+        .from("user_roles")
         .select("role")
-        .eq("id", authUser.id)
-        .single();
+        .eq("user_id", authUser.id)
+        .maybeSingle();
 
-      const role = profile?.role ?? "client";
+      const role: UserRole = (roleRow?.role as UserRole) ?? "client";
 
       if (!ignore) {
         setUser({
