@@ -6,8 +6,9 @@ import { servicesPricing } from "./pricing";
 import type { RegistrarAppointmentRow } from "./registrar";
 
 export type OwnerSummary = {
-  ownerId: string;        // user_id в owner_profiles (bigint, приведённый к строке)
+  ownerId: string;        // user_id в owner_profiles (bigint → string)
   fullName: string;
+  city?: string;
   email?: string;
   phone?: string;
   petsCount: number;
@@ -19,6 +20,26 @@ export type OwnerDetails = {
   pets: any[];
   appointments: RegistrarAppointmentRow[];
 };
+
+/**
+ * Достаём аккуратно контакты из extra_contacts (jsonb):
+ * ждём что-то вроде { "phone": "...", "email": "...", "telegram": "..." }
+ */
+function extractContacts(extra: any): { email?: string; phone?: string } {
+  if (!extra || typeof extra !== "object") return {};
+  const email =
+    extra.email ||
+    extra.mail ||
+    undefined;
+  const phone =
+    extra.phone ||
+    extra.phone_main ||
+    extra.whatsapp ||
+    extra.telegram_phone ||
+    undefined;
+
+  return { email, phone };
+}
 
 /**
  * Суммарная информация по клиентам.
@@ -57,14 +78,15 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   });
 
   return owners.map((o: any) => {
-    const key = String(o.user_id ?? o.id); // user_id — основной, id — на всякий случай
-    const fullName = o.full_name || o.name || "Без имени";
-    const email = o.email || o.contact_email || undefined;
-    const phone = o.phone || o.phone_number || undefined;
+    const key = String(o.user_id); // это основной идентификатор клиента
+    const fullName = o.full_name || "Без имени";
+    const city = o.city || undefined;
+    const { email, phone } = extractContacts(o.extra_contacts);
 
     return {
       ownerId: key,
       fullName,
+      city,
       email,
       phone,
       petsCount: petsCountMap.get(key) ?? 0,
@@ -75,7 +97,6 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
 
 /**
  * История консультаций конкретного клиента по owner_id.
- * Используем ту же структуру, что и в регистратуре.
  */
 async function getOwnerAppointments(
   ownerId: string
@@ -124,7 +145,7 @@ async function getOwnerAppointments(
     );
     const serviceName = service?.name ?? "Услуга";
 
-    const clientName = "Без имени"; // позже можно связать с owner_profiles
+    const clientName = "Без имени"; // можно будет подтянуть из owner_profiles при отображении
 
     return {
       id: String(row.id ?? index),
@@ -153,16 +174,18 @@ export async function getOwnerWithPets(
     return { owner: null, pets: [], appointments: [] };
   }
 
+  const ownerKey = parseInt(ownerId, 10);
+
   const { data: owner } = await supabase
     .from("owner_profiles")
     .select("*")
-    .eq("user_id", ownerId)
+    .eq("user_id", ownerKey)
     .maybeSingle();
 
   const { data: pets } = await supabase
     .from("pets")
     .select("*")
-    .eq("owner_id", ownerId);
+    .eq("owner_id", ownerKey);
 
   const appointments = await getOwnerAppointments(ownerId);
 
