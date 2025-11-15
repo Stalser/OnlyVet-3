@@ -22,6 +22,7 @@ export default async function RegistrarConsultationsPage() {
           <RegistrarHeader />
         </header>
 
+        {/* ВАЖНО: вот этот компонент должен быть ниже */}
         <RegistrarConsultationsClient appointments={appointments} />
       </main>
     </RoleGuard>
