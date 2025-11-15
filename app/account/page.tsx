@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import {
   appointments,
@@ -21,7 +21,7 @@ export default function AccountPage() {
     []
   );
 
-  // Питомцы
+  // Питомцы (для профиля)
   const pets = useMemo(() => {
     const map = new Map<string, { name: string; species: string }>();
     myAppointments.forEach((a) => {
@@ -39,8 +39,51 @@ export default function AccountPage() {
     []
   );
 
+  // Фильтры для записей
+  const [apptPetFilter, setApptPetFilter] = useState<string>("all");
+  const [apptStatusFilter, setApptStatusFilter] = useState<
+    Appointment["status"] | "all"
+  >("all");
+
+  const appointmentPets = useMemo(
+    () => Array.from(new Set(myAppointments.map((a) => a.petName))),
+    [myAppointments]
+  );
+
+  const filteredAppointments = useMemo(
+    () =>
+      myAppointments.filter((a) => {
+        if (apptPetFilter !== "all" && a.petName !== apptPetFilter) return false;
+        if (apptStatusFilter !== "all" && a.status !== apptStatusFilter)
+          return false;
+        return true;
+      }),
+    [myAppointments, apptPetFilter, apptStatusFilter]
+  );
+
+  // Фильтры для документов
+  const [docPetFilter, setDocPetFilter] = useState<string>("all");
+  const [docTypeFilter, setDocTypeFilter] = useState<
+    MedicalDocument["type"] | "all"
+  >("all");
+
+  const docPets = useMemo(
+    () => Array.from(new Set(myDocs.map((d) => d.petName))),
+    [myDocs]
+  );
+
+  const filteredDocs = useMemo(
+    () =>
+      myDocs.filter((d) => {
+        if (docPetFilter !== "all" && d.petName !== docPetFilter) return false;
+        if (docTypeFilter !== "all" && d.type !== docTypeFilter) return false;
+        return true;
+      }),
+    [myDocs, docPetFilter, docTypeFilter]
+  );
+
   return (
-    <main className="bg-slate-50.min-h-screen py-12">
+    <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-10">
         {/* Заголовок */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -105,32 +148,62 @@ export default function AccountPage() {
           </div>
         </section>
 
-        {/* Мои записи */}
+        {/* Мои записи + фильтры */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="font-semibold text-base">Мои записи</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h2 className="font-semibold text-base">Мои записи</h2>
+            {/* Фильтры */}
+            <div className="flex flex-wrap gap-2 text-xs">
+              <select
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                value={apptPetFilter}
+                onChange={(e) => setApptPetFilter(e.target.value)}
+              >
+                <option value="all">Все питомцы</option>
+                {appointmentPets.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
 
-          {myAppointments.length === 0 && (
+              <select
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                value={apptStatusFilter}
+                onChange={(e) =>
+                  setApptStatusFilter(e.target.value as any)
+                }
+              >
+                <option value="all">Все статусы</option>
+                <option value="запрошена">Запрошена</option>
+                <option value="подтверждена">Подтверждена</option>
+                <option value="завершена">Завершена</option>
+              </select>
+            </div>
+          </div>
+
+          {filteredAppointments.length === 0 && (
             <p className="text-xs text-gray-500">
-              У вас пока нет записей. Нажмите «Записаться на консультацию», чтобы создать первую.
+              Нет записей по выбранным фильтрам.
             </p>
           )}
 
-          {myAppointments.length > 0 && (
+          {filteredAppointments.length > 0 && (
             <div className="overflow-x-auto text-xs">
               <table className="min-w-full">
                 <thead>
                   <tr className="text-gray-500 border-b">
                     <th className="py-2 pr-3 text-left font-normal">Дата</th>
-                    <th className="py-2 pr-3 text-left.font-normal">Время</th>
-                    <th className="py-2 pr-3 text-left.font-normal">Питомец</th>
-                    <th className="py-2 pr-3 text-left.font-normal">Врач</th>
-                    <th className="py-2 pr-3 text-left.font-normal">Услуга</th>
-                    <th className="py-2 pr-3 text-left.font-normal">Статус</th>
+                    <th className="py-2 pr-3 text-left font-normal">Время</th>
+                    <th className="py-2 pr-3 text-left font-normal">Питомец</th>
+                    <th className="py-2 pr-3.text-left font-normal">Врач</th>
+                    <th className="py-2 pr-3.text-left font-normal">Услуга</th>
+                    <th className="py-2 pr-3.text-left font-normal">Статус</th>
                     <th className="py-2 text-left font-normal" />
                   </tr>
                 </thead>
                 <tbody>
-                  {myAppointments.map((a) => (
+                  {filteredAppointments.map((a) => (
                     <AppointmentRow key={a.id} a={a} />
                   ))}
                 </tbody>
@@ -139,17 +212,47 @@ export default function AccountPage() {
           )}
         </section>
 
-        {/* Документы */}
+        {/* Документы + фильтры */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="font-semibold text-base">Документы</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h2 className="font-semibold text-base">Документы</h2>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <select
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                value={docPetFilter}
+                onChange={(e) => setDocPetFilter(e.target.value)}
+              >
+                <option value="all">Все питомцы</option>
+                {docPets.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
 
-          {myDocs.length === 0 && (
-            <p className="text-xs text-gray-500">Документов пока нет.</p>
+              <select
+                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
+                value={docTypeFilter}
+                onChange={(e) => setDocTypeFilter(e.target.value as any)}
+              >
+                <option value="all">Все типы</option>
+                <option value="conclusion">Заключения</option>
+                <option value="analysis">Анализы</option>
+                <option value="contract">Договоры</option>
+                <option value="other">Другое</option>
+              </select>
+            </div>
+          </div>
+
+          {filteredDocs.length === 0 && (
+            <p className="text-xs text-gray-500">
+              Документов по выбранным фильтрам пока нет.
+            </p>
           )}
 
-          {myDocs.length > 0 && (
+          {filteredDocs.length > 0 && (
             <ul className="text-xs space-y-2">
-              {myDocs.map((d) => (
+              {filteredDocs.map((d) => (
                 <DocumentRow key={d.id} doc={d} />
               ))}
             </ul>
