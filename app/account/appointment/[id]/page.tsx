@@ -34,7 +34,6 @@ export default function AppointmentDetailsPage({ params }: PageProps) {
     minute: "2-digit",
   });
 
-  // повторная запись (по умолчанию — повторная консультация OC2)
   const repeatHref = `/booking?doctor=${appointment.doctorId}&service=OC2&pet=${encodeURIComponent(
     appointment.petName
   )}&species=${encodeURIComponent(appointment.species)}`;
@@ -49,7 +48,7 @@ export default function AppointmentDetailsPage({ params }: PageProps) {
           </Link>
         </div>
 
-        {/* Заголовок */}
+        {/* Заголовок + одна кнопка "Записаться повторно" */}
         <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold">
@@ -59,6 +58,7 @@ export default function AppointmentDetailsPage({ params }: PageProps) {
               Питомец: {appointment.petName} ({appointment.species})
             </p>
           </div>
+
           <Link
             href={repeatHref}
             className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
@@ -76,15 +76,15 @@ export default function AppointmentDetailsPage({ params }: PageProps) {
               <div className="font-medium">{dateLabel}</div>
             </div>
             <div>
-              <span className="text-gray-500.text-xs">Услуга: </span>
+              <span className="text-gray-500 text-xs">Услуга: </span>
               <div className="font-medium">{appointment.serviceName}</div>
             </div>
             <div>
-              <span className="text-gray-500.text-xs">Статус: </span>
+              <span className="text-gray-500 text-xs">Статус: </span>
               <div className="font-medium">{appointment.status}</div>
             </div>
             <div>
-              <span className="text-gray-500.text-xs">Питомец: </span>
+              <span className="text-gray-500 text-xs">Питомец: </span>
               <div className="font-medium">
                 {appointment.petName} ({appointment.species})
               </div>
@@ -102,18 +102,13 @@ export default function AppointmentDetailsPage({ params }: PageProps) {
                 <div className="font-medium">{doctor.name}</div>
                 <div className="text-gray-500">{doctor.speciality}</div>
               </div>
+
               <div className="flex gap-3">
                 <Link
                   href={`/doctors/${doctor.id}`}
-                  className="text-xs text-blue-600 underline underline-offset-2"
+                  className="rounded-xl px-3 py-1.5 border border-gray-300 text-xs font-medium text-gray-800 hover:bg-gray-50"
                 >
                   Профиль врача
-                </Link>
-                <Link
-                  href={repeatHref}
-                  className="rounded-xl px-3 py-1.5 bg-black text-white text-xs font-medium hover:bg-gray-900"
-                >
-                  Записаться повторно
                 </Link>
               </div>
             </div>
@@ -127,9 +122,11 @@ export default function AppointmentDetailsPage({ params }: PageProps) {
         {/* Документы по приёму */}
         <section className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3 text-sm">
           <h2 className="font-semibold text-base">Документы по приёму</h2>
+
           {docs.length === 0 && (
             <p className="text-xs text-gray-500">
-              Пока нет загруженных документов. Позже здесь будут заключения, анализы и другие файлы.
+              Пока нет загруженных документов. Позже здесь будут заключения,
+              анализы и другие файлы.
             </p>
           )}
 
@@ -159,9 +156,25 @@ function DocumentBlock({ doc }: { doc: MedicalDocument }) {
         <div className="font-medium">{doc.title}</div>
         <div className="text-[11px] text-gray-500">{dateLabel}</div>
       </div>
+
       <p className="text-[11px] text-gray-600 mt-1">
         {doc.petName} — {doc.type}
       </p>
+
+      <div className="flex gap-3 mt-2">
+        <button
+          type="button"
+          className="text-[11px] text-blue-600 underline underline-offset-2"
+        >
+          Посмотреть
+        </button>
+        <button
+          type="button"
+          className="text-[11px] text-gray-700 underline underline-offset-2"
+        >
+          Скачать PDF
+        </button>
+      </div>
     </article>
   );
 }
