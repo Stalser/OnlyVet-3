@@ -14,7 +14,7 @@ export function useCurrentUser() {
     async function load() {
       setLoading(true);
 
-      // 🔒 защита от null: если по типу supabase может быть null — просто выходим
+      // 🔒 Проверяем, что supabase клиент существует
       if (!supabase) {
         if (!ignore) {
           setUser(null);
@@ -23,10 +23,10 @@ export function useCurrentUser() {
         return;
       }
 
-      // 1. Берём текущего auth-пользователя
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
+      // 1. Получаем текущего авторизованного пользователя из auth
+      const { data, error } = await supabase.auth.getUser();
+
+      const authUser = data?.user ?? null;
 
       if (!authUser) {
         if (!ignore) {
@@ -36,19 +36,20 @@ export function useCurrentUser() {
         return;
       }
 
-      // 2. Берём роль из public.user_roles
+      // 2. Получаем роль пользователя из таблицы public.user_roles
       const { data: roleRow } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", authUser.id)
         .maybeSingle();
 
+      // если роли нет → считаем "client"
       const role: UserRole = (roleRow?.role as UserRole) ?? "client";
 
       if (!ignore) {
         setUser({
           id: authUser.id,
-          email: authUser.email,
+          email: authUser.email ?? null, // ⭐ фикc TypeScript: undefined → null
           role,
         });
         setLoading(false);
