@@ -2,78 +2,119 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
+
+type AuthRole = "guest" | "user" | "staff";
 
 export default function Navbar() {
-  const [role, setRole] = useState<"user" | "staff" | null>(null);
+  const [role, setRole] = useState<AuthRole>("guest");
 
   useEffect(() => {
+    // Если supabase не сконфигурирован (нет env) – считаем, что пользователь гость
+    if (!supabase) {
+      setRole("guest");
+      return;
+    }
+
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
-      const r = data.user?.user_metadata?.role || null;
-      setRole(r);
+      const metaRole =
+        (data.user?.user_metadata?.role as AuthRole | undefined) ?? "user";
+      setRole(metaRole === "staff" ? "staff" : "user");
     };
+
     getUser();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!session) {
+          setRole("guest");
+        } else {
+          const metaRole =
+            (session.user.user_metadata?.role as AuthRole | undefined) ?? "user";
+          setRole(metaRole === "staff" ? "staff" : "user");
+        }
+      }
+    );
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
-    window.location.href = "/"; // обновить страницу и выбросить в корень
+    setRole("guest");
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
+    }
   };
 
+  let authLabel = "Вход";
+  let authHref = "/auth/login";
+
+  if (role === "user") {
+    authLabel = "Личный кабинет";
+    authHref = "/account";
+  } else if (role === "staff") {
+    authLabel = "Кабинет сотрудника";
+    authHref = "/staff";
+  }
+
+  const isLoggedIn = role === "user" || role === "staff";
+
   return (
-    <nav className="flex items-center justify-between py-4 container">
-      <Link href="/" className="font-semibold text-xl">
-        OnlyVet
-      </Link>
+    <header className="border-b border-gray-100 bg-white/90 backdrop-blur-sm">
+      <div className="container flex h-14 items-center justify-between gap-4">
+        {/* Лого */}
+        <Link href="/" className="font-semibold text-sm tracking-tight">
+          OnlyVet
+        </Link>
 
-      <div className="flex items-center gap-6">
+        {/* Основное меню */}
+        <nav className="hidden sm:flex items-center gap-4 text-xs text-gray-700">
+          <Link href="/services" className="hover:text-black transition-colors">
+            Услуги
+          </Link>
+          <Link href="/doctors" className="hover:text-black transition-colors">
+            Врачи
+          </Link>
+          <Link href="/docs" className="hover:text-black transition-colors">
+            Документы
+          </Link>
+        </nav>
 
-        <Link href="/services">Услуги</Link>
-        <Link href="/doctors">Врачи</Link>
-        <Link href="/docs">Документы</Link>
+        {/* Правый блок */}
+        <div className="flex items-center gap-3">
+          {/* Вход / ЛК / Кабинет сотрудника */}
+          <Link
+            href={authHref}
+            className="text-xs text-gray-700 hover:text-black underline underline-offset-2"
+          >
+            {authLabel}
+          </Link>
 
-        {/* Авторизованный пользователь */}
-        {role && (
-          <>
-            {role === "user" && (
-              <Link
-                href="/account"
-                className="px-4 py-2 rounded-xl bg-black text-white text-sm"
-              >
-                Личный кабинет
-              </Link>
-            )}
-
-            {role === "staff" && (
-              <Link
-                href="/staff"
-                className="px-4 py-2 rounded-xl bg-black text-white text-sm"
-              >
-                Кабинет сотрудника
-              </Link>
-            )}
-
-            {/* КНОПКА ВЫЙТИ */}
+          {/* Кнопка "Выйти" только если авторизован */}
+          {isLoggedIn && (
             <button
+              type="button"
               onClick={handleLogout}
-              className="px-4 py-2 rounded-xl border border-gray-300 text-sm hover:bg-gray-100"
+              className="text-xs px-3 py-1.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Выйти
             </button>
-          </>
-        )}
+          )}
 
-        {/* Если пользователь НЕ авторизован */}
-        {!role && (
+          {/* Записаться */}
           <Link
-            href="/auth/login"
-            className="px-4 py-2 rounded-xl bg-black text-white text-sm"
+            href="/booking"
+            className="rounded-xl px-4 py-1.5 bg-black text-white text-xs font-medium hover:bg-gray-900"
           >
-            Вход
+            Записаться
           </Link>
-        )}
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }
