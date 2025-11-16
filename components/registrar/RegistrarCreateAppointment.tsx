@@ -11,12 +11,12 @@ import { doctors } from "@/lib/data";
 import { servicesPricing } from "@/lib/pricing";
 
 type OwnerOption = {
-  id: string;   // user_id в owner_profiles, строкой
+  id: string;
   label: string;
 };
 
 type PetOption = {
-  id: string;   // pets.id (uuid)
+  id: string;
   label: string;
   species?: string | null;
 };
@@ -33,7 +33,10 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // Клиент (визуальные поля)
+  // Слот (если пришли из расписания)
+  const [slotId, setSlotId] = useState<string | null>(null);
+
+  // Клиент
   const [clientName, setClientName] = useState("");
   const [clientContact, setClientContact] = useState("");
 
@@ -41,20 +44,20 @@ export function RegistrarCreateAppointment() {
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
 
-  // Дата / время
+  // Дата и время
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
-  // Яндекс Телемост
+  // Телемост
   const [videoUrl, setVideoUrl] = useState("");
 
-  // Ошибка / загрузка
+  // Ошибки / загрузка
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
   );
 
-  // Клиенты и их питомцы
+  // Клиенты / питомцы
   const [owners, setOwners] = useState<OwnerOption[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string>("");
@@ -63,17 +66,19 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // ===== 1. Подхватываем значения из query-параметров (если пришли из расписания) =====
+  // ===== 1. Подхватываем параметры из URL =====
   useEffect(() => {
     const qDoctor = searchParams.get("doctorId");
     const qDate = searchParams.get("date");
     const qTime = searchParams.get("time");
     const qService = searchParams.get("serviceCode");
+    const qSlotId = searchParams.get("slotId");
 
     if (qDoctor) setDoctorId(qDoctor);
     if (qDate) setDate(qDate);
     if (qTime) setTime(qTime);
     if (qService) setServiceCode(qService);
+    if (qSlotId) setSlotId(qSlotId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -116,7 +121,7 @@ export function RegistrarCreateAppointment() {
     };
   }, []);
 
-  // ===== 3. Загружаем питомцев выбранного клиента =====
+  // ===== 3. Загружаем питомцев =====
   useEffect(() => {
     let ignore = false;
 
@@ -164,7 +169,6 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // При выборе питомца подставляем его имя/вид, если поля пустые
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -199,7 +203,6 @@ export function RegistrarCreateAppointment() {
 
     const startsAt = new Date(`${date}T${time}`);
 
-    // owner_id — bigint
     let owner_id: number | null = null;
     if (selectedOwnerId) {
       const parsed = parseInt(selectedOwnerId, 10);
@@ -235,18 +238,15 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // сброс (минимальный)
-    setClientName("");
-    setClientContact("");
-    setPetName("");
-    setPetSpecies("");
-    setDate("");
-    setTime("");
-    setSelectedPetId("");
-    setVideoUrl("");
+    // Если консультация создана ИЗ слота — привязываем слот к приёму
+    if (slotId) {
+      await client
+        .from("doctor_slots")
+        .update({ appointment_id: data.id, status: "busy" })
+        .eq("id", slotId);
+    }
 
     setSaving(false);
-
     router.refresh();
     router.push(`/backoffice/registrar/consultations/${data.id}`);
   };
@@ -257,17 +257,16 @@ export function RegistrarCreateAppointment() {
     }
   };
 
-  // ===== RENDER =====
+  // ===== 5. Рендер =====
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
       <h2 className="text-base font-semibold">
         Создать новую консультацию
       </h2>
       <p className="text-xs text-gray-500">
-        Регистратор может создать запись на основании обращения клиента. При
-        выборе клиента и питомца консультация будет привязана к их картотеке.
-        Если вы пришли из расписания, врач, дата, время и услуга уже
-        подставлены.
+        При создании из расписания врач, услуга, дата и время уже
+        подставлены. Выберите клиента, питомца и при необходимости
+        скорректируйте данные.
       </p>
 
       {errorMessage && (
@@ -288,7 +287,7 @@ export function RegistrarCreateAppointment() {
           <div className="space-y-2">
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Клиент из картотеки (owner_profiles)
+                Клиент из картотеки
               </label>
               {ownersLoading ? (
                 <div className="text-[11px] text-gray-400">
@@ -352,7 +351,7 @@ export function RegistrarCreateAppointment() {
           <div className="space-y-2">
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Питомец из базы (pets)
+                Питомец из базы
               </label>
               {selectedOwnerId && petsLoading && (
                 <div className="text-[11px] text-gray-400">
@@ -375,12 +374,12 @@ export function RegistrarCreateAppointment() {
               )}
               {selectedOwnerId && !petsLoading && pets.length === 0 && (
                 <div className="text-[11px] text-gray-400">
-                  У этого клиента пока нет ни одного питомца в таблице pets.
+                  У этого клиента пока нет ни одного питомца.
                 </div>
               )}
               {!selectedOwnerId && (
                 <div className="text-[11px] text-gray-400">
-                  Сначала выберите клиента, чтобы увидеть его питомцев.
+                  Сначала выберите клиента.
                 </div>
               )}
             </div>
@@ -394,7 +393,7 @@ export function RegistrarCreateAppointment() {
                 value={petName}
                 onChange={(e) => setPetName(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="Например, Мурзик"
+                placeholder="Мурзик"
               />
             </div>
             <div>
@@ -453,7 +452,7 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Формат связи: Телемост */}
+        {/* Формат связи */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700">
@@ -525,8 +524,8 @@ export function RegistrarCreateAppointment() {
           </div>
 
           <p className="text-[10px] text-gray-400">
-            Если вы пришли из расписания, дата и время уже подставлены. Их
-            можно изменить вручную при необходимости.
+            Если вы пришли из расписания, дата и время выбраны по слоту. Их
+            можно изменить вручную.
           </p>
 
           <div className="pt-3">
