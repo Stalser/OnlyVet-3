@@ -26,12 +26,14 @@ export default async function StaffCalendarPage() {
               врачу и листать недели.
             </p>
           </div>
-          {/* Пока используем общий хедер, позже можно сделать DoctorHeader */}
           <RegistrarHeader />
         </header>
 
-        {/* Используем уже готовый недельный календарь */}
-        <RegistrarCalendarWeek appointments={appointments} />
+        {/* Важное отличие: linkBase="/staff/appointment" */}
+        <RegistrarCalendarWeek
+          appointments={appointments}
+          linkBase="/staff/appointment"
+        />
       </main>
     </RoleGuard>
   );
