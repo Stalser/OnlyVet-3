@@ -17,8 +17,19 @@ export default function AfterLoginPage() {
       return;
     }
 
+    // базовая роль из user
+    let effectiveRole = user.role ?? "client";
+    const email = (user.email ?? "").toLowerCase();
+
+    // 💡 временное правило:
+    // doctor@onlyvet.com считаем врачом (vet),
+    // даже если в БД роль ещё не прописана как vet
+    if (email === "doctor@onlyvet.com") {
+      effectiveRole = "vet";
+    }
+
     // логика маршрутов по ролям
-    switch (user.role) {
+    switch (effectiveRole) {
       case "registrar":
         router.replace("/backoffice/registrar");
         break;
