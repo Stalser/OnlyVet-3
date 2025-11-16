@@ -15,6 +15,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
   return (
     <RoleGuard allowed={["vet", "admin"]}>
       <main className="mx-auto max-w-4xl px-4 py-6 space-y-6">
+        {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
             <Link
@@ -33,6 +34,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
           <RegistrarHeader />
         </header>
 
+        {/* Если приём не найден */}
         {!appointment && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
@@ -42,6 +44,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
           </section>
         )}
 
+        {/* Если приём найден */}
         {appointment && (
           <>
             {/* Основная информация */}
@@ -67,6 +70,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
+                {/* Пациент */}
                 <div className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase text-gray-500">
                     Пациент
@@ -83,17 +87,23 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                   </div>
                 </div>
 
+                {/* Услуга */}
                 <div className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase text-gray-500">
                     Услуга
                   </h2>
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                  <div className="rounded-xl bg-gray-50 p-3 text_sm">
                     <div className="font-medium">
                       {appointment.serviceName}
                     </div>
                     {appointment.serviceCode && (
                       <div className="mt-1 text-[11px] text-gray-500">
                         код: {appointment.serviceCode}
+                      </div>
+                    )}
+                    {appointment.doctorName && (
+                      <div className="mt-2 text-[11px] text-gray-500">
+                        Врач: {appointment.doctorName}
                       </div>
                     )}
                   </div>
@@ -107,7 +117,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                 Формат связи (подключение врача)
               </h2>
               <div className="rounded-xl bg-emerald-50 p-3 text-sm space-y-2">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify_between gap-3">
                   <div>
                     <div className="text-[11px] text-emerald-800">
                       Платформа
@@ -115,6 +125,12 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                     <div className="text-sm font-semibold text-emerald-900">
                       Яндекс Телемост
                     </div>
+                    {appointment.videoPlatform &&
+                      appointment.videoPlatform !== "yandex_telemost" && (
+                        <div className="text-[10px] text-emerald-900 mt-0.5">
+                          (фактическая платформа: {appointment.videoPlatform})
+                        </div>
+                      )}
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
@@ -122,31 +138,62 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                   </span>
                 </div>
 
-                {/* Пока у appointments нет отдельного поля для video_url именно у врача,
-                    можно позже прокинуть сюда через расширение lib/registrar */}
-                <div className="text-[11px] text-emerald-800">
-                  Ссылка на Телемост указана в карточке консультации
-                  регистратуры. Позже здесь можно будет отображать её
-                  напрямую.
-                </div>
+                {appointment.videoUrl ? (
+                  <div className="text-[11px]">
+                    <a
+                      href={appointment.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 hover:underline font-medium"
+                    >
+                      Перейти в Телемост
+                    </a>
+                    <div className="text-[10px] text-emerald-900 mt-0.5">
+                      Откроется в новой вкладке. Проверьте, что вы авторизованы
+                      в Яндексе под нужным аккаунтом.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-emerald-800">
+                    Ссылка на Телемост пока не указана. Уточните у регистратуры
+                    или проверьте карточку консультации в кабинете
+                    регистратуры.
+                  </div>
+                )}
               </div>
             </section>
 
-            {/* Рабочий блок: заключение врача — пока как скелет */}
+            {/* Рабочий блок: Заключение врача (скелет) */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
-                Заключение врача (скелет)
+                Заключение врача (черновик)
               </h2>
               <p className="text-xs text-gray-500">
                 Здесь будет основной рабочий блок врача: описание жалоб,
-                осмотр, диагноз, назначения, рекомендации. На этом этапе мы
-                оставляем это как "скелет" — без записи в БД, чтобы сначала
-                утвердить структуру кабинета.
+                анамнеза, осмотра, диагноза и назначений. На этом этапе это
+                блок-скелет для отработки интерфейса — текст ниже пока не
+                сохраняется в базу.
               </p>
               <textarea
-                className="w-full min-h-[120px] rounded-xl border px-3 py-2 text-xs"
-                placeholder="Черновые заметки по приёму (пока никуда не сохраняются)…"
+                className="w-full min-h-[140px] rounded-xl border px-3 py-2 text-xs"
+                placeholder="Черновые заметки по приёму… (позже привяжем к базе и добавим статусы 'в работе' / 'завершено')"
               />
+              <div className="flex flex-wrap justify-end gap-2 pt-2 text-[11px]">
+                <button
+                  type="button"
+                  className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                  disabled
+                >
+                  Сохранить черновик (скоро)
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white opacity-60"
+                  disabled
+                >
+                  Отметить как завершённый (скоро)
+                </button>
+              </div>
             </section>
           </>
         )}
