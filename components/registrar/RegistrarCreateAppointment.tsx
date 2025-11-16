@@ -53,7 +53,7 @@ export function RegistrarCreateAppointment() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Врач / услуга
+  // врач / услуга
   const [doctorId, setDoctorId] = useState<string>(
     doctors[0]?.id ?? ""
   );
@@ -61,7 +61,7 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // Слот, если пришли из расписания
+  // слот (если пришли из расписания)
   const [slotId, setSlotId] = useState<string | null>(null);
 
   // ФИО клиента
@@ -89,13 +89,13 @@ export function RegistrarCreateAppointment() {
   // Телемост
   const [videoUrl, setVideoUrl] = useState("");
 
-  // Ошибки / загрузка
+  // Ошибка / загрузка
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
   );
 
-  // Клиенты и их питомцы
+  // Клиенты / питомцы
   const [owners, setOwners] = useState<OwnerOption[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string>("");
@@ -104,7 +104,10 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // ===== 1. Подхватываем данные из URL (расписание) =====
+  // спойлер
+  const [isOpen, setIsOpen] = useState(true);
+
+  // ===== 1. Подхват параметров из URL (из расписания) =====
   useEffect(() => {
     const qDoctor = searchParams.get("doctorId");
     const qDate = searchParams.get("date");
@@ -120,7 +123,7 @@ export function RegistrarCreateAppointment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // ===== 2. Загружаем клиентов =====
+  // ===== 2. Загрузка клиентов из owner_profiles =====
   useEffect(() => {
     let ignore = false;
 
@@ -159,7 +162,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // ===== 3. Загружаем питомцев =====
+  // ===== 3. Загрузка питомцев для выбранного клиента =====
   useEffect(() => {
     let ignore = false;
 
@@ -207,7 +210,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // Подстановка питомца
+  // При выборе питомца подставляем имя/вид, если поля пустые
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -252,7 +255,7 @@ export function RegistrarCreateAppointment() {
     return baseSpecies;
   };
 
-  // ===== 5. Submit =====
+  // ===== 5. Отправка формы =====
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -328,6 +331,7 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
+    // привязываем слот, если пришли из расписания
     if (slotId) {
       await client
         .from("doctor_slots")
@@ -335,6 +339,7 @@ export function RegistrarCreateAppointment() {
         .eq("id", slotId);
     }
 
+    // частичный сброс
     setPetName("");
     setPetSpeciesOther("");
     setPetBreed("");
@@ -362,38 +367,48 @@ export function RegistrarCreateAppointment() {
       ? CAT_BREEDS
       : ["Другая порода"];
 
-  // ===== 6. Рендер =====
+  // ===== 6. Рендер (компактно, вертикально, со спойлером) =====
 
   return (
-    <section className="rounded-2xl border bg_white p-4 space-y-4">
-      <h2 className="text-base font-semibold">
-        Создать новую консультацию
-      </h2>
-      <p className="text-xs text-gray-500">
-        При создании из расписания врач, услуга, дата и время уже
-        подставлены. Выберите клиента, питомца, заполните контакты и при
-        необходимости скорректируйте данные.
-      </p>
+    <section className="rounded-2xl border bg-white p-4 space-y-4">
+      <div className="flex items-center justify_between">
+        <div>
+          <h2 className="text-base font-semibold">
+            Создать новую консультацию
+          </h2>
+          <p className="text-xs text-gray-500">
+            При создании из расписания врач, услуга, дата и время уже
+            подставлены. Выберите клиента, питомца, заполните контакты и при
+            необходимости скорректируйте данные.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          className="text-xs text-emerald-700 hover:underline"
+        >
+          {isOpen ? "Свернуть" : "Развернуть"}
+        </button>
+      </div>
 
-      {errorMessage && (
+      {errorMessage && isOpen && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {errorMessage}
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
-      >
-        {/* Левая колонка: Клиент + Врач/услуга + Дата/время */}
-        <div className="space-y-4">
-          {/* Блок Клиент */}
-          <div className="rounded-2xl border bg-white p-3 space-y-3">
-            <div className="flex items-center justify-between">
+      {isOpen && (
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+        >
+          {/* Клиент */}
+          <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
+            <div className="flex items-center justify_between">
               <span className="text-xs font-semibold text-gray-700">
                 Клиент
               </span>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500 border">
                 из картотеки
               </span>
             </div>
@@ -430,7 +445,7 @@ export function RegistrarCreateAppointment() {
                 )}
               </div>
 
-              {/* ФИО в одну строку на десктопе */}
+              {/* ФИО в одну строку */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   ФИО клиента (для заметки)
@@ -461,152 +476,56 @@ export function RegistrarCreateAppointment() {
               </div>
 
               {/* Контакты */}
-              <div className="space-y-1">
-                <div className="text-[11px] font-semibold text-gray-600">
-                  Контакты клиента
+              <div className="space-y-2">
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    E-mail <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="user@example.com"
+                    required
+                  />
                 </div>
-                <div className="space-y-2">
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      E-mail <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                      placeholder="user@example.com"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      Телефон <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={clientPhone}
-                      onChange={(e) => setClientPhone(e.target.value)}
-                      className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                      placeholder="+7 900 000-00-00"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      Telegram (ник, опционально)
-                    </label>
-                    <input
-                      type="text"
-                      value={clientTelegram}
-                      onChange={(e) => setClientTelegram(e.target.value)}
-                      className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                      placeholder="@username"
-                    />
-                  </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Телефон <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="+7 900 000-00-00"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Telegram (ник, опционально)
+                  </label>
+                  <input
+                    type="text"
+                    value={clientTelegram}
+                    onChange={(e) => setClientTelegram(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="@username"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Блок Врач и услуга + Дата/время */}
-          <div className="rounded-2xl border bg-white p-3 space-y-3">
-            <div className="text-xs font-semibold text-gray-700">
-              Врач, услуга и время
-            </div>
-
-            {/* Врач и услуга */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Врач
-                </label>
-                <select
-                  value={doctorId}
-                  onChange={(e) => setDoctorId(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                >
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Услуга
-                </label>
-                <select
-                  value={serviceCode}
-                  onChange={(e) => setServiceCode(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                >
-                  {servicesPricing.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Дата и время */}
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold text-gray-600">
-                Дата и время
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-[11px] text-gray-500">
-                    Дата
-                  </label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] text-gray-500">
-                    Время
-                  </label>
-                  <input
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-gray-400">
-                Если вы пришли из расписания, дата и время выбраны по слоту.
-                Их можно изменить вручную.
-              </p>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {saving ? "Создаём консультацию…" : "Создать консультацию"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Правая колонка: Питомец + Телемост */}
-        <div className="space-y-4">
           {/* Питомец */}
-          <div className="rounded-2xl border bg-white p-3 space-y-3">
+          <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-700">
                 Питомец
               </span>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500 border">
                 из базы pets
               </span>
             </div>
@@ -643,7 +562,7 @@ export function RegistrarCreateAppointment() {
                 )}
                 {!selectedOwnerId && (
                   <div className="text-[11px] text-gray-400">
-                    Сначала выберите клиента, чтобы увидеть его питомцев.
+                    Сначала выберите клиента.
                   </div>
                 )}
               </div>
@@ -724,8 +643,49 @@ export function RegistrarCreateAppointment() {
             </div>
           </div>
 
+          {/* Врач и услуга */}
+          <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
+            <div className="text-xs font-semibold text-gray-700">
+              Врач и услуга
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Врач
+                </label>
+                <select
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  {doctors.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Услуга
+                </label>
+                <select
+                  value={serviceCode}
+                  onChange={(e) => setServiceCode(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  {servicesPricing.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Формат связи: Телемост */}
-          <div className="rounded-2xl border bg-white p-3 space-y-3">
+          <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-700">
                 Формат связи
@@ -735,7 +695,6 @@ export function RegistrarCreateAppointment() {
                 Яндекс Телемост
               </span>
             </div>
-
             <div className="space-y-2">
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
@@ -764,8 +723,52 @@ export function RegistrarCreateAppointment() {
               </div>
             </div>
           </div>
-        </div>
-      </form>
+
+          {/* Дата и время + кнопка */}
+          <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
+            <div className="text-xs font-semibold text-gray-700">
+              Дата и время
+            </div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Дата
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Время
+                </label>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400">
+              Если вы пришли из расписания, дата и время выбраны по слоту. Их
+              можно изменить вручную.
+            </p>
+            <div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {saving ? "Создаём консультацию…" : "Создать консультацию"}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
     </section>
   );
 }
