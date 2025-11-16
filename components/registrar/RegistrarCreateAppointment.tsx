@@ -21,11 +21,40 @@ type PetOption = {
   species?: string | null;
 };
 
+// базовые виды животных
+const SPECIES_OPTIONS = [
+  "Собака",
+  "Кошка",
+  "Грызун",
+  "Птица",
+  "Рептилия",
+  "Другое",
+] as const;
+
+const DOG_BREEDS = [
+  "Метис",
+  "Лабрадор ретривер",
+  "Немецкая овчарка",
+  "Йоркширский терьер",
+  "Такса",
+  "Чихуахуа",
+  "Другая порода",
+];
+
+const CAT_BREEDS = [
+  "Метис",
+  "Британская короткошёрстная",
+  "Шотландская вислоухая",
+  "Мейн-кун",
+  "Сфинкс",
+  "Другая порода",
+];
+
 export function RegistrarCreateAppointment() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Врач / услуга
+  // врач / услуга
   const [doctorId, setDoctorId] = useState<string>(
     doctors[0]?.id ?? ""
   );
@@ -33,18 +62,28 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // Слот (если пришли из расписания)
+  // слот (если пришли из расписания)
   const [slotId, setSlotId] = useState<string | null>(null);
 
-  // Клиент
-  const [clientName, setClientName] = useState("");
-  const [clientContact, setClientContact] = useState("");
+  // ФИО клиента (для заметки)
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+
+  // Контакты
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientTelegram, setClientTelegram] = useState("");
 
   // Питомец
   const [petName, setPetName] = useState("");
-  const [petSpecies, setPetSpecies] = useState("");
+  const [petSpeciesType, setPetSpeciesType] =
+    useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
+  const [petBreed, setPetBreed] = useState("");
+  const [petSpeciesOther, setPetSpeciesOther] = useState("");
+  const [petBreedOther, setPetBreedOther] = useState("");
 
-  // Дата и время
+  // Дата / время
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
@@ -66,7 +105,7 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // ===== 1. Подхватываем параметры из URL =====
+  // ===== 1. Читаем параметры из URL (если пришли из расписания) =====
   useEffect(() => {
     const qDoctor = searchParams.get("doctorId");
     const qDate = searchParams.get("date");
@@ -106,7 +145,7 @@ export function RegistrarCreateAppointment() {
             label: o.full_name || `Клиент ${o.user_id}`,
           }));
           setOwners(opts);
-          if (opts.length > 0) {
+          if (opts.length > 0 && !selectedOwnerId) {
             setSelectedOwnerId(opts[0].id);
           }
         }
@@ -119,9 +158,9 @@ export function RegistrarCreateAppointment() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [selectedOwnerId]);
 
-  // ===== 3. Загружаем питомцев =====
+  // ===== 3. Загружаем питомцев выбранного клиента =====
   useEffect(() => {
     let ignore = false;
 
@@ -169,22 +208,67 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
+  // при выборе питомца подставляем имя/вид, если ещё ничего не введено
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
     if (!pet) return;
 
     setPetName((prev) => prev || pet.label);
-    setPetSpecies((prev) => prev || pet.species || "");
+    if (pet.species) {
+      setPetSpeciesType("Другое");
+      setPetSpeciesOther(pet.species);
+    }
   }, [selectedPetId, pets]);
 
-  // ===== 4. Submit =====
+  // ===== 4. Формирование строки вида/породы =====
+
+  const buildSpeciesString = () => {
+    let baseSpecies: string;
+    if (petSpeciesType === "Другое") {
+      baseSpecies = petSpeciesOther || "другое";
+    } else {
+      baseSpecies = petSpeciesType;
+    }
+
+    let breedStr = "";
+    if (petSpeciesType === "Собака") {
+      if (petBreed === "Другая порода") {
+        breedStr = petBreedOther || "";
+      } else {
+        breedStr = petBreed;
+      }
+    } else if (petSpeciesType === "Кошка") {
+      if (petBreed === "Другая порода") {
+        breedStr = petBreedOther || "";
+      } else {
+        breedStr = petBreed;
+      }
+    } else if (petSpeciesType === "Другое") {
+      breedStr = petBreedOther || "";
+    }
+
+    if (breedStr) {
+      return `${baseSpecies}, ${breedStr}`;
+    }
+    return baseSpecies;
+  };
+
+  // ===== 5. Submit =====
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const client = supabase;
     if (!client) {
       setErrorMessage("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    // проверяем обязательные поля контактов
+    if (!clientEmail.trim() || !clientPhone.trim()) {
+      setErrorMessage(
+        "E-mail и телефон клиента обязательны для заполнения."
+      );
       return;
     }
 
@@ -203,6 +287,7 @@ export function RegistrarCreateAppointment() {
 
     const startsAt = new Date(`${date}T${time}`);
 
+    // owner_id — bigint
     let owner_id: number | null = null;
     if (selectedOwnerId) {
       const parsed = parseInt(selectedOwnerId, 10);
@@ -213,20 +298,37 @@ export function RegistrarCreateAppointment() {
 
     const pet_id = selectedPetId || null;
 
+    // собрать контактную строку
+    const parts: string[] = [];
+    if (clientEmail) parts.push(`email: ${clientEmail.trim()}`);
+    if (clientPhone) parts.push(`phone: ${clientPhone.trim()}`);
+    if (clientTelegram)
+      parts.push(`telegram: ${clientTelegram.trim()}`);
+    const contact_info = parts.join(" | ");
+
+    // собрать ФИО (для возможного дальнейшего использования)
+    const fullName = [lastName, firstName, middleName]
+      .filter(Boolean)
+      .join(" ");
+
+    const speciesString = buildSpeciesString();
+
     const { data, error } = await client
       .from("appointments")
       .insert({
         starts_at: startsAt.toISOString(),
         status: "запрошена",
         pet_name: petName || null,
-        species: petSpecies || null,
+        species: speciesString || null,
         service_code: serviceCode,
         owner_id,
         pet_id,
         doctor_id: doctorId || null,
-        contact_info: clientContact || null,
+        contact_info,
         video_platform: "yandex_telemost",
         video_url: videoUrl || null,
+        // ФИО клиента как вспомогательная информация (если есть соответствующее поле, можно добавить в БД позже)
+        // client_full_name: fullName || null,
       })
       .select("id")
       .single();
@@ -238,13 +340,23 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // Если консультация создана ИЗ слота — привязываем слот к приёму
+    // если есть slotId — привязываем слот к приёму
     if (slotId) {
       await client
         .from("doctor_slots")
         .update({ appointment_id: data.id, status: "busy" })
         .eq("id", slotId);
     }
+
+    // сбрасываем только часть данных, чтобы не раздражать регистратуру
+    setPetName("");
+    setPetSpeciesOther("");
+    setPetBreed("");
+    setPetBreedOther("");
+    setDate("");
+    setTime("");
+    setSelectedPetId("");
+    setVideoUrl("");
 
     setSaving(false);
     router.refresh();
@@ -257,7 +369,15 @@ export function RegistrarCreateAppointment() {
     }
   };
 
-  // ===== 5. Рендер =====
+  // ===== 6. Рендер =====
+  // вспомогательный список пород в зависимости от вида
+  const currentBreedOptions =
+    petSpeciesType === "Собака"
+      ? DOG_BREEDS
+      : petSpeciesType === "Кошка"
+      ? CAT_BREEDS
+      : ["Другая порода"];
+
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
       <h2 className="text-base font-semibold">
@@ -265,8 +385,8 @@ export function RegistrarCreateAppointment() {
       </h2>
       <p className="text-xs text-gray-500">
         При создании из расписания врач, услуга, дата и время уже
-        подставлены. Выберите клиента, питомца и при необходимости
-        скорректируйте данные.
+        подставлены. Выберите клиента, питомца, заполните контакты и при
+        необходимости скорректируйте данные.
       </p>
 
       {errorMessage && (
@@ -285,9 +405,10 @@ export function RegistrarCreateAppointment() {
             Клиент
           </div>
           <div className="space-y-2">
+            {/* Клиент из картотеки */}
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Клиент из картотеки
+                Клиент из картотеки (owner_profiles)
               </label>
               {ownersLoading ? (
                 <div className="text-[11px] text-gray-400">
@@ -315,29 +436,83 @@ export function RegistrarCreateAppointment() {
               )}
             </div>
 
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Имя клиента (для заметки)
-              </label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="Например, Иван Иванов"
-              />
+            {/* ФИО клиента */}
+            <div className="grid grid-cols-1 gap-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Фамилия
+                </label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="Иванов"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Имя
+                </label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="Иван"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Отчество
+                </label>
+                <input
+                  type="text"
+                  value={middleName}
+                  onChange={(e) => setMiddleName(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="Иванович"
+                />
+              </div>
             </div>
 
+            {/* Контакты */}
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Контакт (телефон / e-mail / Telegram)
+                E-mail (обязательно)
+              </label>
+              <input
+                type="email"
+                value={clientEmail}
+                onChange={(e) => setClientEmail(e.target.value)}
+                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                placeholder="user@example.com"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Телефон (обязательно)
+              </label>
+              <input
+                type="tel"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                placeholder="+7 900 000-00-00"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Telegram (ник, опционально)
               </label>
               <input
                 type="text"
-                value={clientContact}
-                onChange={(e) => setClientContact(e.target.value)}
+                value={clientTelegram}
+                onChange={(e) => setClientTelegram(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="+7..., @username, email..."
+                placeholder="@username"
               />
             </div>
           </div>
@@ -349,9 +524,10 @@ export function RegistrarCreateAppointment() {
             Питомец
           </div>
           <div className="space-y-2">
+            {/* Питомец из базы */}
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Питомец из базы
+                Питомец из базы (pets)
               </label>
               {selectedOwnerId && petsLoading && (
                 <div className="text-[11px] text-gray-400">
@@ -384,6 +560,7 @@ export function RegistrarCreateAppointment() {
               )}
             </div>
 
+            {/* Имя питомца */}
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Имя питомца
@@ -396,17 +573,65 @@ export function RegistrarCreateAppointment() {
                 placeholder="Мурзик"
               />
             </div>
+
+            {/* Вид */}
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Вид / порода
+                Вид
               </label>
-              <input
-                type="text"
-                value={petSpecies}
-                onChange={(e) => setPetSpecies(e.target.value)}
+              <select
+                value={petSpeciesType}
+                onChange={(e) =>
+                  setPetSpeciesType(
+                    e.target.value as (typeof SPECIES_OPTIONS)[number]
+                  )
+                }
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="Кошка, шотландская; Собака, корги..."
-              />
+              >
+                {SPECIES_OPTIONS.map((sp) => (
+                  <option key={sp} value={sp}>
+                    {sp}
+                  </option>
+                ))}
+              </select>
+              {petSpeciesType === "Другое" && (
+                <input
+                  type="text"
+                  value={petSpeciesOther}
+                  onChange={(e) => setPetSpeciesOther(e.target.value)}
+                  className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="Уточните вид животного"
+                />
+              )}
+            </div>
+
+            {/* Порода */}
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Порода
+              </label>
+              <select
+                value={petBreed}
+                onChange={(e) => setPetBreed(e.target.value)}
+                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+              >
+                <option value="">Не указана</option>
+                {currentBreedOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+              {(petBreed === "Другая порода" ||
+                petSpeciesType === "Другое") && (
+                <input
+                  type="text"
+                  value={petBreedOther}
+                  onChange={(e) => setPetBreedOther(e.target.value)}
+                  className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="Уточните породу (или описание)"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -452,7 +677,7 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Формат связи */}
+        {/* Формат связи: Телемост */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700">
