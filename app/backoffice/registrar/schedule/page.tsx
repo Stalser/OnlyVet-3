@@ -20,7 +20,7 @@ type SlotRow = {
 export default function RegistrarSchedulePage() {
   const [doctorId, setDoctorId] = useState(doctors[0].id);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [periodFilter, setPeriodFilter] = useState("7"); // 7 дней
+  const [periodFilter, setPeriodFilter] = useState("7");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
 
   const [slots, setSlots] = useState<SlotRow[]>([]);
@@ -64,16 +64,13 @@ export default function RegistrarSchedulePage() {
 
   useEffect(() => {
     loadSlots();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
-  // фильтр по статусу
   const filteredByStatus = useMemo(() => {
     if (statusFilter === "all") return slots;
     return slots.filter((s) => s.status === statusFilter);
   }, [slots, statusFilter]);
 
-  // фильтр по периоду
   const filteredByPeriod = useMemo(() => {
     if (periodFilter === "all") return filteredByStatus;
 
@@ -82,7 +79,6 @@ export default function RegistrarSchedulePage() {
     const end = new Date(now);
 
     if (periodFilter === "0") {
-      // Сегодня
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
     } else if (periodFilter === "7") {
@@ -98,7 +94,6 @@ export default function RegistrarSchedulePage() {
     });
   }, [filteredByStatus, periodFilter]);
 
-  // группировка по дате
   const grouped = useMemo(() => {
     const map = new Map<string, SlotRow[]>();
     filteredByPeriod.forEach((s) => {
@@ -110,6 +105,58 @@ export default function RegistrarSchedulePage() {
       ([d1], [d2]) => new Date(d1).getTime() - new Date(d2).getTime()
     );
   }, [filteredByPeriod]);
+
+  // вспомогательный рендер одного слота
+  function renderSlotTile(s: SlotRow) {
+    const isAvailable = s.status === "available";
+
+    const baseClasses =
+      "rounded-xl border px-3 py-2 text-xs flex flex-col";
+    const color =
+      s.status === "available"
+        ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 cursor-pointer"
+        : s.status === "busy"
+        ? "bg-gray-100 text-gray-700 border-gray-300"
+        : "bg-red-50 text-red-700 border-red-300";
+
+    const content = (
+      <div className={`${baseClasses} ${color}`}>
+        <div className="font-medium">
+          {s.time_start}–{s.time_end}
+        </div>
+        <div className="text-[10px] text-gray-500">
+          {s.status === "available" && "Свободно"}
+          {s.status === "busy" && "Занято (есть приём)"}
+          {s.status === "unavailable" && "Недоступно"}
+        </div>
+      </div>
+    );
+
+    // если слот свободен — делаем его ссылкой на создание консультации
+    if (isAvailable) {
+      const params = new URLSearchParams({
+        doctorId,
+        date: s.date,
+        time: s.time_start,
+      }).toString();
+
+      return (
+        <Link
+          key={s.id}
+          href={`/backoffice/registrar?${params}`}
+        >
+          {content}
+        </Link>
+      );
+    }
+
+    // если занят/недоступен — просто плитка без ссылки
+    return (
+      <div key={s.id}>
+        {content}
+      </div>
+    );
+  }
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -133,7 +180,6 @@ export default function RegistrarSchedulePage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <RegistrarHeader />
-            {/* Кнопка редактирования — на отдельную страницу */}
             <Link
               href="/backoffice/registrar/schedule/edit"
               className="text-[11px] font-medium text-emerald-700 hover:underline"
@@ -147,7 +193,6 @@ export default function RegistrarSchedulePage() {
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:w-auto md:flex-1">
-              {/* Врач */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Врач
@@ -165,7 +210,6 @@ export default function RegistrarSchedulePage() {
                 </select>
               </div>
 
-              {/* Статус */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Статус слотов
@@ -182,7 +226,6 @@ export default function RegistrarSchedulePage() {
                 </select>
               </div>
 
-              {/* Период */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Период
@@ -200,7 +243,6 @@ export default function RegistrarSchedulePage() {
               </div>
             </div>
 
-            {/* Переключатель вида */}
             <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
               <button
                 type="button"
@@ -256,36 +298,13 @@ export default function RegistrarSchedulePage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {daySlots.map((s) => {
-                      const color =
-                        s.status === "available"
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                          : s.status === "busy"
-                          ? "bg-gray-100 text-gray-700 border-gray-300"
-                          : "bg-red-50 text-red-700 border-red-300";
-
-                      return (
-                        <div
-                          key={s.id}
-                          className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${color}`}
-                        >
-                          <div className="font-medium">
-                            {s.time_start}–{s.time_end}
-                          </div>
-                          <div className="text-[10px] text-gray-500">
-                            {s.status === "available" && "Свободно"}
-                            {s.status === "busy" && "Занято (есть приём)"}
-                            {s.status === "unavailable" && "Недоступно"}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {daySlots.map((s) => renderSlotTile(s))}
                   </div>
                 </div>
               ))}
           </section>
         ) : (
-          /* Режим: календарь */
+          // Режим: календарь
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">
               Слоты врача (календарь)
@@ -297,8 +316,7 @@ export default function RegistrarSchedulePage() {
 
             {!loading && grouped.length === 0 && (
               <p className="text-xs text-gray-500">
-                Слотов не найдено. Возможно, расписание ещё не настроено
-                или фильтры слишком узкие.
+                Слотов не найдено. Возможно, расписание ещё не настроено.
               </p>
             )}
 
@@ -318,30 +336,7 @@ export default function RegistrarSchedulePage() {
                         })}
                       </div>
                       <div className="space-y-1">
-                        {daySlots.map((s) => {
-                          const color =
-                            s.status === "available"
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                              : s.status === "busy"
-                              ? "bg-gray-100 text-gray-700 border-gray-300"
-                              : "bg-red-50 text-red-700 border-red-300";
-
-                          return (
-                            <div
-                              key={s.id}
-                              className={`rounded-xl border px-2 py-1 text-[11px] ${color}`}
-                            >
-                              <div className="font-medium">
-                                {s.time_start}–{s.time_end}
-                              </div>
-                              <div className="text-[10px] text-gray-500">
-                                {s.status === "available" && "Свободно"}
-                                {s.status === "busy" && "Занято"}
-                                {s.status === "unavailable" && "Недоступно"}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {daySlots.map((s) => renderSlotTile(s))}
                       </div>
                     </div>
                   ))}
