@@ -1,415 +1,159 @@
-"use client";
-
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import {
-  useEffect,
-  useState,
-  useRef,
-  type ChangeEvent,
-} from "react";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { getRegistrarAppointmentById } from "@/lib/registrar";
 
-import {
-  appointments,
-  type Appointment,
-} from "../../../../lib/appointments";
-import {
-  mockMedicalDocs,
-  type MedicalDocument,
-} from "../../../../lib/medicalDocs";
-
-type PageProps = {
-  params: { id: string };
-};
-
-export default function StaffAppointmentWorkspace({ params }: PageProps) {
-  const sourceAppointment = appointments.find((a) => a.id === params.id);
-
-  if (!sourceAppointment) {
-    return notFound();
-  }
-
-  const [status, setStatus] = useState<Appointment["status"]>(
-    sourceAppointment.status
-  );
-
-  const docs = mockMedicalDocs.filter(
-    (d) => d.appointmentId === sourceAppointment.id
-  );
-
-  const dateLabel = `${sourceAppointment.date} в ${sourceAppointment.time}`;
-  const hasPersonalAccount = !!sourceAppointment.userId;
-
-  const handleFinish = () => {
-    if (status === "завершена") return;
-    setStatus("завершена");
-    // позже сюда аккуратно вернём запрос в Supabase
+interface PageProps {
+  params: {
+    id: string;
   };
+}
+
+export default async function StaffAppointmentPage({ params }: PageProps) {
+  const appointment = await getRegistrarAppointmentById(params.id);
 
   return (
-    <main className="bg-slate-50 min-h-screen py-12">
-      <div className="container space-y-6">
-        <div className="text-xs text-gray-500 flex justify-between items-center">
-          <Link href="/staff" className="hover:text-gray-800">
-            ← Назад в кабинет сотрудника
-          </Link>
-          <span className="text-gray-400">Приём #{sourceAppointment.id}</span>
-        </div>
-
-        {/* Шапка */}
-        <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+    <RoleGuard allowed={["vet", "admin"]}>
+      <main className="mx-auto max-w-4xl px-4 py-6 space-y-6">
+        <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold">
-              Консультация: {sourceAppointment.petName} (
-              {sourceAppointment.species})
+            <Link
+              href="/staff"
+              className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+            >
+              ← В кабинет врача
+            </Link>
+            <h1 className="mt-2 text-xl font-bold tracking-tight">
+              Онлайн-консультация
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {dateLabel} · {sourceAppointment.serviceName}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Текущий статус:{" "}
-              <span className="font-medium">{status}</span>
+            <p className="text-sm text-gray-500">
+              Информация о приёме, пациенте и ссылке на Телемост.
             </p>
           </div>
-
-          {/* Таймер + кнопка завершения, на одной линии */}
-          <div className="flex flex-col sm:items-end gap-2">
-            <div className="flex items-center gap-2">
-              <TimerBlock />
-              {status !== "завершена" && (
-                <button
-                  type="button"
-                  onClick={handleFinish}
-                  className="rounded-xl px-4 py-2 bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
-                >
-                  Завершить приём
-                </button>
-              )}
-            </div>
-          </div>
+          <RegistrarHeader />
         </header>
 
-        {/* Основной контент: слева заметки, справа инфо */}
-        <div className="grid lg:grid-cols-3 gap-4 items-start">
-          {/* Заметки врача — левый большой блок */}
-          <section className="lg:col-span-2">
-            <NotesBlock />
+        {!appointment && (
+          <section className="rounded-2xl border bg-white p-4">
+            <p className="text-sm text-gray-500">
+              Консультация с идентификатором{" "}
+              <span className="font-mono">{params.id}</span> не найдена.
+            </p>
           </section>
+        )}
 
-          {/* Правая колонка: заметки администратора, пациент, клиент, документы */}
-          <section className="space-y-4">
-            {/* Заметки администратора / регистратора */}
-            <div className="rounded-2xl border bg-white p-4 space-y-2 text-sm">
-              <h2 className="font-semibold text-base">
-                Заметки администратора
+        {appointment && (
+          <>
+            {/* Основная информация */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs text-gray-500">
+                    Дата / время
+                  </div>
+                  <div className="text-sm font-medium text-gray-900">
+                    {appointment.dateLabel}
+                  </div>
+                </div>
+                <div className="text-right text-xs text-gray-500">
+                  Статус
+                  <div className="mt-1 text-[11px] font-semibold text-gray-900">
+                    {appointment.statusLabel}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase text-gray-500">
+                    Пациент
+                  </h2>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                    <div className="font-medium">
+                      {appointment.petName || "Без имени"}
+                    </div>
+                    {appointment.petSpecies && (
+                      <div className="mt-1 text-xs text-gray-600">
+                        {appointment.petSpecies}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase text-gray-500">
+                    Услуга
+                  </h2>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                    <div className="font-medium">
+                      {appointment.serviceName}
+                    </div>
+                    {appointment.serviceCode && (
+                      <div className="mt-1 text-[11px] text-gray-500">
+                        код: {appointment.serviceCode}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Формат связи: Телемост */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <h2 className="text-sm font-semibold">
+                Формат связи (для подключения врача)
+              </h2>
+              <div className="rounded-xl bg-emerald-50 p-3 text-sm space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] text-emerald-800">
+                      Платформа
+                    </div>
+                    <div className="text-sm font-semibold text-emerald-900">
+                      Яндекс Телемост
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                    Онлайн
+                  </span>
+                </div>
+
+                {appointment.videoUrl ? (
+                  <div className="text-[11px]">
+                    <a
+                      href={appointment.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 hover:underline"
+                    >
+                      Перейти в Телемост
+                    </a>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-emerald-800">
+                    Ссылка на Телемост пока не указана. Уточните у
+                    регистратуры или создайте конференцию и добавьте ссылку
+                    в карточке консультации.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Заглушка под блок "Заключение врача" */}
+            <section className="rounded-2xl border bg-white p-4 space-y-2">
+              <h2 className="text-sm font-semibold">
+                Заключение врача (будет дорабатываться)
               </h2>
               <p className="text-xs text-gray-500">
-                Здесь регистратор может оставить важную информацию для врача:
-                особенности владельца, нюансы общения, технические детали
-                связи, комментарии по оплате и т.п.
+                Здесь будет основная рабочая зона врача: заключение,
+                назначения, шаблоны. Сейчас это заглушка, чтобы
+                архитектурно закрепить кабинет.
               </p>
-              <p className="text-xs text-gray-700">
-                Нет особых пометок. Пациент впервые обращается в OnlyVet.
-                (заглушка)
-              </p>
-            </div>
-
-            {/* Пациент */}
-            <div className="rounded-2xl border bg-white p-4 space-y-2 text-sm">
-              <h2 className="font-semibold text-base">Пациент</h2>
-              <div className="grid gap-2 text-xs text-gray-700">
-                <InfoRow label="Имя питомца" value={sourceAppointment.petName} />
-                <InfoRow label="Вид животного" value={sourceAppointment.species} />
-                <InfoRow label="Услуга" value={sourceAppointment.serviceName} />
-              </div>
-            </div>
-
-            {/* Клиент */}
-            <div className="rounded-2xl border bg-white p-4 space-y-2.text-sm">
-              <h2 className="font-semibold text-base">Клиент</h2>
-              <div className="grid gap-2 text-xs text-gray-700">
-                <InfoRow label="Имя владельца" value="Иванова Анна (заглушка)" />
-                <InfoRow
-                  label="Email"
-                  value="test1@onlyvet.com (заглушка)"
-                />
-                <InfoRow
-                  label="Контакт для связи"
-                  value="+7 900 000-00-00 / @username"
-                />
-                <div>
-                  <div className="text-gray-500 text-[11px]">
-                    Личный кабинет
-                  </div>
-                  <div className="font-medium">
-                    {hasPersonalAccount
-                      ? "Есть (зарегистрирован в OnlyVet)"
-                      : "Нет (только гостевой пользователь)"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Документы пациента */}
-            <div className="rounded-2xl.border bg-white p-4 space-y-2 text-sm">
-              <h2 className="font-semibold text-base">Документы пациента</h2>
-              {docs.length === 0 && (
-                <p className="text-xs text-gray-500">
-                  Документы по приёму пока не загружены.
-                </p>
-              )}
-              {docs.length > 0 && (
-                <ul className="space-y-2 text-xs">
-                  {docs.map((d) => (
-                    <DocumentItem key={d.id} doc={d} />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-/* ---------- Вспомогательные компоненты ---------- */
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-gray-500 text-[11px]">{label}</div>
-      <div className="font-medium">{value}</div>
-    </div>
-  );
-}
-
-function DocumentItem({ doc }: { doc: MedicalDocument }) {
-  const dateLabel = new Date(doc.createdAt).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
-
-  return (
-    <li className="border border-gray-100 rounded-xl px-3 py-2 bg-gray-50 flex justify-between items-center">
-      <div>
-        <div className="font-medium">{doc.title}</div>
-        <div className="text-gray-500 text-[11px]">
-          {doc.type} • {dateLabel}
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <button className="text-[11px] text-blue-600 underline underline-offset-2">
-          Посмотреть
-        </button>
-        <button className="text-[11px] text-gray-700 underline underline-offset-2">
-          Скачать
-        </button>
-      </div>
-    </li>
-  );
-}
-
-/* ---------- Таймер: компактный прямоугольник рядом с кнопкой ---------- */
-
-function TimerBlock() {
-  const [seconds, setSeconds] = useState(0);
-  const [running, setRunning] = useState(false);
-
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [running]);
-
-  const toggle = () => setRunning((r) => !r);
-  const reset = () => {
-    setRunning(false);
-    setSeconds(0);
-  };
-
-  const h = Math.floor(seconds / 3600)
-    .toString()
-    .padStart(2, "0");
-  const m = Math.floor((seconds % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs">
-      <span className="text-gray-500 text-[11px]">Таймер</span>
-      <span className="font-mono text-sm text-gray-900">
-        {h}:{m}:{s}
-      </span>
-      <button
-        type="button"
-        onClick={toggle}
-        className="rounded-lg px-2 py-1 bg-black text-white text-[11px] hover:bg-gray-900"
-      >
-        {running ? "Пауза" : "Старт"}
-      </button>
-      <button
-        type="button"
-        onClick={reset}
-        className="rounded-lg px-2 py-1 border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100"
-      >
-        Сброс
-      </button>
-    </div>
-  );
-}
-
-/* ---------- Заметки врача: редактор + файлы (пока без БД) ---------- */
-
-/* ---------- Заметки врача: редактор + файлы (пока без БД) ---------- */
-
-function NotesBlock() {
-  const editorRef = useRef<HTMLDivElement | null>(null);
-
-  type Attachment = {
-    id: string;
-    name: string;
-    size?: string;
-    type?: string;
-    uploadedAt: string;
-  };
-
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = () => {
-    setIsSaving(true);
-    const content = editorRef.current?.innerText ?? "";
-    // TODO: здесь потом будет вызов API для сохранения заметок в БД
-    console.log("Saving notes draft:", content, attachments);
-    setTimeout(() => {
-      setIsSaving(false);
-    }, 400);
-  };
-
-  const handleClear = () => {
-    if (editorRef.current) {
-      editorRef.current.innerText = "";
-    }
-  };
-
-  const handleAttachmentChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
-      id: `${file.name}-${file.lastModified}`,
-      name: file.name,
-      size: `${(file.size / 1024).toFixed(1)} KB`,
-      type: file.type || "file",
-      uploadedAt: new Date().toISOString(),
-    }));
-
-    setAttachments((prev) => [...prev, ...newAttachments]);
-    // чтобы можно было выбрать тот же файл снова
-    e.target.value = "";
-  };
-
-  const handleRemoveAttachment = (id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
-  };
-
-  return (
-    <div className="rounded-2xl border bg-white p-4 space-y-3">
-      <header className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="font-semibold text-base">Заметки врача</h2>
-          <p className="text-xs text-gray-500">
-            Здесь вы можете вести рабочие заметки по приёму. В будущем этот
-            блок будет сохраняться в БД и попадать в итоговый отчёт.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleClear}
-            className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
-          >
-            Очистить
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            disabled={isSaving}
-          >
-            {isSaving ? "Сохраняем..." : "Сохранить черновик"}
-          </button>
-        </div>
-      </header>
-
-      <div
-        ref={editorRef}
-        className="min-h-[160px] rounded-xl border bg-gray-50 px-3 py-2 text-sm focus-within:outline-none"
-        contentEditable
-        suppressContentEditableWarning
-      >
-        {/* Пусто по умолчанию — врач сам начнёт писать */}
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <span className="font-medium">Вложения</span>
-            <span className="text-[10px] text-gray-400">
-              (анализы, выписки, изображения)
-            </span>
-          </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-            <span>Добавить файлы</span>
-            <input
-              type="file"
-              multiple
-              onChange={handleAttachmentChange}
-              className="hidden"
-            />
-          </label>
-        </div>
-
-        {attachments.length === 0 && (
-          <p className="text-xs text-gray-400">
-            Файлы пока не прикреплены.
-          </p>
+            </section>
+          </>
         )}
-
-        {attachments.length > 0 && (
-          <ul className="space-y-1 text-xs">
-            {attachments.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between rounded-lg bg-gray-50 px-2 py-1"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium text-gray-800 truncate">
-                    {a.name}
-                  </span>
-                  <span className="text-[10px] text-gray-500">
-                    {a.size}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveAttachment(a.id)}
-                  className="text-[11px] text-red-500 hover:text-red-600"
-                >
-                  Удалить
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+      </main>
+    </RoleGuard>
   );
 }
