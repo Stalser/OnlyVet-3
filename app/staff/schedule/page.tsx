@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { StaffNav } from "@/components/staff/StaffNav";
 import { getRegistrarAppointments } from "@/lib/registrar";
 
-// Тип для одной консультации на основе getRegistrarAppointments
 type Appointment = Awaited<
   ReturnType<typeof getRegistrarAppointments>
 >[number];
@@ -12,21 +12,17 @@ export default async function StaffSchedulePage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
-  // Пока берём все будущие и сегодняшние приёмы.
-  // Позже здесь сделаем фильтрацию "только мои".
   const upcoming: Appointment[] = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
-    return d >= now; // всё, что сегодня и в будущем
+    return d >= now;
   });
 
-  // Группировка по дате (ключ: YYYY-MM-DD)
   const groupedByDay: Record<string, Appointment[]> = {};
   upcoming.forEach((a) => {
     if (!a.startsAt) return;
     const d = new Date(a.startsAt);
-    const key = d.toISOString().split("T")[0]; // YYYY-MM-DD
-
+    const key = d.toISOString().split("T")[0];
     if (!groupedByDay[key]) groupedByDay[key] = [];
     groupedByDay[key].push(a);
   });
@@ -52,22 +48,22 @@ export default async function StaffSchedulePage() {
             </h1>
             <p className="text-sm text-gray-500">
               Список предстоящих онлайн-консультаций, сгруппированных по
-              дням. Позже здесь будет фильтр &quot;только мои приёмы&quot; и
-              детальная фильтрация по врачу.
+              дням. Позже здесь появится фильтр &quot;только мои
+              консультации&quot;.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Переключатель "Мои / Все" — пока скелет, визуальный */}
+        <StaffNav />
+
+        {/* Переключатель режима — пока визуальный */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-semibold text-gray-700">
               Режим просмотра
             </div>
             <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
-              {/* Сейчас обе кнопки показывают одно и то же.
-                 Позже сюда добавим реальную фильтрацию по doctor_id. */}
               <button className="px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm">
                 Мои приёмы
               </button>
@@ -78,8 +74,8 @@ export default async function StaffSchedulePage() {
           </div>
           <p className="text-[10px] text-gray-400">
             В этом скелетном варианте оба режима показывают один и тот же
-            список. Когда появится привязка аккаунта к врачу, здесь
-            появится фильтр &quot;только мои консультации&quot;.
+            список. Когда появится привязка аккаунта к врачу, сюда
+            добавим реальную фильтрацию.
           </p>
         </section>
 
@@ -90,7 +86,7 @@ export default async function StaffSchedulePage() {
           </h2>
 
           {sortedDays.length === 0 && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text_gray-500">
               В ближайшее время приёмов нет.
             </p>
           )}
@@ -131,7 +127,7 @@ export default async function StaffSchedulePage() {
                       >
                         <div className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs hover:bg-gray-50">
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text_gray-900">
                               {a.startsAt
                                 ? new Date(
                                     a.startsAt
@@ -141,17 +137,17 @@ export default async function StaffSchedulePage() {
                                   })
                                 : "—"}
                             </span>
-                            <span className="text-[11px] text-gray-700">
+                            <span className="text-[11px] text_gray-700">
                               {a.petName || "Без имени"}{" "}
                               {a.petSpecies
                                 ? `(${a.petSpecies})`
                                 : ""}
                             </span>
-                            <span className="text-[10px] text-gray-500">
+                            <span className="text-[10px] text_gray-500">
                               {a.serviceName}
                             </span>
                           </div>
-                          <div className="text-right text-[10px] text-gray-500">
+                          <div className="text-right text-[10px] text_gray-500">
                             <div>{a.statusLabel}</div>
                             {a.doctorName && (
                               <div className="mt-0.5 text-[10px] text-gray-400">
