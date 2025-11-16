@@ -8,9 +8,18 @@ import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMin
 
 export default async function RegistrarDashboardPage() {
   const [appointments, owners] = await Promise.all([
-    getRecentRegistrarAppointments(10),
+    getRecentRegistrarAppointments(50),
     getOwnersSummary(),
   ]);
+
+  // новые заявки: статус содержит "запрош"
+  const newRequests = appointments.filter((a) =>
+    a.statusLabel.toLowerCase().includes("запрош")
+  );
+  const newRequestsCount = newRequests.length;
+
+  // для таблицы внизу показываем только первые 10
+  const lastAppointments = appointments.slice(0, 10);
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -27,6 +36,75 @@ export default async function RegistrarDashboardPage() {
           </div>
           <RegistrarHeader />
         </header>
+
+        {/* Верхняя строка виджетов: Новые заявки + Календарь записей */}
+        <section className="grid gap-4 md:grid-cols-2">
+          {/* Новые заявки */}
+          <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Новые заявки</h2>
+              {newRequestsCount > 0 ? (
+                <p className="mt-1 text-xs text-gray-500">
+                  Консультации в статусе &quot;запрошена&quot;, ожидающие
+                  обработки.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">
+                  Сейчас нет заявок в статусе &quot;запрошена&quot;.
+                </p>
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <div>
+                <div className="text-[11px] uppercase text-gray-500">
+                  Новых заявок
+                </div>
+                <div className="text-2xl font-semibold text-gray-900">
+                  {newRequestsCount}
+                </div>
+              </div>
+              <Link
+                href="/backoffice/registrar/consultations"
+                className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+              >
+                К списку заявок
+              </Link>
+            </div>
+          </div>
+
+          {/* Календарь / расписание записей */}
+          <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">
+                Расписание и календарь записей
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Быстрый доступ к расписанию врачей и календарю записей.
+                Используется для управления слотами и визуальной проверки
+                загрузки.
+              </p>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] text-gray-500">
+                Открыть расписание врачей или календарь записей:
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/backoffice/registrar/schedule"
+                  className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                >
+                  Расписание врачей
+                </Link>
+                <Link
+                  href="/backoffice/registrar/consultations"
+                  className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                >
+                  Календарь / список приёмов
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
@@ -62,7 +140,7 @@ export default async function RegistrarDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {appointments.map((a) => (
+                {lastAppointments.map((a) => (
                   <tr
                     key={a.id}
                     className="border-b last:border-0 hover:bg-gray-50"
@@ -135,7 +213,7 @@ export default async function RegistrarDashboardPage() {
                   </tr>
                 ))}
 
-                {appointments.length === 0 && (
+                {lastAppointments.length === 0 && (
                   <tr>
                     <td
                       colSpan={7}
