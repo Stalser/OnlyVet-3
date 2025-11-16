@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { StaffNav } from "@/components/staff/StaffNav";
 import { getRegistrarAppointmentById } from "@/lib/registrar";
 
 interface PageProps {
@@ -27,31 +28,29 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
             <h1 className="mt-2 text-xl font-bold tracking-tight">
               Онлайн-консультация
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text_gray-500">
               Информация о приёме и рабочее пространство врача.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Если приём не найден */}
+        <StaffNav />
+
         {!appointment && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
               Консультация с идентификатором{" "}
               <span className="font-mono">{params.id}</span> не найдена.
-              Возможно, запись была удалена или ещё не создана.
             </p>
           </section>
         )}
 
-        {/* Если приём найден */}
         {appointment && (
           <>
-            {/* Блок 1: Основная информация */}
+            {/* Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                {/* Дата / время */}
                 <div>
                   <div className="text-xs text-gray-500">Дата / время</div>
                   <div className="text-sm font-medium text-gray-900">
@@ -63,8 +62,6 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                     </div>
                   )}
                 </div>
-
-                {/* Статус */}
                 <div className="text-right text-xs text-gray-500">
                   Статус
                   <div className="mt-1 text-[11px] font-semibold text-gray-900">
@@ -115,7 +112,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* Блок 2: Формат связи (Яндекс Телемост) */}
+            {/* Телемост */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
                 Формат связи для подключения врача
@@ -132,7 +129,8 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                     {appointment.videoPlatform &&
                       appointment.videoPlatform !== "yandex_telemost" && (
                         <div className="text-[10px] text-emerald-900 mt-0.5">
-                          (фактическая платформа: {appointment.videoPlatform})
+                          (фактическая платформа:{" "}
+                          {appointment.videoPlatform})
                         </div>
                       )}
                   </div>
@@ -159,30 +157,27 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <div className="text-[11px] text-emerald-800">
-                    Ссылка на Телемост пока не указана. Уточните у регистратуры
-                    или проверьте карточку консультации в кабинете
-                    регистратуры.
+                    Ссылка на Телемост пока не указана. Уточните у
+                    регистратуры или проверьте карточку консультации.
                   </div>
                 )}
               </div>
             </section>
 
-            {/* Блок 3: Заключение врача (пока как черновик без сохранения) */}
+            {/* Заключение врача — скелет */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
                 Заключение врача (черновик)
               </h2>
               <p className="text-xs text-gray-500">
                 Здесь будет основной рабочий блок врача: жалобы, анамнез,
-                осмотр, предварительный/окончательный диагноз, план и
-                назначения. Сейчас это только скелет интерфейса — текст ниже
-                пока не сохраняется в базу.
+                осмотр, диагноз, план и назначения. Сейчас это скелет —
+                текст ниже пока не сохраняется в базу.
               </p>
               <textarea
                 className="w-full min-h-[160px] rounded-xl border px-3 py-2 text-xs"
-                placeholder="Черновые заметки по приёму… (позже привяжем к БД и добавим статусы 'в работе' / 'завершено')"
+                placeholder="Черновые заметки по приёму…"
               />
-
               <div className="flex flex-wrap justify-end gap-2 pt-2 text-[11px]">
                 <button
                   type="button"
