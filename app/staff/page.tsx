@@ -44,7 +44,6 @@ function getStatusBadge(status: string) {
 
 export default async function StaffDashboardPage() {
   const appointments = await getRegistrarAppointments();
-
   const now = new Date();
 
   const upcoming = appointments.filter((a) => {
@@ -74,7 +73,7 @@ export default async function StaffDashboardPage() {
   return (
     <RoleGuard allowed={["vet", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-        {/* Шапка кабинета врача */}
+        {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -85,7 +84,6 @@ export default async function StaffDashboardPage() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {/* пока используем RegistrarHeader как общий блок "Сейчас работает" */}
             <RegistrarHeader />
             <Link
               href="/staff/calendar"
@@ -96,7 +94,7 @@ export default async function StaffDashboardPage() {
           </div>
         </header>
 
-        {/* Мини-дашборд врача */}
+        {/* Мини-дашборд */}
         <section className="grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl border bg-white p-3">
             <div className="text-[11px] text-gray-500">Приёмы сегодня</div>
@@ -124,7 +122,7 @@ export default async function StaffDashboardPage() {
           </div>
         </section>
 
-        {/* Таблица предстоящих приёмов (можем считать, что это зона "фокус врача") */}
+        {/* Предстоящие консультации для врача */}
         <section className="rounded-2xl border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">
@@ -145,6 +143,7 @@ export default async function StaffDashboardPage() {
                   <th className="px-2 py-2">Дата / время</th>
                   <th className="px-2 py-2">Пациент</th>
                   <th className="px-2 py-2">Услуга</th>
+                  <th className="px-2 py-2">Формат</th>
                   <th className="px-2 py-2">Статус</th>
                   <th className="px-2 py-2 text-right">Действия</th>
                 </tr>
@@ -165,6 +164,7 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
+
                       <td className="px-2 py-2 align-top">
                         <div className="text-[11px]">
                           {a.petName || "Без имени"}
@@ -175,6 +175,7 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
+
                       <td className="px-2 py-2 align-top">
                         <div className="text-[11px]">{a.serviceName}</div>
                         {a.serviceCode && (
@@ -183,9 +184,18 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
+
+                      <td className="px-2 py-2 align-top">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                          Яндекс Телемост
+                        </span>
+                      </td>
+
                       <td className="px-2 py-2 align-top">
                         <span className={badge.className}>{badge.label}</span>
                       </td>
+
                       <td className="px-2 py-2 align-top text-right">
                         <Link
                           href={`/backoffice/registrar/consultations/${a.id}`}
@@ -201,7 +211,7 @@ export default async function StaffDashboardPage() {
                 {upcoming.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-2 py-8 text-center text-xs text-gray-400"
                     >
                       Предстоящих консультаций нет.
