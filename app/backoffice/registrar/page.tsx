@@ -7,10 +7,20 @@ import { getOwnersSummary } from "@/lib/clients";
 import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
 
 export default async function RegistrarDashboardPage() {
+  // Загружаем последние консультации и краткую сводку по клиентам
   const [appointments, owners] = await Promise.all([
-    getRecentRegistrarAppointments(10),
+    getRecentRegistrarAppointments(50), // берём побольше, чтобы посчитать "запрошенные"
     getOwnersSummary(),
   ]);
+
+  // Новые заявки: статус содержит "запрош"
+  const newRequests = appointments.filter((a) =>
+    a.statusLabel.toLowerCase().includes("запрош")
+  );
+  const newRequestsCount = newRequests.length;
+
+  // Для основной таблицы последних консультаций берём первые 10
+  const lastAppointments = appointments.slice(0, 10);
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -28,53 +38,46 @@ export default async function RegistrarDashboardPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Создание новой консультации */}
+        {/* 🟢 Виджет: Новые заявки */}
+        <section className="rounded-2xl border bg-white p-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold">Новые заявки</h2>
+            {newRequestsCount > 0 ? (
+              <p className="text-xs text-gray-500">
+                Количество консультаций в статусе &quot;запрошена&quot;, которые
+                ждут обработки.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Сейчас нет заявок в статусе &quot;запрошена&quot;.
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-[11px] uppercase text-gray-500">
+                Новых заявок
+              </div>
+              <div className="text-2xl font-semibold text-gray-900">
+                {newRequestsCount}
+              </div>
+            </div>
+            <Link
+              href="/backoffice/registrar/consultations"
+              className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              К списку заявок
+            </Link>
+          </div>
+        </section>
+
+        {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
 
-        {/* Блок: Расписание врачей */}
-        <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-emerald-900">
-              Расписание врачей
-            </h2>
-            <p className="mt-1 text-xs text-emerald-800 max-w-xl">
-              Управление рабочими слотами врачей. Здесь можно задать дни и
-              время приёма, отметить свободные и занятые окна. Используется
-              при выборе времени консультации.
-            </p>
-          </div>
-          <Link
-            href="/backoffice/registrar/schedule"
-            className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-emerald-700"
-          >
-            Открыть расписание
-          </Link>
-        </section>
-
-        {/* Блок: Календарь записей */}
-        <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-emerald-900">
-              Календарь записей
-            </h2>
-            <p className="mt-1 text-xs text-emerald-800 max-w-xl">
-              Недельный календарный вид всех консультаций. Удобно, чтобы
-              видеть занятость врачей и свободные окна. Нажмите кнопку
-              справа, чтобы открыть.
-            </p>
-          </div>
-          <Link
-            href="/backoffice/registrar/calendar"
-            className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-emerald-700"
-          >
-            Открыть календарь
-          </Link>
-        </section>
-
-        {/* Мини-картотека клиентов */}
+        {/* Краткая картотека клиентов */}
         <RegistrarClientsMini owners={owners} />
 
-        {/* Последние консультации */}
+        {/* Последние консультации и заявки */}
         <section className="rounded-2xl border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">
@@ -84,7 +87,7 @@ export default async function RegistrarDashboardPage() {
               href="/backoffice/registrar/consultations"
               className="text-xs font-medium text-emerald-700 hover:underline"
             >
-              Все консультации и заявки
+              Все консультации и заявки →
             </Link>
           </div>
 
@@ -92,7 +95,6 @@ export default async function RegistrarDashboardPage() {
             <table className="min-w-full text-xs">
               <thead>
                 <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                  <th className="px-2 py-2">№</th>
                   <th className="px-2 py-2">Дата / время</th>
                   <th className="px-2 py-2">Клиент</th>
                   <th className="px-2 py-2">Питомец</th>
@@ -103,13 +105,12 @@ export default async function RegistrarDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {appointments.map((a, index) => (
+                {lastAppointments.map((a, index) => (
                   <tr
                     key={a.id}
                     className="border-b last:border-0 hover:bg-gray-50"
                   >
-                    <td className="px-2 py-2 align-top">{index + 1}</td>
-
+                    {/* Дата / время */}
                     <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                       <div>{a.dateLabel}</div>
                       {a.createdLabel && (
@@ -119,9 +120,10 @@ export default async function RegistrarDashboardPage() {
                       )}
                     </td>
 
+                    {/* Клиент */}
                     <td className="px-2 py-2 align-top">
                       <div className="text-[11px] font-medium">
-                        {a.clientName}
+                        {a.clientName || "Без имени"}
                       </div>
                       {a.clientContact && (
                         <div className="text-[10px] text-gray-500">
@@ -130,6 +132,7 @@ export default async function RegistrarDashboardPage() {
                       )}
                     </td>
 
+                    {/* Питомец */}
                     <td className="px-2 py-2 align-top">
                       <div className="text-[11px]">
                         {a.petName || "—"}
@@ -141,10 +144,12 @@ export default async function RegistrarDashboardPage() {
                       )}
                     </td>
 
+                    {/* Врач */}
                     <td className="px-2 py-2 align-top text-[11px]">
                       {a.doctorName || "Не назначен"}
                     </td>
 
+                    {/* Услуга */}
                     <td className="px-2 py-2 align-top text-[11px]">
                       {a.serviceName}
                       {a.serviceCode && (
@@ -154,30 +159,32 @@ export default async function RegistrarDashboardPage() {
                       )}
                     </td>
 
+                    {/* Статус */}
                     <td className="px-2 py-2 align-top">
-                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
                         {a.statusLabel}
                       </span>
                     </td>
 
+                    {/* Действия */}
                     <td className="px-2 py-2 align-top text-right">
                       <Link
                         href={`/backoffice/registrar/consultations/${a.id}`}
                         className="text-[11px] font-medium text-emerald-700 hover:underline"
                       >
-                        Открыть
+                        Открыть →
                       </Link>
                     </td>
                   </tr>
                 ))}
 
-                {appointments.length === 0 && (
+                {lastAppointments.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="px-2 py-8 text-center text-xs text-gray-400"
                     >
-                      Пока нет ни одной консультации.
+                      Консультаций и заявок ещё нет.
                     </td>
                   </tr>
                 )}
