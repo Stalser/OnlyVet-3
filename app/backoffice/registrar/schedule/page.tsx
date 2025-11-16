@@ -20,32 +20,11 @@ type SlotRow = {
 export default function RegistrarSchedulePage() {
   const [doctorId, setDoctorId] = useState(doctors[0].id);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [periodFilter, setPeriodFilter] = useState("7"); // 7 дней по умолчанию
+  const [periodFilter, setPeriodFilter] = useState("7"); // 7 дней
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
 
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Создание одиночного слота
-  const [date, setDate] = useState("");
-  const [timeStart, setTimeStart] = useState("");
-  const [timeEnd, setTimeEnd] = useState("");
-  const [creating, setCreating] = useState(false);
-
-  // Массовое создание слотов
-  const [massStart, setMassStart] = useState("");
-  const [massEnd, setMassEnd] = useState("");
-  const [massTimeStart, setMassTimeStart] = useState("");
-  const [massTimeEnd, setMassTimeEnd] = useState("");
-  const [massWeekdays, setMassWeekdays] = useState<string[]>([
-    "mon",
-    "tue",
-    "wed",
-    "thu",
-    "fri",
-  ]);
-  const [massStep, setMassStep] = useState("30");
-  const [massMessage, setMassMessage] = useState("");
 
   async function loadSlots() {
     setLoading(true);
@@ -88,13 +67,13 @@ export default function RegistrarSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
-  // Фильтрация по статусу
+  // фильтр по статусу
   const filteredByStatus = useMemo(() => {
     if (statusFilter === "all") return slots;
     return slots.filter((s) => s.status === statusFilter);
   }, [slots, statusFilter]);
 
-  // Фильтрация по периоду
+  // фильтр по периоду
   const filteredByPeriod = useMemo(() => {
     if (periodFilter === "all") return filteredByStatus;
 
@@ -103,7 +82,7 @@ export default function RegistrarSchedulePage() {
     const end = new Date(now);
 
     if (periodFilter === "0") {
-      // сегодня
+      // Сегодня
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
     } else if (periodFilter === "7") {
@@ -119,7 +98,7 @@ export default function RegistrarSchedulePage() {
     });
   }, [filteredByStatus, periodFilter]);
 
-  // Группировка по дате (для списка и календаря)
+  // группировка по дате
   const grouped = useMemo(() => {
     const map = new Map<string, SlotRow[]>();
     filteredByPeriod.forEach((s) => {
@@ -132,186 +111,10 @@ export default function RegistrarSchedulePage() {
     );
   }, [filteredByPeriod]);
 
-  // Создание одиночного слота
-  async function createSlot() {
-    if (!date || !timeStart || !timeEnd) return;
-
-    const client = supabase;
-    if (!client) return;
-
-    setCreating(true);
-
-    await client.from("doctor_slots").insert({
-      doctor_id: doctorId,
-      date,
-      time_start: timeStart,
-      time_end: timeEnd,
-      status: "available",
-      appointment_id: null,
-    });
-
-    setCreating(false);
-    setDate("");
-    setTimeStart("");
-    setTimeEnd("");
-    loadSlots();
-  }
-
-  // Удаление свободного слота
-  async function deleteSlot(id: string) {
-    const client = supabase;
-    if (!client) return;
-
-    await client.from("doctor_slots").delete().eq("id", id);
-    loadSlots();
-  }
-
-  // Освобождение занятого слота
-  async function freeSlot(id: string) {
-    const client = supabase;
-    if (!client) return;
-
-    await client
-      .from("doctor_slots")
-      .update({ appointment_id: null, status: "available" })
-      .eq("id", id);
-    loadSlots();
-  }
-
-  // Массовое создание слотов
-  async function handleMassGenerate() {
-    setMassMessage("");
-
-    if (!massStart || !massEnd || !massTimeStart || !massTimeEnd) {
-      setMassMessage("Заполните период и диапазон времени.");
-      return;
-    }
-
-    const client = supabase;
-    if (!client) {
-      setMassMessage("Supabase недоступен.");
-      return;
-    }
-
-    const start = new Date(massStart);
-    const end = new Date(massEnd);
-    if (start > end) {
-      setMassMessage("Дата начала не может быть позже даты окончания.");
-      return;
-    }
-
-    const stepMinutes = parseInt(massStep, 10);
-    if (Number.isNaN(stepMinutes) || stepMinutes <= 0) {
-      setMassMessage("Неверный шаг по времени.");
-      return;
-    }
-
-    const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    let created = 0;
-
-    for (
-      let d = new Date(start);
-      d.getTime() <= end.getTime();
-      d.setDate(d.getDate() + 1)
-    ) {
-      const weekday = weekdayKeys[d.getDay()];
-      if (!massWeekdays.includes(weekday)) continue;
-
-      const dateStr = d.toISOString().split("T")[0];
-
-      let cur = massTimeStart;
-      while (cur < massTimeEnd) {
-        const [h, m] = cur.split(":").map(Number);
-        const curDate = new Date(d);
-        curDate.setHours(h, m + stepMinutes, 0, 0);
-
-        const next = curDate.toTimeString().slice(0, 5); // HH:MM
-        if (next <= cur || next > massTimeEnd) break;
-
-        await client.from("doctor_slots").insert({
-          doctor_id: doctorId,
-          date: dateStr,
-          time_start: cur,
-          time_end: next,
-          status: "available",
-          appointment_id: null,
-        });
-
-        created += 1;
-        cur = next;
-      }
-    }
-
-    setMassMessage(`Создано слотов: ${created}`);
-    loadSlots();
-  }
-
-  // Автозаполнение: будни, ближайшие 7 дней, 10:00–18:00, шаг 60 мин
-  async function handleAutoWeek() {
-    setMassMessage("");
-
-    const client = supabase;
-    if (!client) {
-      setMassMessage("Supabase недоступен.");
-      return;
-    }
-
-    const now = new Date();
-    const start = new Date(now);
-    const end = new Date(now);
-    end.setDate(now.getDate() + 6);
-
-    const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const autoWeekdays = ["mon", "tue", "wed", "thu", "fri"];
-
-    const timeFrom = "10:00";
-    const timeTo = "18:00";
-    const stepMinutes = 60;
-
-    let created = 0;
-
-    for (
-      let d = new Date(start);
-      d.getTime() <= end.getTime();
-      d.setDate(d.getDate() + 1)
-    ) {
-      const weekday = weekdayKeys[d.getDay()];
-      if (!autoWeekdays.includes(weekday)) continue;
-
-      const dateStr = d.toISOString().split("T")[0];
-
-      let cur = timeFrom;
-      while (cur < timeTo) {
-        const [h, m] = cur.split(":").map(Number);
-        const curDate = new Date(d);
-        curDate.setHours(h, m + stepMinutes, 0, 0);
-
-        const next = curDate.toTimeString().slice(0, 5);
-        if (next <= cur || next > timeTo) break;
-
-        await client.from("doctor_slots").insert({
-          doctor_id: doctorId,
-          date: dateStr,
-          time_start: cur,
-          time_end: next,
-          status: "available",
-          appointment_id: null,
-        });
-
-        created += 1;
-        cur = next;
-      }
-    }
-
-    setMassMessage(
-      `Автоматически создано слотов на неделю для выбранного врача: ${created}`
-    );
-    loadSlots();
-  }
-
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+        {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
             <Link
@@ -324,11 +127,20 @@ export default function RegistrarSchedulePage() {
               Расписание врачей
             </h1>
             <p className="text-sm text-gray-500">
-              Управление рабочими слотами врачей. Определяет доступное время
-              для записи.
+              Просмотр рабочих слотов врачей. Определяет, когда можно
+              записывать клиентов.
             </p>
           </div>
-          <RegistrarHeader />
+          <div className="flex flex-col items-end gap-2">
+            <RegistrarHeader />
+            {/* Кнопка редактирования — на отдельную страницу */}
+            <Link
+              href="/backoffice/registrar/schedule/edit"
+              className="text-[11px] font-medium text-emerald-700 hover:underline"
+            >
+              Редактировать расписание →
+            </Link>
+          </div>
         </header>
 
         {/* Фильтры + переключатель вида */}
@@ -416,192 +228,7 @@ export default function RegistrarSchedulePage() {
           </div>
         </section>
 
-        {/* Создание одиночного слота */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="text-base font-semibold">Добавить слот</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">
-                Дата
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">
-                Время начала
-              </label>
-              <input
-                type="time"
-                value={timeStart}
-                onChange={(e) => setTimeStart(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">
-                Время конца
-              </label>
-              <input
-                type="time"
-                value={timeEnd}
-                onChange={(e) => setTimeEnd(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={createSlot}
-                disabled={creating}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                Добавить
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* МАССОВОЕ СОЗДАНИЕ СЛОТОВ + автонеделя */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold">
-                Массовое создание слотов
-              </h2>
-              <p className="text-xs text-gray-500">
-                Быстрое создание расписания врача на нужный период.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleAutoWeek}
-              className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
-            >
-              Авто: будни 10–18 (7 дней)
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Период дат */}
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">
-                Период: с
-              </label>
-              <input
-                type="date"
-                value={massStart}
-                onChange={(e) => setMassStart(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">
-                по
-              </label>
-              <input
-                type="date"
-                value={massEnd}
-                onChange={(e) => setMassEnd(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-            </div>
-
-            {/* Диапазон времени */}
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">
-                Время: от
-              </label>
-              <input
-                type="time"
-                value={massTimeStart}
-                onChange={(e) => setMassTimeStart(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-              <label className="block text-[11px] text-gray-500 mb-1 mt-2">
-                до
-              </label>
-              <input
-                type="time"
-                value={massTimeEnd}
-                onChange={(e) => setMassTimeEnd(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
-            </div>
-          </div>
-
-          {/* Дни недели */}
-          <div className="space-y-1">
-            <div className="text-[11px] text-gray-500">Дни недели</div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              {[
-                ["mon", "Пн"],
-                ["tue", "Вт"],
-                ["wed", "Ср"],
-                ["thu", "Чт"],
-                ["fri", "Пт"],
-                ["sat", "Сб"],
-                ["sun", "Вс"],
-              ].map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() =>
-                    setMassWeekdays((prev) =>
-                      prev.includes(key)
-                        ? prev.filter((d) => d !== key)
-                        : [...prev, key]
-                    )
-                  }
-                  className={`px-3 py-1 rounded-full border ${
-                    massWeekdays.includes(key)
-                      ? "bg-emerald-50 border-emerald-600 text-emerald-700"
-                      : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Шаг */}
-          <div>
-            <label className="block text-[11px] text-gray-500 mb-1">
-              Шаг, минут
-            </label>
-            <select
-              value={massStep}
-              onChange={(e) => setMassStep(e.target.value)}
-              className="w-32 rounded-xl border px-2 py-1.5 text-xs"
-            >
-              <option value="15">15 минут</option>
-              <option value="20">20 минут</option>
-              <option value="30">30 минут</option>
-              <option value="60">60 минут</option>
-            </select>
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={handleMassGenerate}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
-            >
-              Создать слоты
-            </button>
-          </div>
-
-          {massMessage && (
-            <p className="text-xs text-emerald-700 pt-2">{massMessage}</p>
-          )}
-        </section>
-
-        {/* Список или календарь слотов */}
+        {/* Режим: список */}
         {viewMode === "list" ? (
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">Слоты врача (список)</h2>
@@ -612,7 +239,8 @@ export default function RegistrarSchedulePage() {
 
             {!loading && grouped.length === 0 && (
               <p className="text-xs text-gray-500">
-                Слотов не найдено. Добавьте новые.
+                Слотов не найдено. Возможно, расписание ещё не настроено
+                или фильтры слишком узкие.
               </p>
             )}
 
@@ -629,9 +257,6 @@ export default function RegistrarSchedulePage() {
 
                   <div className="flex flex-wrap gap-2">
                     {daySlots.map((s) => {
-                      const isAvailable = s.status === "available";
-                      const isBusy = s.status === "busy";
-
                       const color =
                         s.status === "available"
                           ? "bg-emerald-50 text-emerald-800 border-emerald-300"
@@ -649,30 +274,9 @@ export default function RegistrarSchedulePage() {
                           </div>
                           <div className="text-[10px] text-gray-500">
                             {s.status === "available" && "Свободно"}
-                            {s.status === "busy" &&
-                              "Занято (есть консультация)"}
+                            {s.status === "busy" && "Занято (есть приём)"}
                             {s.status === "unavailable" && "Недоступно"}
                           </div>
-
-                          {isAvailable && (
-                            <button
-                              type="button"
-                              onClick={() => deleteSlot(s.id)}
-                              className="mt-1 text-[10px] font-medium text-red-600 hover:underline"
-                            >
-                              Удалить
-                            </button>
-                          )}
-
-                          {isBusy && (
-                            <button
-                              type="button"
-                              onClick={() => freeSlot(s.id)}
-                              className="mt-1 text-[10px] font-medium text-emerald-700 hover:underline"
-                            >
-                              Освободить
-                            </button>
-                          )}
                         </div>
                       );
                     })}
@@ -681,6 +285,7 @@ export default function RegistrarSchedulePage() {
               ))}
           </section>
         ) : (
+          /* Режим: календарь */
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">
               Слоты врача (календарь)
@@ -692,7 +297,8 @@ export default function RegistrarSchedulePage() {
 
             {!loading && grouped.length === 0 && (
               <p className="text-xs text-gray-500">
-                Слотов не найдено. Добавьте новые.
+                Слотов не найдено. Возможно, расписание ещё не настроено
+                или фильтры слишком узкие.
               </p>
             )}
 
@@ -713,9 +319,6 @@ export default function RegistrarSchedulePage() {
                       </div>
                       <div className="space-y-1">
                         {daySlots.map((s) => {
-                          const isAvailable = s.status === "available";
-                          const isBusy = s.status === "busy";
-
                           const color =
                             s.status === "available"
                               ? "bg-emerald-50 text-emerald-800 border-emerald-300"
@@ -732,10 +335,9 @@ export default function RegistrarSchedulePage() {
                                 {s.time_start}–{s.time_end}
                               </div>
                               <div className="text-[10px] text-gray-500">
-                                {isAvailable && "Свободно"}
-                                {isBusy && "Занято"}
-                                {s.status === "unavailable" &&
-                                  "Недоступно"}
+                                {s.status === "available" && "Свободно"}
+                                {s.status === "busy" && "Занято"}
+                                {s.status === "unavailable" && "Недоступно"}
                               </div>
                             </div>
                           );
