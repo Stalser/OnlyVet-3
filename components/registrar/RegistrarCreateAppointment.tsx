@@ -21,7 +21,6 @@ type PetOption = {
   species?: string | null;
 };
 
-// базовые виды животных
 const SPECIES_OPTIONS = [
   "Собака",
   "Кошка",
@@ -54,7 +53,7 @@ export function RegistrarCreateAppointment() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // врач / услуга
+  // Врач / услуга
   const [doctorId, setDoctorId] = useState<string>(
     doctors[0]?.id ?? ""
   );
@@ -62,10 +61,10 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // слот (если пришли из расписания)
+  // Слот, если пришли из расписания
   const [slotId, setSlotId] = useState<string | null>(null);
 
-  // ФИО клиента (для заметки)
+  // ФИО клиента
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -96,7 +95,7 @@ export function RegistrarCreateAppointment() {
     null
   );
 
-  // Клиенты / питомцы
+  // Клиенты и их питомцы
   const [owners, setOwners] = useState<OwnerOption[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string>("");
@@ -105,7 +104,7 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // ===== 1. Читаем параметры из URL (если пришли из расписания) =====
+  // ===== 1. Подхватываем данные из URL (расписание) =====
   useEffect(() => {
     const qDoctor = searchParams.get("doctorId");
     const qDate = searchParams.get("date");
@@ -160,7 +159,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // ===== 3. Загружаем питомцев выбранного клиента =====
+  // ===== 3. Загружаем питомцев =====
   useEffect(() => {
     let ignore = false;
 
@@ -208,7 +207,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // при выборе питомца подставляем имя/вид, если ещё ничего не введено
+  // Подстановка питомца
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -221,8 +220,7 @@ export function RegistrarCreateAppointment() {
     }
   }, [selectedPetId, pets]);
 
-  // ===== 4. Формирование строки вида/породы =====
-
+  // ===== 4. Формируем строку вида/породы для БД =====
   const buildSpeciesString = () => {
     let baseSpecies: string;
     if (petSpeciesType === "Другое") {
@@ -264,7 +262,6 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // проверяем обязательные поля контактов
     if (!clientEmail.trim() || !clientPhone.trim()) {
       setErrorMessage(
         "E-mail и телефон клиента обязательны для заполнения."
@@ -287,7 +284,6 @@ export function RegistrarCreateAppointment() {
 
     const startsAt = new Date(`${date}T${time}`);
 
-    // owner_id — bigint
     let owner_id: number | null = null;
     if (selectedOwnerId) {
       const parsed = parseInt(selectedOwnerId, 10);
@@ -298,18 +294,12 @@ export function RegistrarCreateAppointment() {
 
     const pet_id = selectedPetId || null;
 
-    // собрать контактную строку
-    const parts: string[] = [];
-    if (clientEmail) parts.push(`email: ${clientEmail.trim()}`);
-    if (clientPhone) parts.push(`phone: ${clientPhone.trim()}`);
+    const contactParts: string[] = [];
+    if (clientEmail) contactParts.push(`email: ${clientEmail.trim()}`);
+    if (clientPhone) contactParts.push(`phone: ${clientPhone.trim()}`);
     if (clientTelegram)
-      parts.push(`telegram: ${clientTelegram.trim()}`);
-    const contact_info = parts.join(" | ");
-
-    // собрать ФИО (для возможного дальнейшего использования)
-    const fullName = [lastName, firstName, middleName]
-      .filter(Boolean)
-      .join(" ");
+      contactParts.push(`telegram: ${clientTelegram.trim()}`);
+    const contact_info = contactParts.join(" | ");
 
     const speciesString = buildSpeciesString();
 
@@ -327,8 +317,6 @@ export function RegistrarCreateAppointment() {
         contact_info,
         video_platform: "yandex_telemost",
         video_url: videoUrl || null,
-        // ФИО клиента как вспомогательная информация (если есть соответствующее поле, можно добавить в БД позже)
-        // client_full_name: fullName || null,
       })
       .select("id")
       .single();
@@ -340,7 +328,6 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // если есть slotId — привязываем слот к приёму
     if (slotId) {
       await client
         .from("doctor_slots")
@@ -348,7 +335,6 @@ export function RegistrarCreateAppointment() {
         .eq("id", slotId);
     }
 
-    // сбрасываем только часть данных, чтобы не раздражать регистратуру
     setPetName("");
     setPetSpeciesOther("");
     setPetBreed("");
@@ -369,8 +355,6 @@ export function RegistrarCreateAppointment() {
     }
   };
 
-  // ===== 6. Рендер =====
-  // вспомогательный список пород в зависимости от вида
   const currentBreedOptions =
     petSpeciesType === "Собака"
       ? DOG_BREEDS
@@ -378,8 +362,10 @@ export function RegistrarCreateAppointment() {
       ? CAT_BREEDS
       : ["Другая порода"];
 
+  // ===== 6. Рендер =====
+
   return (
-    <section className="rounded-2xl border bg-white p-4 space-y-4">
+    <section className="rounded-2xl border bg_white p-4 space-y-4">
       <h2 className="text-base font-semibold">
         Создать новую консультацию
       </h2>
@@ -397,370 +383,386 @@ export function RegistrarCreateAppointment() {
 
       <form
         onSubmit={handleSubmit}
-        className="grid gap-3 md:grid-cols-2"
+        className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
       >
-        {/* Клиент */}
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-gray-700">
-            Клиент
+        {/* Левая колонка: Клиент + Врач/услуга + Дата/время */}
+        <div className="space-y-4">
+          {/* Блок Клиент */}
+          <div className="rounded-2xl border bg-white p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700">
+                Клиент
+              </span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                из картотеки
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {/* Клиент из базы */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Клиент из картотеки (owner_profiles)
+                </label>
+                {ownersLoading ? (
+                  <div className="text-[11px] text-gray-400">
+                    Загружаем клиентов…
+                  </div>
+                ) : owners.length === 0 ? (
+                  <div className="text-[11px] text-gray-400">
+                    Клиентов пока нет в таблице owner_profiles.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedOwnerId}
+                    onChange={(e) => {
+                      setSelectedOwnerId(e.target.value);
+                      setSelectedPetId("");
+                    }}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  >
+                    {owners.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* ФИО в одну строку на десктопе */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  ФИО клиента (для заметки)
+                </label>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="Фамилия"
+                  />
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="Имя"
+                  />
+                  <input
+                    type="text"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="Отчество"
+                  />
+                </div>
+              </div>
+
+              {/* Контакты */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold text-gray-600">
+                  Контакты клиента
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      E-mail <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={clientEmail}
+                      onChange={(e) => setClientEmail(e.target.value)}
+                      className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                      placeholder="user@example.com"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Телефон <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                      placeholder="+7 900 000-00-00"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Telegram (ник, опционально)
+                    </label>
+                    <input
+                      type="text"
+                      value={clientTelegram}
+                      onChange={(e) => setClientTelegram(e.target.value)}
+                      className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                      placeholder="@username"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            {/* Клиент из картотеки */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Клиент из картотеки (owner_profiles)
-              </label>
-              {ownersLoading ? (
-                <div className="text-[11px] text-gray-400">
-                  Загружаем клиентов…
-                </div>
-              ) : owners.length === 0 ? (
-                <div className="text-[11px] text-gray-400">
-                  Клиентов пока нет в таблице owner_profiles.
-                </div>
-              ) : (
+
+          {/* Блок Врач и услуга + Дата/время */}
+          <div className="rounded-2xl border bg-white p-3 space-y-3">
+            <div className="text-xs font-semibold text-gray-700">
+              Врач, услуга и время
+            </div>
+
+            {/* Врач и услуга */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Врач
+                </label>
                 <select
-                  value={selectedOwnerId}
-                  onChange={(e) => {
-                    setSelectedOwnerId(e.target.value);
-                    setSelectedPetId("");
-                  }}
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
                   className="w-full rounded-xl border px-2 py-1.5 text-xs"
                 >
-                  {owners.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
+                  {doctors.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.name}
                     </option>
                   ))}
                 </select>
-              )}
-            </div>
-
-            {/* ФИО клиента */}
-            <div className="grid grid-cols-1 gap-2">
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Фамилия
-                </label>
-                <input
-                  type="text"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                  placeholder="Иванов"
-                />
               </div>
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
-                  Имя
+                  Услуга
                 </label>
-                <input
-                  type="text"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                  placeholder="Иван"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Отчество
-                </label>
-                <input
-                  type="text"
-                  value={middleName}
-                  onChange={(e) => setMiddleName(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                  placeholder="Иванович"
-                />
-              </div>
-            </div>
-
-            {/* Контакты */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                E-mail (обязательно)
-              </label>
-              <input
-                type="email"
-                value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="user@example.com"
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Телефон (обязательно)
-              </label>
-              <input
-                type="tel"
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="+7 900 000-00-00"
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Telegram (ник, опционально)
-              </label>
-              <input
-                type="text"
-                value={clientTelegram}
-                onChange={(e) => setClientTelegram(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="@username"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Питомец */}
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-gray-700">
-            Питомец
-          </div>
-          <div className="space-y-2">
-            {/* Питомец из базы */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Питомец из базы (pets)
-              </label>
-              {selectedOwnerId && petsLoading && (
-                <div className="text-[11px] text-gray-400">
-                  Загружаем питомцев…
-                </div>
-              )}
-              {selectedOwnerId && !petsLoading && pets.length > 0 && (
                 <select
-                  value={selectedPetId}
-                  onChange={(e) => setSelectedPetId(e.target.value)}
+                  value={serviceCode}
+                  onChange={(e) => setServiceCode(e.target.value)}
                   className="w-full rounded-xl border px-2 py-1.5 text-xs"
                 >
-                  <option value="">Не выбрано</option>
-                  {pets.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
+                  {servicesPricing.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}
                     </option>
                   ))}
                 </select>
-              )}
-              {selectedOwnerId && !petsLoading && pets.length === 0 && (
-                <div className="text-[11px] text-gray-400">
-                  У этого клиента пока нет ни одного питомца.
-                </div>
-              )}
-              {!selectedOwnerId && (
-                <div className="text-[11px] text-gray-400">
-                  Сначала выберите клиента.
-                </div>
-              )}
-            </div>
-
-            {/* Имя питомца */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Имя питомца
-              </label>
-              <input
-                type="text"
-                value={petName}
-                onChange={(e) => setPetName(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="Мурзик"
-              />
-            </div>
-
-            {/* Вид */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Вид
-              </label>
-              <select
-                value={petSpeciesType}
-                onChange={(e) =>
-                  setPetSpeciesType(
-                    e.target.value as (typeof SPECIES_OPTIONS)[number]
-                  )
-                }
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              >
-                {SPECIES_OPTIONS.map((sp) => (
-                  <option key={sp} value={sp}>
-                    {sp}
-                  </option>
-                ))}
-              </select>
-              {petSpeciesType === "Другое" && (
-                <input
-                  type="text"
-                  value={petSpeciesOther}
-                  onChange={(e) => setPetSpeciesOther(e.target.value)}
-                  className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
-                  placeholder="Уточните вид животного"
-                />
-              )}
-            </div>
-
-            {/* Порода */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Порода
-              </label>
-              <select
-                value={petBreed}
-                onChange={(e) => setPetBreed(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              >
-                <option value="">Не указана</option>
-                {currentBreedOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-              {(petBreed === "Другая порода" ||
-                petSpeciesType === "Другое") && (
-                <input
-                  type="text"
-                  value={petBreedOther}
-                  onChange={(e) => setPetBreedOther(e.target.value)}
-                  className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
-                  placeholder="Уточните породу (или описание)"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Врач и услуга */}
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-gray-700">
-            Врач и услуга
-          </div>
-          <div className="space-y-2">
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Врач
-              </label>
-              <select
-                value={doctorId}
-                onChange={(e) => setDoctorId(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              >
-                {doctors.map((doc) => (
-                  <option key={doc.id} value={doc.id}>
-                    {doc.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Услуга
-              </label>
-              <select
-                value={serviceCode}
-                onChange={(e) => setServiceCode(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              >
-                {servicesPricing.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Формат связи: Телемост */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-700">
-              Формат связи
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
-              Яндекс Телемост
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Ссылка на Телемост
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
-                  placeholder="https://telemost.yandex.ru/..."
-                />
-                <button
-                  type="button"
-                  onClick={handleOpenTelemost}
-                  className="rounded-xl border border-emerald-600 px-2 py-1.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
-                >
-                  Создать ссылку
-                </button>
               </div>
-              <p className="mt-1 text-[10px] text-gray-400">
-                Откроется новая вкладка Телемоста. Создайте конференцию и
-                вставьте ссылку в поле.
+            </div>
+
+            {/* Дата и время */}
+            <div className="space-y-1">
+              <div className="text-[11px] font-semibold text-gray-600">
+                Дата и время
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Дата
+                  </label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Время
+                  </label>
+                  <input
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Если вы пришли из расписания, дата и время выбраны по слоту.
+                Их можно изменить вручную.
               </p>
             </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {saving ? "Создаём консультацию…" : "Создать консультацию"}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Дата и время */}
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-gray-700">
-            Дата и время
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Дата
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
+        {/* Правая колонка: Питомец + Телемост */}
+        <div className="space-y-4">
+          {/* Питомец */}
+          <div className="rounded-2xl border bg-white p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700">
+                Питомец
+              </span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                из базы pets
+              </span>
             </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Время
-              </label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              />
+
+            <div className="space-y-2">
+              {/* Питомец из базы */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Питомец из картотеки
+                </label>
+                {selectedOwnerId && petsLoading && (
+                  <div className="text-[11px] text-gray-400">
+                    Загружаем питомцев…
+                  </div>
+                )}
+                {selectedOwnerId && !petsLoading && pets.length > 0 && (
+                  <select
+                    value={selectedPetId}
+                    onChange={(e) => setSelectedPetId(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  >
+                    <option value="">Не выбрано</option>
+                    {pets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {selectedOwnerId && !petsLoading && pets.length === 0 && (
+                  <div className="text-[11px] text-gray-400">
+                    У этого клиента пока нет ни одного питомца.
+                  </div>
+                )}
+                {!selectedOwnerId && (
+                  <div className="text-[11px] text-gray-400">
+                    Сначала выберите клиента, чтобы увидеть его питомцев.
+                  </div>
+                )}
+              </div>
+
+              {/* Имя питомца */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Имя питомца
+                </label>
+                <input
+                  type="text"
+                  value={petName}
+                  onChange={(e) => setPetName(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="Мурзик"
+                />
+              </div>
+
+              {/* Вид */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Вид
+                </label>
+                <select
+                  value={petSpeciesType}
+                  onChange={(e) =>
+                    setPetSpeciesType(
+                      e.target.value as (typeof SPECIES_OPTIONS)[number]
+                    )
+                  }
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  {SPECIES_OPTIONS.map((sp) => (
+                    <option key={sp} value={sp}>
+                      {sp}
+                    </option>
+                  ))}
+                </select>
+                {petSpeciesType === "Другое" && (
+                  <input
+                    type="text"
+                    value={petSpeciesOther}
+                    onChange={(e) => setPetSpeciesOther(e.target.value)}
+                    className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="Уточните вид животного"
+                  />
+                )}
+              </div>
+
+              {/* Порода */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Порода
+                </label>
+                <select
+                  value={petBreed}
+                  onChange={(e) => setPetBreed(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  <option value="">Не указана</option>
+                  {currentBreedOptions.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                {(petBreed === "Другая порода" ||
+                  petSpeciesType === "Другое") && (
+                  <input
+                    type="text"
+                    value={petBreedOther}
+                    onChange={(e) => setPetBreedOther(e.target.value)}
+                    className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="Уточните породу"
+                  />
+                )}
+              </div>
             </div>
           </div>
 
-          <p className="text-[10px] text-gray-400">
-            Если вы пришли из расписания, дата и время выбраны по слоту. Их
-            можно изменить вручную.
-          </p>
+          {/* Формат связи: Телемост */}
+          <div className="rounded-2xl border bg-white p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700">
+                Формат связи
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                Яндекс Телемост
+              </span>
+            </div>
 
-          <div className="pt-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {saving ? "Создаём консультацию…" : "Создать консультацию"}
-            </button>
+            <div className="space-y-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Ссылка на Телемост
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="https://telemost.yandex.ru/..."
+                  />
+                  <button
+                    type="button"
+                    onClick={handleOpenTelemost}
+                    className="rounded-xl border border-emerald-600 px-2 py-1.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Создать ссылку
+                  </button>
+                </div>
+                <p className="mt-1 text-[10px] text-gray-400">
+                  Откроется новая вкладка Телемоста. Создайте конференцию и
+                  вставьте ссылку в поле.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </form>
