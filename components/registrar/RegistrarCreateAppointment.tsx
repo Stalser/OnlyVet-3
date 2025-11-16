@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { doctors } from "@/lib/data";
 import { servicesPricing } from "@/lib/pricing";
+import { useSearchParams } from "next/navigation";
 
 type OwnerOption = {
   id: string;   // user_id в owner_profiles, строкой
