@@ -46,7 +46,7 @@ export default async function StaffDashboardPage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
-  // Пока показываем все приёмы. Позже можем фильтровать по doctorId текущего врача.
+  // Пока показываем все приёмы. Позже сузим до конкретного врача.
   const upcoming = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
@@ -74,7 +74,7 @@ export default async function StaffDashboardPage() {
   return (
     <RoleGuard allowed={["vet", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-        {/* Шапка */}
+        {/* Шапка кабинета врача */}
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -82,6 +82,10 @@ export default async function StaffDashboardPage() {
             </h1>
             <p className="text-sm text-gray-500">
               Ваши онлайн-консультации, пациенты и расписание приёмов.
+            </p>
+            <p className="mt-1 text-[11px] text-gray-400">
+              Сейчас отображаются все приёмы. Позже здесь будут только
+              приёмы конкретного врача, привязанного к этому аккаунту.
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -91,7 +95,7 @@ export default async function StaffDashboardPage() {
                 href="/staff/schedule"
                 className="font-medium text-emerald-700 hover:underline"
               >
-                Расписание →
+                Расписание приёмов →
               </Link>
               <Link
                 href="/staff/calendar"
@@ -103,7 +107,7 @@ export default async function StaffDashboardPage() {
           </div>
         </header>
 
-        {/* Мини-дашборд */}
+        {/* Мини-дашборд врача */}
         <section className="grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl border bg-white p-3">
             <div className="text-[11px] text-gray-500">Приёмы сегодня</div>
@@ -131,9 +135,9 @@ export default async function StaffDashboardPage() {
           </div>
         </section>
 
-        {/* Предстоящие консультации (как “рабочий список”) */}
+        {/* Список предстоящих приёмов */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">
               Предстоящие консультации
             </h2>
@@ -164,6 +168,7 @@ export default async function StaffDashboardPage() {
                       key={a.id}
                       className="border-b last:border-0 hover:bg-gray-50"
                     >
+                      {/* Дата/время */}
                       <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                         <div>{a.dateLabel}</div>
                         {a.createdLabel && (
@@ -172,6 +177,8 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
+
+                      {/* Пациент */}
                       <td className="px-2 py-2 align-top">
                         <div className="text-[11px]">
                           {a.petName || "Без имени"}
@@ -182,6 +189,8 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
+
+                      {/* Услуга */}
                       <td className="px-2 py-2 align-top">
                         <div className="text-[11px]">{a.serviceName}</div>
                         {a.serviceCode && (
@@ -190,9 +199,13 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
+
+                      {/* Статус */}
                       <td className="px-2 py-2 align-top">
                         <span className={badge.className}>{badge.label}</span>
                       </td>
+
+                      {/* Действия */}
                       <td className="px-2 py-2 align-top text-right">
                         <Link
                           href={`/staff/appointment/${a.id}`}
