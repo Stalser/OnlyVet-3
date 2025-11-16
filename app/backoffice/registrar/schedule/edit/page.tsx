@@ -34,11 +34,15 @@ export default function RegistrarScheduleEditPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // сообщения
+  const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
   // одиночный слот
   const [date, setDate] = useState("");
   const [timeStart, setTimeStart] = useState("");
   const [timeEnd, setTimeEnd] = useState("");
-  const [singleServiceCode, setSingleServiceCode] = useState<string>(""); // услуга слота
+  const [singleServiceCode, setSingleServiceCode] = useState<string>("");
   const [creating, setCreating] = useState(false);
 
   // массовое создание
@@ -54,7 +58,7 @@ export default function RegistrarScheduleEditPage() {
     "fri",
   ]);
   const [massStep, setMassStep] = useState("30");
-  const [massServiceCode, setMassServiceCode] = useState<string>(""); // услуга для массовых слотов
+  const [massServiceCode, setMassServiceCode] = useState<string>("");
   const [massMessage, setMassMessage] = useState("");
 
   // ---------------------- СПЕЦИАЛИЗАЦИИ ----------------------
@@ -79,7 +83,7 @@ export default function RegistrarScheduleEditPage() {
     );
   }, [specializationFilter]);
 
-  // если текущий doctorId не попадает в отфильтрованный список – берём первого
+  // если выбранный врач не попадает в отфильтрованный список — берём первого
   useEffect(() => {
     if (!filteredDoctors.find((d) => d.id === doctorId)) {
       if (filteredDoctors.length > 0) {
@@ -93,11 +97,14 @@ export default function RegistrarScheduleEditPage() {
 
   async function loadSlots() {
     setLoading(true);
+    setEditMessage(null);
+    setEditError(null);
 
     const client = supabase;
     if (!client) {
       setSlots([]);
       setLoading(false);
+      setEditError("Supabase недоступен.");
       return;
     }
 
@@ -108,23 +115,26 @@ export default function RegistrarScheduleEditPage() {
       .order("date", { ascending: true })
       .order("time_start", { ascending: true });
 
-    if (!error && data) {
-      setSlots(
-        data.map((s: any) => ({
-          id: String(s.id),
-          doctor_id: s.doctor_id,
-          date: s.date,
-          time_start: s.time_start,
-          time_end: s.time_end,
-          status: s.status,
-          appointment_id: s.appointment_id,
-          service_code: s.service_code ?? null,
-        }))
-      );
-    } else {
+    if (error) {
+      console.error(error);
       setSlots([]);
+      setEditError("Ошибка при загрузке слотов расписания.");
+      setLoading(false);
+      return;
     }
 
+    setSlots(
+      (data || []).map((s: any) => ({
+        id: String(s.id),
+        doctor_id: s.doctor_id,
+        date: s.date,
+        time_start: s.time_start,
+        time_end: s.time_end,
+        status: s.status,
+        appointment_id: s.appointment_id,
+        service_code: s.service_code ?? null,
+      }))
+    );
     setLoading(false);
   }
 
@@ -175,39 +185,104 @@ export default function RegistrarScheduleEditPage() {
     );
   }, [filteredByPeriod]);
 
-  // ---------------------- EDIT ACTIONS ----------------------
+  // ---------------------- ДЕЙСТВИЯ: удалить / освободить ----------------------
 
   async function deleteSlot(id: string) {
     const client = supabase;
-    if (!client) return;
+    if (!client) {
+      setEditError("Supabase недоступен.");
+      return;
+    }
+    setEditMessage(null);
+    setEditError(null);
 
-    await client.from("doctor_slots").delete().eq("id", id);
+    const { error } = await client.from("doctor_slots").delete().eq("id", id);
+    if (error) {
+      console.error(error);
+      setEditError("Не удалось удалить слот.");
+    } else {
+      setEditMessage("Слот удалён.");
+    }
     loadSlots();
   }
 
   async function freeSlot(id: string) {
     const client = supabase;
-    if (!client) return;
+    if (!client) {
+      setEditError("Supabase недоступен.");
+      return;
+    }
+    setEditMessage(null);
+    setEditError(null);
 
-    await client
+    const { error } = await client
       .from("doctor_slots")
       .update({ appointment_id: null, status: "available" })
       .eq("id", id);
 
+    if (error) {
+      console.error(error);
+      setEditError("Не удалось освободить слот.");
+    } else {
+      setEditMessage("Слот отмечен как свободный.");
+    }
+    loadSlots();
+  }
+
+  // Массовое удаление свободных слотов по текущему фильтру
+  async function deleteAvailableFiltered() {
+    const client = supabase;
+    if (!client) {
+      setEditError("Supabase недоступен.");
+      return;
+    }
+    setEditMessage(null);
+    setEditError(null);
+
+    const ids = filteredByPeriod
+      .filter((s) => s.status === "available")
+      .map((s) => s.id);
+
+    if (ids.length === 0) {
+      setEditMessage("Нет свободных слотов в текущем фильтре для удаления.");
+      return;
+    }
+
+    const { error } = await client
+      .from("doctor_slots")
+      .delete()
+      .in("id", ids);
+
+    if (error) {
+      console.error(error);
+      setEditError("Не удалось массово удалить слоты.");
+    } else {
+      setEditMessage(`Удалено свободных слотов: ${ids.length}`);
+    }
     loadSlots();
   }
 
   // ---------------------- ОДИНОЧНЫЙ СЛОТ ----------------------
 
   async function createSlot() {
-    if (!date || !timeStart || !timeEnd) return;
+    if (!date || !timeStart || !timeEnd) {
+      setEditError("Укажите дату и время для слота.");
+      setEditMessage(null);
+      return;
+    }
 
     const client = supabase;
-    if (!client) return;
+    if (!client) {
+      setEditError("Supabase недоступен.");
+      setEditMessage(null);
+      return;
+    }
 
     setCreating(true);
+    setEditError(null);
+    setEditMessage(null);
 
-    await client.from("doctor_slots").insert({
+    const { error } = await client.from("doctor_slots").insert({
       doctor_id: doctorId,
       date,
       time_start: timeStart,
@@ -218,17 +293,26 @@ export default function RegistrarScheduleEditPage() {
     });
 
     setCreating(false);
-    setDate("");
-    setTimeStart("");
-    setTimeEnd("");
-    setSingleServiceCode("");
-    loadSlots();
+
+    if (error) {
+      console.error(error);
+      setEditError("Не удалось добавить слот.");
+    } else {
+      setEditMessage("Слот добавлен.");
+      setDate("");
+      setTimeStart("");
+      setTimeEnd("");
+      setSingleServiceCode("");
+      loadSlots();
+    }
   }
 
   // ---------------------- МАССОВОЕ СОЗДАНИЕ ----------------------
 
   async function handleMassGenerate() {
     setMassMessage("");
+    setEditError(null);
+    setEditMessage(null);
 
     if (!massStart || !massEnd || !massTimeStart || !massTimeEnd) {
       setMassMessage("Заполните период и диапазон времени.");
@@ -277,7 +361,7 @@ export default function RegistrarScheduleEditPage() {
         const endStr = next.toTimeString().slice(0, 5);
         if (endStr <= cur || endStr > massTimeEnd) break;
 
-        await client.from("doctor_slots").insert({
+        const { error } = await client.from("doctor_slots").insert({
           doctor_id: doctorId,
           date: dateStr,
           time_start: cur,
@@ -286,6 +370,15 @@ export default function RegistrarScheduleEditPage() {
           appointment_id: null,
           service_code: massServiceCode || null,
         });
+
+        if (error) {
+          console.error(error);
+          setMassMessage(
+            `Ошибка при создании слотов. Некоторые могли быть созданы (успешно: ${created}).`
+          );
+          loadSlots();
+          return;
+        }
 
         created += 1;
         cur = endStr;
@@ -298,6 +391,8 @@ export default function RegistrarScheduleEditPage() {
 
   async function handleAutoWeek() {
     setMassMessage("");
+    setEditError(null);
+    setEditMessage(null);
 
     const now = new Date();
     const startStr = now.toISOString().split("T")[0];
@@ -315,7 +410,7 @@ export default function RegistrarScheduleEditPage() {
     await handleMassGenerate();
   }
 
-  // ---------------------- УСЛУГИ: имя и цвет ----------------------
+  // ---------------------- УСЛУГА: имя ----------------------
 
   function getServiceName(code: string | null) {
     if (!code) return null;
@@ -347,6 +442,18 @@ export default function RegistrarScheduleEditPage() {
           </div>
           <RegistrarHeader />
         </header>
+
+        {/* Сообщения по действиям */}
+        {(editMessage || editError) && (
+          <section className="rounded-2xl border bg-white p-3 text-xs">
+            {editMessage && (
+              <div className="text-emerald-700">{editMessage}</div>
+            )}
+            {editError && (
+              <div className="text-red-700">{editError}</div>
+            )}
+          </section>
+        )}
 
         {/* ФИЛЬТРЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
@@ -422,7 +529,7 @@ export default function RegistrarScheduleEditPage() {
           </div>
         </section>
 
-        {/* ДОБАВИТЬ ОДИН СЛОТ */}
+        {/* ОДИНОЧНЫЙ СЛОТ */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <h2 className="text-base font-semibold">Добавить слот</h2>
 
@@ -499,8 +606,7 @@ export default function RegistrarScheduleEditPage() {
                 Массовое создание слотов
               </h2>
               <p className="text-xs text-gray-500">
-                Быстрое создание расписания врача на нужный период с
-                указанной услугой.
+                Расписание врача на период с указанной услугой.
               </p>
             </div>
             <button
@@ -521,7 +627,6 @@ export default function RegistrarScheduleEditPage() {
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
               />
             </div>
-
             <div>
               <label className="text-[11px] text-gray-500">По</label>
               <input
@@ -531,7 +636,6 @@ export default function RegistrarScheduleEditPage() {
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
               />
             </div>
-
             <div>
               <label className="text-[11px] text-gray-500">
                 Время: от
@@ -608,7 +712,7 @@ export default function RegistrarScheduleEditPage() {
             </div>
             <div>
               <label className="text-[11px] text-gray-500">
-                Услуга для создаваемых слотов
+                Услуга для слотов
               </label>
               <select
                 value={massServiceCode}
@@ -639,12 +743,20 @@ export default function RegistrarScheduleEditPage() {
           )}
         </section>
 
-        {/* СПИСОК СЛОТОВ */}
+        {/* Список слотов + массовое удаление */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <h2 className="text-base font-semibold">Существующие слоты</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Существующие слоты</h2>
+            <button
+              onClick={deleteAvailableFiltered}
+              className="rounded-xl border border-red-500 px-3 py-1.5 text-[11px] font-medium text-red-600 hover:bg-red-50"
+            >
+              Удалить все свободные в текущем фильтре
+            </button>
+          </div>
 
           {loading && (
-            <p className="text-xs text-gray-500">Загрузка...</p>
+            <p className="text-xs text-gray-500">Загрузка…</p>
           )}
 
           {!loading && grouped.length === 0 && (
@@ -659,8 +771,8 @@ export default function RegistrarScheduleEditPage() {
                 <div className="text-xs font-semibold text-gray-700 border-b pb-1">
                   {new Date(day).toLocaleDateString("ru-RU", {
                     weekday: "long",
-                    day: "2-digit",
-                    month: "2-digit",
+                    day: "2-дigits",
+                    month: "2-дigits",
                   })}
                 </div>
 
