@@ -3,14 +3,12 @@
 import {
   FormEvent,
   useEffect,
-  useMemo,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { doctors } from "@/lib/data";
 import { servicesPricing } from "@/lib/pricing";
-import { useSearchParams } from "next/navigation";
 
 type OwnerOption = {
   id: string;   // user_id в owner_profiles, строкой
@@ -23,37 +21,11 @@ type PetOption = {
   species?: string | null;
 };
 
-type DoctorSlot = {
-  id: string;
-  doctor_id: string;
-  date: string;        // YYYY-MM-DD
-  time_start: string;  // HH:MM
-  time_end: string;    // HH:MM
-  status: string;
-};
-
 export function RegistrarCreateAppointment() {
-    const searchParams = useSearchParams();
-
-  // Подхватываем врача, дату и время из query-параметров (?doctorId&date&time)
-  useEffect(() => {
-    const qDoctor = searchParams.get("doctorId");
-    const qDate = searchParams.get("date");
-    const qTime = searchParams.get("time");
-
-    if (qDoctor) {
-      setDoctorId(qDoctor);
-    }
-    if (qDate) {
-      setDate(qDate);
-    }
-    if (qTime) {
-      setTime(qTime);
-    }
-  }, [searchParams]);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // врач / услуга
+  // Врач / услуга
   const [doctorId, setDoctorId] = useState<string>(
     doctors[0]?.id ?? ""
   );
@@ -61,28 +33,28 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // визуальные данные клиента (для заметок)
+  // Клиент (визуальные поля)
   const [clientName, setClientName] = useState("");
   const [clientContact, setClientContact] = useState("");
 
-  // питомец
+  // Питомец
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
 
-  // дата/время (отображаются и как ручной ввод, и как результат выбора слота)
+  // Дата / время
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
   // Яндекс Телемост
   const [videoUrl, setVideoUrl] = useState("");
 
-  // ошибки/загрузка
+  // Ошибка / загрузка
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
   );
 
-  // клиенты и их питомцы
+  // Клиенты и их питомцы
   const [owners, setOwners] = useState<OwnerOption[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string>("");
@@ -91,23 +63,33 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // слоты врача
-  const [slots, setSlots] = useState<DoctorSlot[]>([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
+  // ===== 1. Подхватываем значения из query-параметров (если пришли из расписания) =====
+  useEffect(() => {
+    const qDoctor = searchParams.get("doctorId");
+    const qDate = searchParams.get("date");
+    const qTime = searchParams.get("time");
+    const qService = searchParams.get("serviceCode");
 
-  // --- Загрузка клиентов ---
+    if (qDoctor) setDoctorId(qDoctor);
+    if (qDate) setDate(qDate);
+    if (qTime) setTime(qTime);
+    if (qService) setServiceCode(qService);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // ===== 2. Загружаем клиентов =====
   useEffect(() => {
     let ignore = false;
 
     async function loadOwners() {
-      if (!supabase) {
+      const client = supabase;
+      if (!client) {
         setOwnersLoading(false);
         return;
       }
 
       setOwnersLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("owner_profiles")
         .select("*")
         .order("full_name", { ascending: true });
@@ -134,12 +116,13 @@ export function RegistrarCreateAppointment() {
     };
   }, []);
 
-  // --- Загрузка питомцев выбранного клиента ---
+  // ===== 3. Загружаем питомцев выбранного клиента =====
   useEffect(() => {
     let ignore = false;
 
     async function loadPets() {
-      if (!supabase || !selectedOwnerId) {
+      const client = supabase;
+      if (!client || !selectedOwnerId) {
         setPets([]);
         return;
       }
@@ -153,7 +136,7 @@ export function RegistrarCreateAppointment() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("pets")
         .select("*")
         .eq("owner_id", ownerKey)
@@ -181,7 +164,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // при выборе питомца — подставляем имя/вид, если поля ещё пустые
+  // При выборе питомца подставляем его имя/вид, если поля пустые
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -191,84 +174,12 @@ export function RegistrarCreateAppointment() {
     setPetSpecies((prev) => prev || pet.species || "");
   }, [selectedPetId, pets]);
 
-  // --- Загрузка слотов врача ---
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadSlots() {
-      if (!supabase || !doctorId) {
-        setSlots([]);
-        return;
-      }
-
-      setSlotsLoading(true);
-      setSelectedSlotId("");
-      setDate("");
-      setTime("");
-
-      const { data, error } = await supabase
-        .from("doctor_slots")
-        .select("*")
-        .eq("doctor_id", doctorId)
-        .eq("status", "available")
-        .is("appointment_id", null)
-        .order("date", { ascending: true })
-        .order("time_start", { ascending: true });
-
-      if (!ignore) {
-        if (!error && data) {
-          setSlots(
-            data.map((s: any) => ({
-              id: String(s.id),
-              doctor_id: s.doctor_id,
-              date: s.date,
-              time_start: s.time_start,
-              time_end: s.time_end,
-              status: s.status,
-            }))
-          );
-        } else {
-          setSlots([]);
-        }
-        setSlotsLoading(false);
-      }
-    }
-
-    loadSlots();
-
-    return () => {
-      ignore = true;
-    };
-  }, [doctorId]);
-
-  // --- При выборе слота подставляем дату/время ---
-  useEffect(() => {
-    if (!selectedSlotId) return;
-    const slot = slots.find((s) => s.id === selectedSlotId);
-    if (!slot) return;
-
-    setDate(slot.date);
-    setTime(slot.time_start);
-  }, [selectedSlotId, slots]);
-
-  // Группируем слоты по датам для "мини-календаря"
-  const slotsByDate = useMemo(() => {
-    const map = new Map<string, DoctorSlot[]>();
-    slots.forEach((s) => {
-      if (!map.has(s.date)) map.set(s.date, []);
-      map.get(s.date)!.push(s);
-    });
-    // сортируем даты
-    const sorted = Array.from(map.entries()).sort(
-      ([d1], [d2]) => new Date(d1).getTime() - new Date(d2).getTime()
-    );
-    return sorted;
-  }, [slots]);
-
+  // ===== 4. Submit =====
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setErrorMessage("Supabase недоступен на клиенте.");
       return;
     }
@@ -278,28 +189,15 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    if (!selectedSlotId && (!date || !time)) {
-      setErrorMessage(
-        "Выберите слот в расписании врача или задайте дату и время вручную."
-      );
+    if (!date || !time) {
+      setErrorMessage("Укажите дату и время приёма.");
       return;
     }
 
     setSaving(true);
     setErrorMessage(null);
 
-    let startsAt: Date;
-    let chosenSlot: DoctorSlot | null = null;
-
-    if (selectedSlotId) {
-      chosenSlot = slots.find((s) => s.id === selectedSlotId) || null;
-    }
-
-    if (chosenSlot) {
-      startsAt = new Date(`${chosenSlot.date}T${chosenSlot.time_start}`);
-    } else {
-      startsAt = new Date(`${date}T${time}`);
-    }
+    const startsAt = new Date(`${date}T${time}`);
 
     // owner_id — bigint
     let owner_id: number | null = null;
@@ -310,13 +208,9 @@ export function RegistrarCreateAppointment() {
       }
     }
 
-    // pet_id — uuid
     const pet_id = selectedPetId || null;
 
-    // doctor_id — из слота, если есть
-    const resolvedDoctorId = chosenSlot?.doctor_id || doctorId || null;
-
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("appointments")
       .insert({
         starts_at: startsAt.toISOString(),
@@ -326,7 +220,7 @@ export function RegistrarCreateAppointment() {
         service_code: serviceCode,
         owner_id,
         pet_id,
-        doctor_id: resolvedDoctorId,
+        doctor_id: doctorId || null,
         contact_info: clientContact || null,
         video_platform: "yandex_telemost",
         video_url: videoUrl || null,
@@ -341,18 +235,7 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // Если выбран слот, связываем его с приёмом
-    if (chosenSlot) {
-      await supabase
-        .from("doctor_slots")
-        .update({
-          appointment_id: data.id,
-          status: "busy",
-        })
-        .eq("id", chosenSlot.id);
-    }
-
-    // сброс формы
+    // сброс (минимальный)
     setClientName("");
     setClientContact("");
     setPetName("");
@@ -360,7 +243,6 @@ export function RegistrarCreateAppointment() {
     setDate("");
     setTime("");
     setSelectedPetId("");
-    setSelectedSlotId("");
     setVideoUrl("");
 
     setSaving(false);
@@ -375,6 +257,7 @@ export function RegistrarCreateAppointment() {
     }
   };
 
+  // ===== RENDER =====
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
       <h2 className="text-base font-semibold">
@@ -383,6 +266,8 @@ export function RegistrarCreateAppointment() {
       <p className="text-xs text-gray-500">
         Регистратор может создать запись на основании обращения клиента. При
         выборе клиента и питомца консультация будет привязана к их картотеке.
+        Если вы пришли из расписания, врач, дата, время и услуга уже
+        подставлены.
       </p>
 
       {errorMessage && (
@@ -527,15 +412,15 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Врач, услуга, слоты */}
+        {/* Врач и услуга */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
-            Врач, услуга и время
+            Врач и услуга
           </div>
           <div className="space-y-2">
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
-                Врач (пока только визуально)
+                Врач
               </label>
               <select
                 value={doctorId}
@@ -549,7 +434,6 @@ export function RegistrarCreateAppointment() {
                 ))}
               </select>
             </div>
-
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Услуга
@@ -566,65 +450,10 @@ export function RegistrarCreateAppointment() {
                 ))}
               </select>
             </div>
-
-            {/* Мини-календарь слотов врача */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Свободные слоты врача
-              </label>
-              {slotsLoading ? (
-                <div className="text-[11px] text-gray-400">
-                  Загружаем расписание врача…
-                </div>
-              ) : slotsByDate.length === 0 ? (
-                <div className="text-[11px] text-gray-400">
-                  Свободных слотов в doctor_slots для выбранного врача пока
-                  нет. Можно указать дату и время вручную ниже.
-                </div>
-              ) : (
-                <div className="space-y-2 rounded-xl border bg-gray-50 p-2 max-h-56 overflow-y-auto">
-                  {slotsByDate.map(([d, daySlots]) => (
-                    <div key={d} className="space-y-1">
-                      <div className="text-[11px] font-medium text-gray-700">
-                        {new Date(d).toLocaleDateString("ru-RU", {
-                          weekday: "short",
-                          day: "2-digit",
-                          month: "2-digit",
-                        })}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {daySlots.map((s) => {
-                          const isSelected = selectedSlotId === s.id;
-                          return (
-                            <button
-                              type="button"
-                              key={s.id}
-                              onClick={() =>
-                                setSelectedSlotId(
-                                  isSelected ? "" : s.id
-                                )
-                              }
-                              className={[
-                                "rounded-full border px-2 py-0.5 text-[10px]",
-                                isSelected
-                                  ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-                              ].join(" ")}
-                            >
-                              {s.time_start}–{s.time_end}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* Формат связи: Яндекс Телемост */}
+        {/* Формат связи: Телемост */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700">
@@ -665,7 +494,7 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Дата и время (ручной ввод + отображение выбора слота) */}
+        {/* Дата и время */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
             Дата и время
@@ -680,7 +509,6 @@ export function RegistrarCreateAppointment() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                disabled={Boolean(selectedSlotId)}
               />
             </div>
             <div>
@@ -692,14 +520,13 @@ export function RegistrarCreateAppointment() {
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                disabled={Boolean(selectedSlotId)}
               />
             </div>
           </div>
 
           <p className="text-[10px] text-gray-400">
-            Можно выбрать слот врача в расписании (список выше — тогда дата и
-            время подставятся автоматически) или ввести дату и время вручную.
+            Если вы пришли из расписания, дата и время уже подставлены. Их
+            можно изменить вручную при необходимости.
           </p>
 
           <div className="pt-3">
