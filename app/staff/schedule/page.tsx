@@ -12,17 +12,19 @@ export default async function StaffSchedulePage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
+  // Все приёмы в будущем и сегодня
   const upcoming: Appointment[] = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
-    return d >= now;
+    return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
   });
 
+  // Группировка по дате (YYYY-MM-DD)
   const groupedByDay: Record<string, Appointment[]> = {};
   upcoming.forEach((a) => {
     if (!a.startsAt) return;
     const d = new Date(a.startsAt);
-    const key = d.toISOString().split("T")[0];
+    const key = d.toISOString().split("T")[0]; // YYYY-MM-DD
     if (!groupedByDay[key]) groupedByDay[key] = [];
     groupedByDay[key].push(a);
   });
@@ -30,6 +32,14 @@ export default async function StaffSchedulePage() {
   const sortedDays = Object.keys(groupedByDay).sort(
     (d1, d2) => new Date(d1).getTime() - new Date(d2).getTime()
   );
+
+  // Сегодняшний день (ключ YYYY-MM-DD)
+  const todayKey = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    .toISOString()
+    .split("T")[0];
+
+  const todayAppointments = groupedByDay[todayKey] || [];
+  const otherDays = sortedDays.filter((d) => d !== todayKey);
 
   return (
     <RoleGuard allowed={["vet", "admin"]}>
@@ -48,8 +58,8 @@ export default async function StaffSchedulePage() {
             </h1>
             <p className="text-sm text-gray-500">
               Список предстоящих онлайн-консультаций, сгруппированных по
-              дням. Позже здесь появится фильтр &quot;только мои
-              консультации&quot;.
+              дням. Пока показываются все приёмы, позже добавим режим
+              &quot;только мои&quot;.
             </p>
           </div>
           <RegistrarHeader />
@@ -57,7 +67,7 @@ export default async function StaffSchedulePage() {
 
         <StaffNav />
 
-        {/* Переключатель режима — пока визуальный */}
+        {/* Режим просмотра — чисто визуальный скелет */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-semibold text-gray-700">
@@ -73,25 +83,96 @@ export default async function StaffSchedulePage() {
             </div>
           </div>
           <p className="text-[10px] text-gray-400">
-            В этом скелетном варианте оба режима показывают один и тот же
-            список. Когда появится привязка аккаунта к врачу, сюда
-            добавим реальную фильтрацию.
+            Сейчас оба режима отображают одинаковый список. Когда появится
+            привязка пользователя к конкретному врачу, здесь появится
+            настоящая фильтрация.
           </p>
         </section>
 
-        {/* Расписание по дням */}
-        <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <h2 className="text-base font-semibold">
-            Предстоящие приёмы по дням
-          </h2>
+        {/* Сегодня */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Сегодня</h2>
+            <span className="text-[11px] text-gray-500">
+              {todayAppointments.length > 0
+                ? `Приёмов сегодня: ${todayAppointments.length}`
+                : "Приёмов сегодня нет"}
+            </span>
+          </div>
 
-          {sortedDays.length === 0 && (
-            <p className="text-xs text_gray-500">
-              В ближайшее время приёмов нет.
+          {todayAppointments.length === 0 && (
+            <p className="text-xs text-gray-400">
+              На сегодня нет ни одной онлайн-консультации.
             </p>
           )}
 
-          {sortedDays.map((dayKey) => {
+          {todayAppointments.length > 0 && (
+            <div className="space-y-1">
+              {todayAppointments
+                .slice()
+                .sort((a, b) => {
+                  if (!a.startsAt || !b.startsAt) return 0;
+                  return (
+                    new Date(a.startsAt).getTime() -
+                    new Date(b.startsAt).getTime()
+                  );
+                })
+                .map((a) => (
+                  <Link key={a.id} href={`/staff/appointment/${a.id}`}>
+                    <div className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs hover:bg-gray-50">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-gray-900">
+                          {a.startsAt
+                            ? new Date(a.startsAt).toLocaleTimeString(
+                                "ru-RU",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )
+                            : "—"}
+                        </span>
+                        <span className="text-[11px] text-gray-700">
+                          {a.petName || "Без имени"}{" "}
+                          {a.petSpecies ? `(${a.petSpecies})` : ""}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {a.serviceName}
+                        </span>
+                      </div>
+                      <div className="text-right text-[10px] text-gray-500">
+                        <div>{a.statusLabel}</div>
+                        {a.doctorName && (
+                          <div className="mt-0.5 text-[10px] text-gray-400">
+                            {a.doctorName}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+            </div>
+          )}
+        </section>
+
+        {/* Остальные дни */}
+        <section className="rounded-2xl border bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Другие дни</h2>
+            <span className="text-[11px] text-gray-500">
+              {otherDays.length === 0
+                ? "Ближайших приёмов нет"
+                : `Дней с приёмами: ${otherDays.length}`}
+            </span>
+          </div>
+
+          {otherDays.length === 0 && (
+            <p className="text-xs text-gray-400">
+              На ближайшие дни приёмов не запланировано.
+            </p>
+          )}
+
+          {otherDays.map((dayKey) => {
             const dayAppointments = groupedByDay[dayKey] || [];
             const dayDate = new Date(dayKey);
 
@@ -106,7 +187,7 @@ export default async function StaffSchedulePage() {
                     })}
                   </div>
                   <div className="text-[11px] text-gray-400">
-                    Всего приёмов: {dayAppointments.length}
+                    Приёмов: {dayAppointments.length}
                   </div>
                 </div>
 
@@ -127,7 +208,7 @@ export default async function StaffSchedulePage() {
                       >
                         <div className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs hover:bg-gray-50">
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text_gray-900">
+                            <span className="font-medium text-gray-900">
                               {a.startsAt
                                 ? new Date(
                                     a.startsAt
@@ -137,17 +218,17 @@ export default async function StaffSchedulePage() {
                                   })
                                 : "—"}
                             </span>
-                            <span className="text-[11px] text_gray-700">
+                            <span className="text-[11px] text-gray-700">
                               {a.petName || "Без имени"}{" "}
                               {a.petSpecies
                                 ? `(${a.petSpecies})`
                                 : ""}
                             </span>
-                            <span className="text-[10px] text_gray-500">
+                            <span className="text-[10px] text-gray-500">
                               {a.serviceName}
                             </span>
                           </div>
-                          <div className="text-right text-[10px] text_gray-500">
+                          <div className="text-right text-[10px] text-gray-500">
                             <div>{a.statusLabel}</div>
                             {a.doctorName && (
                               <div className="mt-0.5 text-[10px] text-gray-400">
