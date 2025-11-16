@@ -6,6 +6,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { doctors } from "@/lib/data";
+import { servicesPricing } from "@/lib/pricing";
 
 type SlotRow = {
   id: string;
@@ -15,9 +16,11 @@ type SlotRow = {
   time_end: string;
   status: string;
   appointment_id: string | null;
+  serviceCode?: string | null;
 };
 
 export default function RegistrarSchedulePage() {
+  const [specializationFilter, setSpecializationFilter] = useState("all");
   const [doctorId, setDoctorId] = useState(doctors[0].id);
   const [statusFilter, setStatusFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("7");
@@ -26,6 +29,39 @@ export default function RegistrarSchedulePage() {
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // --- СПИСОК СПЕЦИАЛИЗАЦИЙ ---
+  const specializations = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          doctors.map(
+            (d: any) => d.specialization ?? "Общая практика"
+          )
+        )
+      ),
+    []
+  );
+
+  // --- ВРАЧИ С УЧЁТОМ СПЕЦИАЛИЗАЦИИ ---
+  const filteredDoctors = useMemo(() => {
+    if (specializationFilter === "all") return doctors;
+    return doctors.filter(
+      (d: any) =>
+        (d.specialization ?? "Общая практика") === specializationFilter
+    );
+  }, [specializationFilter]);
+
+  // если выбранный врач не входит в отфильтрованный список — переключаемся на первого
+  useEffect(() => {
+    if (!filteredDoctors.find((d) => d.id === doctorId)) {
+      if (filteredDoctors.length > 0) {
+        setDoctorId(filteredDoctors[0].id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredDoctors]);
+
+  // --- ЗАГРУЗКА СЛОТОВ + ПОДТЯГИВАНИЕ УСЛУГ ДЛЯ ЗАНЯТЫХ ---
   async function loadSlots() {
     setLoading(true);
 
@@ -36,6 +72,7 @@ export default function RegistrarSchedulePage() {
       return;
     }
 
+    // 1) слоты по врачу
     const { data, error } = await client
       .from("doctor_slots")
       .select("*")
@@ -43,29 +80,56 @@ export default function RegistrarSchedulePage() {
       .order("date", { ascending: true })
       .order("time_start", { ascending: true });
 
-    if (!error && data) {
-      setSlots(
-        data.map((s: any) => ({
-          id: String(s.id),
-          doctor_id: s.doctor_id,
-          date: s.date,
-          time_start: s.time_start,
-          time_end: s.time_end,
-          status: s.status,
-          appointment_id: s.appointment_id,
-        }))
-      );
-    } else {
+    if (error || !data) {
       setSlots([]);
+      setLoading(false);
+      return;
     }
+
+    // 2) вытаскиваем service_code для занятых слотов
+    const apptIds = data
+      .map((s: any) => s.appointment_id)
+      .filter((id: any) => id !== null);
+
+    let apptMap: Record<string, string | null> = {};
+    if (apptIds.length > 0) {
+      const { data: appts, error: apptsError } = await client
+        .from("appointments")
+        .select("id, service_code")
+        .in("id", apptIds);
+
+      if (!apptsError && appts) {
+        appts.forEach((a: any) => {
+          apptMap[String(a.id)] = a.service_code ?? null;
+        });
+      }
+    }
+
+    setSlots(
+      data.map((s: any) => ({
+        id: String(s.id),
+        doctor_id: s.doctor_id,
+        date: s.date,
+        time_start: s.time_start,
+        time_end: s.time_end,
+        status: s.status,
+        appointment_id: s.appointment_id,
+        serviceCode:
+          s.appointment_id != null
+            ? apptMap[String(s.appointment_id)] ?? null
+            : null,
+      }))
+    );
 
     setLoading(false);
   }
 
   useEffect(() => {
     loadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
+  // --- ФИЛЬТРЫ ---
   const filteredByStatus = useMemo(() => {
     if (statusFilter === "all") return slots;
     return slots.filter((s) => s.status === statusFilter);
@@ -106,33 +170,34 @@ export default function RegistrarSchedulePage() {
     );
   }, [filteredByPeriod]);
 
-  // вспомогательный рендер одного слота
+  // --- ЦВЕТА ДЛЯ УСЛУГ ---
+  const SERVICE_COLORS = [
+    "bg-sky-50 text-sky-800 border-sky-300",
+    "bg-pink-50 text-pink-800 border-pink-300",
+    "bg-amber-50 text-amber-800 border-amber-300",
+    "bg-indigo-50 text-indigo-800 border-indigo-300",
+    "bg-lime-50 text-lime-800 border-lime-300",
+  ];
+
+  function getServiceClasses(code: string | null | undefined): string {
+    if (!code) return "bg-gray-100 text-gray-700 border-gray-300";
+    const idx = servicesPricing.findIndex((s: any) => s.code === code);
+    if (idx === -1) return "bg-gray-100 text-gray-700 border-gray-300";
+    const colorIdx = idx % SERVICE_COLORS.length;
+    return SERVICE_COLORS[colorIdx];
+  }
+
+  function getServiceName(code: string | null | undefined): string | null {
+    if (!code) return null;
+    const s = servicesPricing.find((x: any) => x.code === code);
+    return s ? s.name : code;
+  }
+
+  // --- РЕНДЕР ОДНОГО СЛОТА (список/календарь) ---
   function renderSlotTile(s: SlotRow) {
     const isAvailable = s.status === "available";
+    const isBusy = s.status === "busy";
 
-    const baseClasses =
-      "rounded-xl border px-3 py-2 text-xs flex flex-col";
-    const color =
-      s.status === "available"
-        ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 cursor-pointer"
-        : s.status === "busy"
-        ? "bg-gray-100 text-gray-700 border-gray-300"
-        : "bg-red-50 text-red-700 border-red-300";
-
-    const content = (
-      <div className={`${baseClasses} ${color}`}>
-        <div className="font-medium">
-          {s.time_start}–{s.time_end}
-        </div>
-        <div className="text-[10px] text-gray-500">
-          {s.status === "available" && "Свободно"}
-          {s.status === "busy" && "Занято (есть приём)"}
-          {s.status === "unavailable" && "Недоступно"}
-        </div>
-      </div>
-    );
-
-    // если слот свободен — делаем его ссылкой на создание консультации
     if (isAvailable) {
       const params = new URLSearchParams({
         doctorId,
@@ -145,15 +210,44 @@ export default function RegistrarSchedulePage() {
           key={s.id}
           href={`/backoffice/registrar?${params}`}
         >
-          {content}
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 hover:bg-emerald-100 cursor-pointer flex flex-col">
+            <div className="font-medium">
+              {s.time_start}–{s.time_end}
+            </div>
+            <div className="text-[10px] text-emerald-700">Свободно</div>
+          </div>
         </Link>
       );
     }
 
-    // если занят/недоступен — просто плитка без ссылки
+    if (isBusy) {
+      const name = getServiceName(s.serviceCode);
+      const colorClasses = getServiceClasses(s.serviceCode ?? null);
+      return (
+        <div
+          key={s.id}
+          className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${colorClasses}`}
+        >
+          <div className="font-medium">
+            {s.time_start}–{s.time_end}
+          </div>
+          <div className="text-[10px]">
+            Занято{ name ? ` · ${name}` : "" }
+          </div>
+        </div>
+      );
+    }
+
+    // Недоступный слот
     return (
-      <div key={s.id}>
-        {content}
+      <div
+        key={s.id}
+        className="rounded-xl border px-3 py-2 text-xs flex flex-col bg-red-50 text-red-700 border-red-300"
+      >
+        <div className="font-medium">
+          {s.time_start}–{s.time_end}
+        </div>
+        <div className="text-[10px]">Недоступно</div>
       </div>
     );
   }
@@ -189,10 +283,30 @@ export default function RegistrarSchedulePage() {
           </div>
         </header>
 
-        {/* Фильтры + переключатель вида */}
+        {/* Фильтры + вид */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:w-auto md:flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full md:w-auto md:flex-1">
+              {/* Специализация */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Специализация
+                </label>
+                <select
+                  value={specializationFilter}
+                  onChange={(e) => setSpecializationFilter(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  <option value="all">Все специализации</option>
+                  {specializations.map((sp) => (
+                    <option key={sp} value={sp}>
+                      {sp}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Врач */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Врач
@@ -202,7 +316,7 @@ export default function RegistrarSchedulePage() {
                   onChange={(e) => setDoctorId(e.target.value)}
                   className="w-full rounded-xl border px-2 py-1.5 text-xs"
                 >
-                  {doctors.map((d) => (
+                  {filteredDoctors.map((d: any) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
                     </option>
@@ -210,6 +324,7 @@ export default function RegistrarSchedulePage() {
                 </select>
               </div>
 
+              {/* Статус */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Статус слотов
@@ -226,6 +341,7 @@ export default function RegistrarSchedulePage() {
                 </select>
               </div>
 
+              {/* Период */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Период
@@ -243,6 +359,7 @@ export default function RegistrarSchedulePage() {
               </div>
             </div>
 
+            {/* Переключатель вида */}
             <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
               <button
                 type="button"
@@ -270,7 +387,7 @@ export default function RegistrarSchedulePage() {
           </div>
         </section>
 
-        {/* Режим: список */}
+        {/* ВИД: СПИСОК */}
         {viewMode === "list" ? (
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">Слоты врача (список)</h2>
@@ -281,8 +398,7 @@ export default function RegistrarSchedulePage() {
 
             {!loading && grouped.length === 0 && (
               <p className="text-xs text-gray-500">
-                Слотов не найдено. Возможно, расписание ещё не настроено
-                или фильтры слишком узкие.
+                Слотов не найдено. Возможно, расписание ещё не настроено.
               </p>
             )}
 
@@ -304,7 +420,7 @@ export default function RegistrarSchedulePage() {
               ))}
           </section>
         ) : (
-          // Режим: календарь
+          // ВИД: КАЛЕНДАРЬ
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">
               Слоты врача (календарь)
