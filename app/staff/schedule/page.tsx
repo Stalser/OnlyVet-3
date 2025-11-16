@@ -3,57 +3,33 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getRegistrarAppointments } from "@/lib/registrar";
 
-type PeriodFilter = "all" | "today" | "7" | "30";
-
-function filterByPeriod(
-  period: PeriodFilter,
-  now: Date,
-  startsAt: string | null | undefined
-) {
-  if (!startsAt) return false;
-  const d = new Date(startsAt);
-
-  if (period === "all") return true;
-
-  if (period === "today") {
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    );
-  }
-
-  const end = new Date(now);
-  if (period === "7") {
-    end.setDate(now.getDate() + 7);
-  } else if (period === "30") {
-    end.setDate(now.getDate() + 30);
-  }
-
-  return d >= now && d <= end;
-}
+// Тип для одной консультации на основе getRegistrarAppointments
+type Appointment = Awaited<
+  ReturnType<typeof getRegistrarAppointments>
+>[number];
 
 export default async function StaffSchedulePage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
-  // пока показываем все приёмы; позже сузим до “только этого врача”
-  const futureOrToday = appointments.filter((a) =>
-    filterByPeriod("all", now, a.startsAt)
-  );
+  // Пока берём все будущие и сегодняшние приёмы.
+  // Позже здесь сделаем фильтрацию "только мои".
+  const upcoming: Appointment[] = appointments.filter((a) => {
+    if (!a.startsAt) return false;
+    const d = new Date(a.startsAt);
+    return d >= now; // всё, что сегодня и в будущем
+  });
 
-  // сгруппируем по дате (без времени)
-  const groupedByDay = futureOrToday.reduce(
-    (acc: Record<string, typeof appointments>, a) => {
-      if (!a.startsAt) return acc;
-      const d = new Date(a.startsAt);
-      const key = d.toISOString().split("T")[0]; // YYYY-MM-DD
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(a);
-      return acc;
-    },
-    {}
-  );
+  // Группировка по дате (ключ: YYYY-MM-DD)
+  const groupedByDay: Record<string, Appointment[]> = {};
+  upcoming.forEach((a) => {
+    if (!a.startsAt) return;
+    const d = new Date(a.startsAt);
+    const key = d.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    if (!groupedByDay[key]) groupedByDay[key] = [];
+    groupedByDay[key].push(a);
+  });
 
   const sortedDays = Object.keys(groupedByDay).sort(
     (d1, d2) => new Date(d1).getTime() - new Date(d2).getTime()
@@ -75,39 +51,35 @@ export default async function StaffSchedulePage() {
               Расписание приёмов
             </h1>
             <p className="text-sm text-gray-500">
-              Группированный по дням список онлайн-консультаций. Позже
-              здесь можно будет фильтровать только “свои” приёмы.
+              Список предстоящих онлайн-консультаций, сгруппированных по
+              дням. Позже здесь будет фильтр &quot;только мои приёмы&quot; и
+              детальная фильтрация по врачу.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Фильтры по периоду — скелет, пока статичен */}
+        {/* Переключатель "Мои / Все" — пока скелет, визуальный */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-semibold text-gray-700">
-              Период
+              Режим просмотра
             </div>
             <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
-              {/* пока кнопки визуальные; позже добавим состояние и фильтры */}
+              {/* Сейчас обе кнопки показывают одно и то же.
+                 Позже сюда добавим реальную фильтрацию по doctor_id. */}
               <button className="px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm">
-                Все даты
+                Мои приёмы
               </button>
               <button className="px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-800">
-                Сегодня
-              </button>
-              <button className="px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-800">
-                7 дней
-              </button>
-              <button className="px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-800">
-                30 дней
+                Все врачи
               </button>
             </div>
           </div>
           <p className="text-[10px] text-gray-400">
-            Сейчас это “скелет”: кнопки фильтров ещё не меняют список. Позже
-            сюда добавим настоящую фильтрацию по периоду и привязку к
-            конкретному врачу.
+            В этом скелетном варианте оба режима показывают один и тот же
+            список. Когда появится привязка аккаунта к врачу, здесь
+            появится фильтр &quot;только мои консультации&quot;.
           </p>
         </section>
 
@@ -160,7 +132,6 @@ export default async function StaffSchedulePage() {
                         <div className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs hover:bg-gray-50">
                           <div className="flex flex-col gap-0.5">
                             <span className="font-medium text-gray-900">
-                              {/* время приёма */}
                               {a.startsAt
                                 ? new Date(
                                     a.startsAt
