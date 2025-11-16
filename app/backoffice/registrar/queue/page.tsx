@@ -103,7 +103,7 @@ export default async function RegistrarQueuePage() {
                       )}
                     </div>
 
-                    {/* Услуга / врач */}
+                    {/* Услуга / врач / платформа */}
                     <div>
                       <div className="text-[11px] font-semibold text-gray-700">
                         Услуга / врач
@@ -113,6 +113,27 @@ export default async function RegistrarQueuePage() {
                       </div>
                       <div className="text-[10px] text-gray-600">
                         {a.doctorName || "Врач не назначен"}
+                      </div>
+
+                      <div className="mt-2 text-[10px] text-emerald-800">
+                        Платформа:{" "}
+                        <span className="font-semibold">
+                          Яндекс Телемост
+                        </span>
+                        {a.videoUrl && (
+                          <>
+                            {" "}
+                            ·{" "}
+                            <a
+                              href={a.videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-700 hover:underline"
+                            >
+                              ссылка
+                            </a>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
