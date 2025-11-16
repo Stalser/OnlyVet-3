@@ -3,6 +3,7 @@
 import {
   FormEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ export function RegistrarCreateAppointment() {
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
 
-  // дата/время (резервный вариант + отображение выбранного слота)
+  // дата/время (отображаются и как ручной ввод, и как результат выбора слота)
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
@@ -76,7 +77,7 @@ export function RegistrarCreateAppointment() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
 
-  // загрузка клиентов
+  // --- Загрузка клиентов ---
   useEffect(() => {
     let ignore = false;
 
@@ -114,7 +115,7 @@ export function RegistrarCreateAppointment() {
     };
   }, []);
 
-  // загрузка питомцев выбранного клиента
+  // --- Загрузка питомцев выбранного клиента ---
   useEffect(() => {
     let ignore = false;
 
@@ -171,7 +172,7 @@ export function RegistrarCreateAppointment() {
     setPetSpecies((prev) => prev || pet.species || "");
   }, [selectedPetId, pets]);
 
-  // загрузка слотов выбранного врача (на ближайшие дни)
+  // --- Загрузка слотов врача ---
   useEffect(() => {
     let ignore = false;
 
@@ -183,7 +184,9 @@ export function RegistrarCreateAppointment() {
 
       setSlotsLoading(true);
       setSelectedSlotId("");
-      // берём только свободные слоты врача в будущем
+      setDate("");
+      setTime("");
+
       const { data, error } = await supabase
         .from("doctor_slots")
         .select("*")
@@ -219,7 +222,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [doctorId]);
 
-  // при выборе слота — подставляем дату/время
+  // --- При выборе слота подставляем дату/время ---
   useEffect(() => {
     if (!selectedSlotId) return;
     const slot = slots.find((s) => s.id === selectedSlotId);
@@ -228,6 +231,20 @@ export function RegistrarCreateAppointment() {
     setDate(slot.date);
     setTime(slot.time_start);
   }, [selectedSlotId, slots]);
+
+  // Группируем слоты по датам для "мини-календаря"
+  const slotsByDate = useMemo(() => {
+    const map = new Map<string, DoctorSlot[]>();
+    slots.forEach((s) => {
+      if (!map.has(s.date)) map.set(s.date, []);
+      map.get(s.date)!.push(s);
+    });
+    // сортируем даты
+    const sorted = Array.from(map.entries()).sort(
+      ([d1], [d2]) => new Date(d1).getTime() - new Date(d2).getTime()
+    );
+    return sorted;
+  }, [slots]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -242,10 +259,9 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // либо выбран слот, либо вручную указаны дата/время
     if (!selectedSlotId && (!date || !time)) {
       setErrorMessage(
-        "Выберите слот из расписания врача или укажите дату и время вручную."
+        "Выберите слот в расписании врача или задайте дату и время вручную."
       );
       return;
     }
@@ -254,8 +270,8 @@ export function RegistrarCreateAppointment() {
     setErrorMessage(null);
 
     let startsAt: Date;
-
     let chosenSlot: DoctorSlot | null = null;
+
     if (selectedSlotId) {
       chosenSlot = slots.find((s) => s.id === selectedSlotId) || null;
     }
@@ -278,7 +294,7 @@ export function RegistrarCreateAppointment() {
     // pet_id — uuid
     const pet_id = selectedPetId || null;
 
-    // doctor_id лучше взять из выбранного слота, если он есть
+    // doctor_id — из слота, если есть
     const resolvedDoctorId = chosenSlot?.doctor_id || doctorId || null;
 
     const { data, error } = await supabase
@@ -306,7 +322,7 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    // если выбран слот — пометим его занятым
+    // Если выбран слот, связываем его с приёмом
     if (chosenSlot) {
       await supabase
         .from("doctor_slots")
@@ -492,10 +508,10 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Врач и услуга */}
+        {/* Врач, услуга, слоты */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
-            Врач и услуга
+            Врач, услуга и время
           </div>
           <div className="space-y-2">
             <div>
@@ -514,6 +530,7 @@ export function RegistrarCreateAppointment() {
                 ))}
               </select>
             </div>
+
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Услуга
@@ -531,7 +548,7 @@ export function RegistrarCreateAppointment() {
               </select>
             </div>
 
-            {/* Свободные слоты врача */}
+            {/* Мини-календарь слотов врача */}
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Свободные слоты врача
@@ -540,28 +557,49 @@ export function RegistrarCreateAppointment() {
                 <div className="text-[11px] text-gray-400">
                   Загружаем расписание врача…
                 </div>
-              ) : slots.length === 0 ? (
+              ) : slotsByDate.length === 0 ? (
                 <div className="text-[11px] text-gray-400">
                   Свободных слотов в doctor_slots для выбранного врача пока
-                  нет. Можно указать дату и время вручную.
+                  нет. Можно указать дату и время вручную ниже.
                 </div>
               ) : (
-                <select
-                  value={selectedSlotId}
-                  onChange={(e) => setSelectedSlotId(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                >
-                  <option value="">Не выбран (ввести вручную)</option>
-                  {slots.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {new Date(s.date).toLocaleDateString("ru-RU", {
-                        day: "2-digit",
-                        month: "2-digit",
-                      })}{" "}
-                      · {s.time_start}–{s.time_end}
-                    </option>
+                <div className="space-y-2 rounded-xl border bg-gray-50 p-2 max-h-56 overflow-y-auto">
+                  {slotsByDate.map(([d, daySlots]) => (
+                    <div key={d} className="space-y-1">
+                      <div className="text-[11px] font-medium text-gray-700">
+                        {new Date(d).toLocaleDateString("ru-RU", {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {daySlots.map((s) => {
+                          const isSelected = selectedSlotId === s.id;
+                          return (
+                            <button
+                              type="button"
+                              key={s.id}
+                              onClick={() =>
+                                setSelectedSlotId(
+                                  isSelected ? "" : s.id
+                                )
+                              }
+                              className={[
+                                "rounded-full border px-2 py-0.5 text-[10px]",
+                                isSelected
+                                  ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+                              ].join(" ")}
+                            >
+                              {s.time_start}–{s.time_end}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ))}
-                </select>
+                </div>
               )}
             </div>
           </div>
@@ -608,7 +646,7 @@ export function RegistrarCreateAppointment() {
           </div>
         </div>
 
-        {/* Дата и время */}
+        {/* Дата и время (ручной ввод + отображение выбора слота) */}
         <div className="space-y-2">
           <div className="text-xs font-semibold text-gray-700">
             Дата и время
@@ -641,8 +679,8 @@ export function RegistrarCreateAppointment() {
           </div>
 
           <p className="text-[10px] text-gray-400">
-            Можно выбрать слот врача в расписании (тогда дата и время
-            заполнятся автоматически) или ввести дату и время вручную.
+            Можно выбрать слот врача в расписании (список выше — тогда дата и
+            время подставятся автоматически) или ввести дату и время вручную.
           </p>
 
           <div className="pt-3">
