@@ -32,7 +32,7 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // визуальные данные клиента (для заметок)
+  // визуальные данные клиента (для заметок, пока не сохраняем в отдельную таблицу)
   const [clientName, setClientName] = useState("");
   const [clientContact, setClientContact] = useState("");
 
@@ -147,7 +147,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // при выборе питомца — подставляем имя/вид, если пусто
+  // при выборе питомца — подставляем имя/вид, если поля ещё пустые
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -241,9 +241,8 @@ export function RegistrarCreateAppointment() {
         Создать новую консультацию
       </h2>
       <p className="text-xs text-gray-500">
-        Регистратор может создать запись на оснований обращения клиента.
-        При выборе клиента и питомца консультация будет привязана к их
-        картотеке.
+        Регистратор может создать запись на основании обращения клиента. При
+        выборе клиента и питомца консультация будет привязана к их картотеке.
       </p>
 
       {errorMessage && (
@@ -431,42 +430,41 @@ export function RegistrarCreateAppointment() {
 
         {/* Формат связи: Яндекс Телемост */}
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-gray-700">
-            Формат связи
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-700">
+              Формат связи
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
+              Яндекс Телемост
+            </span>
           </div>
+
           <div className="space-y-2">
-            <div>
-              <div className="mb-1 text-[11px] text-gray-500">
-                Платформа видеоконсультации
-              </div>
-              <div className="rounded-xl bg-gray-50 px-2 py-1.5 text-[11px] text-gray-800">
-                Яндекс Телемост
-              </div>
-            </div>
             <div>
               <label className="mb-1 block text-[11px] text-gray-500">
                 Ссылка на Телемост
               </label>
-              <input
-                type="text"
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                placeholder="https://telemost.yandex.ru/..."
-              />
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-gray-500">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
+                  placeholder="https://telemost.yandex.ru/..."
+                />
                 <button
                   type="button"
                   onClick={handleOpenTelemost}
-                  className="rounded-xl border border-emerald-600 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+                  className="rounded-xl border border-emerald-600 px-2 py-1.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
                 >
-                  Открыть Телемост для создания ссылки
+                  Создать ссылку
                 </button>
-                <span>
-                  Откроется новая вкладка Яндекс Телемоста, сгенерируйте
-                  конференцию и вставьте ссылку выше.
-                </span>
               </div>
+              <p className="mt-1 text-[10px] text-gray-400">
+                Откроется новая вкладка Телемоста. Создайте конференцию и
+                вставьте ссылку в поле.
+              </p>
             </div>
           </div>
         </div>
