@@ -27,7 +27,7 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
 
-  // Список врачей из текущих консультаций
+  // Список врачей для фильтра
   const doctors = useMemo(
     () =>
       Array.from(
@@ -50,9 +50,9 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
     const baseStart = startOfWeek(now);
     const weekStart = addDays(baseStart, weekOffset * 7);
 
-    // Фильтруем консультации по врачу, если выбран
+    // фильтруем по врачу и наличию времени
     const source = appointments.filter((a) => {
-      if (!a.startsAt) return false; // без даты/времени — не отображаем
+      if (!a.startsAt) return false;
       if (
         doctorFilter !== "all" &&
         (a.doctorName || "").toLowerCase() !== doctorFilter.toLowerCase()
@@ -62,10 +62,9 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
       return true;
     });
 
-    const days = Array.from({ length: 7 }).map((_, i) => {
-      const d = addDays(weekStart, i);
-      return d;
-    });
+    const days = Array.from({ length: 7 }).map((_, i) =>
+      addDays(weekStart, i)
+    );
 
     const slots = Array.from({ length: 13 }).map((_, i) => 9 + i); // 9..21
 
@@ -219,6 +218,11 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
                                     {a.doctorName}
                                   </div>
                                 )}
+                                {/* Бейдж Телемоста */}
+                                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-emerald-700">
+                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                                  Телемост
+                                </div>
                               </div>
                             </Link>
                           ))}
