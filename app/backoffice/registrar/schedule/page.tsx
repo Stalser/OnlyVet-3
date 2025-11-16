@@ -21,6 +21,8 @@ export default function RegistrarSchedulePage() {
   const [doctorId, setDoctorId] = useState(doctors[0].id);
   const [statusFilter, setStatusFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("7"); // 7 дней по умолчанию
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -117,7 +119,7 @@ export default function RegistrarSchedulePage() {
     });
   }, [filteredByStatus, periodFilter]);
 
-  // Группировка по дате
+  // Группировка по дате (для списка и календаря)
   const grouped = useMemo(() => {
     const map = new Map<string, SlotRow[]>();
     filteredByPeriod.forEach((s) => {
@@ -217,7 +219,6 @@ export default function RegistrarSchedulePage() {
 
       const dateStr = d.toISOString().split("T")[0];
 
-      // идём от massTimeStart до massTimeEnd с шагом stepMinutes
       let cur = massTimeStart;
       while (cur < massTimeEnd) {
         const [h, m] = cur.split(":").map(Number);
@@ -245,6 +246,69 @@ export default function RegistrarSchedulePage() {
     loadSlots();
   }
 
+  // Автозаполнение: будни, ближайшие 7 дней, 10:00–18:00, шаг 60 мин
+  async function handleAutoWeek() {
+    setMassMessage("");
+
+    const client = supabase;
+    if (!client) {
+      setMassMessage("Supabase недоступен.");
+      return;
+    }
+
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+    end.setDate(now.getDate() + 6);
+
+    const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const autoWeekdays = ["mon", "tue", "wed", "thu", "fri"];
+
+    const timeFrom = "10:00";
+    const timeTo = "18:00";
+    const stepMinutes = 60;
+
+    let created = 0;
+
+    for (
+      let d = new Date(start);
+      d.getTime() <= end.getTime();
+      d.setDate(d.getDate() + 1)
+    ) {
+      const weekday = weekdayKeys[d.getDay()];
+      if (!autoWeekdays.includes(weekday)) continue;
+
+      const dateStr = d.toISOString().split("T")[0];
+
+      let cur = timeFrom;
+      while (cur < timeTo) {
+        const [h, m] = cur.split(":").map(Number);
+        const curDate = new Date(d);
+        curDate.setHours(h, m + stepMinutes, 0, 0);
+
+        const next = curDate.toTimeString().slice(0, 5);
+        if (next <= cur || next > timeTo) break;
+
+        await client.from("doctor_slots").insert({
+          doctor_id: doctorId,
+          date: dateStr,
+          time_start: cur,
+          time_end: next,
+          status: "available",
+          appointment_id: null,
+        });
+
+        created += 1;
+        cur = next;
+      }
+    }
+
+    setMassMessage(
+      `Автоматически создано слотов на неделю для выбранного врача: ${created}`
+    );
+    loadSlots();
+  }
+
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
@@ -267,59 +331,87 @@ export default function RegistrarSchedulePage() {
           <RegistrarHeader />
         </header>
 
-        {/* Фильтры */}
+        {/* Фильтры + переключатель вида */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Врач */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Врач
-              </label>
-              <select
-                value={doctorId}
-                onChange={(e) => setDoctorId(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              >
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:w-auto md:flex-1">
+              {/* Врач */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Врач
+                </label>
+                <select
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Статус */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Статус слотов
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  <option value="all">Все</option>
+                  <option value="available">Свободные</option>
+                  <option value="busy">Занятые</option>
+                  <option value="unavailable">Недоступные</option>
+                </select>
+              </div>
+
+              {/* Период */}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Период
+                </label>
+                <select
+                  value={periodFilter}
+                  onChange={(e) => setPeriodFilter(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  <option value="all">Все даты</option>
+                  <option value="0">Только сегодня</option>
+                  <option value="7">Ближайшие 7 дней</option>
+                  <option value="30">Ближайшие 30 дней</option>
+                </select>
+              </div>
             </div>
 
-            {/* Статус */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Статус слотов
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+            {/* Переключатель вида */}
+            <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`px-3 py-1.5 rounded-lg ${
+                  viewMode === "list"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
               >
-                <option value="all">Все</option>
-                <option value="available">Свободные</option>
-                <option value="busy">Занятые</option>
-                <option value="unavailable">Недоступные</option>
-              </select>
-            </div>
-
-            {/* Период */}
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Период
-              </label>
-              <select
-                value={periodFilter}
-                onChange={(e) => setPeriodFilter(e.target.value)}
-                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                Список
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("calendar")}
+                className={`px-3 py-1.5 rounded-lg ${
+                  viewMode === "calendar"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
               >
-                <option value="all">Все даты</option>
-                <option value="0">Только сегодня</option>
-                <option value="7">Ближайшие 7 дней</option>
-                <option value="30">Ближайшие 30 дней</option>
-              </select>
+                Календарь
+              </button>
             </div>
           </div>
         </section>
@@ -340,7 +432,7 @@ export default function RegistrarSchedulePage() {
               />
             </div>
             <div>
-              <label className="block text-[11px] text_gray-500 mb-1">
+              <label className="block text-[11px] text-gray-500 mb-1">
                 Время начала
               </label>
               <input
@@ -374,14 +466,25 @@ export default function RegistrarSchedulePage() {
           </div>
         </section>
 
-        {/* МАССОВОЕ СОЗДАНИЕ СЛОТОВ */}
+        {/* МАССОВОЕ СОЗДАНИЕ СЛОТОВ + автонеделя */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="text-base font-semibold">
-            Массовое создание слотов
-          </h2>
-          <p className="text-xs text-gray-500">
-            Быстрое создание расписания врача на нужный период.
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">
+                Массовое создание слотов
+              </h2>
+              <p className="text-xs text-gray-500">
+                Быстрое создание расписания врача на нужный период.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAutoWeek}
+              className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              Авто: будни 10–18 (7 дней)
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Период дат */}
@@ -498,84 +601,153 @@ export default function RegistrarSchedulePage() {
           )}
         </section>
 
-        {/* Список слотов */}
-        <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <h2 className="text-base font-semibold">Слоты врача</h2>
+        {/* Список или календарь слотов */}
+        {viewMode === "list" ? (
+          <section className="rounded-2xl border bg-white p-4 space-y-4">
+            <h2 className="text-base font-semibold">Слоты врача (список)</h2>
 
-          {loading && (
-            <p className="text-xs text-gray-500">Загрузка...</p>
-          )}
+            {loading && (
+              <p className="text-xs text-gray-500">Загрузка...</p>
+            )}
 
-          {!loading && grouped.length === 0 && (
-            <p className="text-xs text-gray-500">
-              Слотов не найдено. Добавьте новые.
-            </p>
-          )}
+            {!loading && grouped.length === 0 && (
+              <p className="text-xs text-gray-500">
+                Слотов не найдено. Добавьте новые.
+              </p>
+            )}
 
-          {!loading &&
-            grouped.map(([day, daySlots]) => (
-              <div key={day} className="space-y-2">
-                <div className="text-xs font-semibold text-gray-700 border-b pb-1">
-                  {new Date(day).toLocaleDateString("ru-RU", {
-                    weekday: "long",
-                    day: "2-digit",
-                    month: "2-digit",
-                  })}
+            {!loading &&
+              grouped.map(([day, daySlots]) => (
+                <div key={day} className="space-y-2">
+                  <div className="text-xs font-semibold text-gray-700 border-b pb-1">
+                    {new Date(day).toLocaleDateString("ru-RU", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "2-digit",
+                    })}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {daySlots.map((s) => {
+                      const isAvailable = s.status === "available";
+                      const isBusy = s.status === "busy";
+
+                      const color =
+                        s.status === "available"
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                          : s.status === "busy"
+                          ? "bg-gray-100 text-gray-700 border-gray-300"
+                          : "bg-red-50 text-red-700 border-red-300";
+
+                      return (
+                        <div
+                          key={s.id}
+                          className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${color}`}
+                        >
+                          <div className="font-medium">
+                            {s.time_start}–{s.time_end}
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            {s.status === "available" && "Свободно"}
+                            {s.status === "busy" &&
+                              "Занято (есть консультация)"}
+                            {s.status === "unavailable" && "Недоступно"}
+                          </div>
+
+                          {isAvailable && (
+                            <button
+                              type="button"
+                              onClick={() => deleteSlot(s.id)}
+                              className="mt-1 text-[10px] font-medium text-red-600 hover:underline"
+                            >
+                              Удалить
+                            </button>
+                          )}
+
+                          {isBusy && (
+                            <button
+                              type="button"
+                              onClick={() => freeSlot(s.id)}
+                              className="mt-1 text-[10px] font-medium text-emerald-700 hover:underline"
+                            >
+                              Освободить
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              ))}
+          </section>
+        ) : (
+          <section className="rounded-2xl border bg-white p-4 space-y-4">
+            <h2 className="text-base font-semibold">
+              Слоты врача (календарь)
+            </h2>
 
-                <div className="flex flex-wrap gap-2">
-                  {daySlots.map((s) => {
-                    const isAvailable = s.status === "available";
-                    const isBusy = s.status === "busy";
+            {loading && (
+              <p className="text-xs text-gray-500">Загрузка...</p>
+            )}
 
-                    const color =
-                      s.status === "available"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                        : s.status === "busy"
-                        ? "bg-gray-100 text-gray-700 border-gray-300"
-                        : "bg-red-50 text-red-700 border-red-300";
+            {!loading && grouped.length === 0 && (
+              <p className="text-xs text-gray-500">
+                Слотов не найдено. Добавьте новые.
+              </p>
+            )}
 
-                    return (
-                      <div
-                        key={s.id}
-                        className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${color}`}
-                      >
-                        <div className="font-medium">
-                          {s.time_start}–{s.time_end}
-                        </div>
-                        <div className="text-[10px] text-gray-500">
-                          {s.status === "available" && "Свободно"}
-                          {s.status === "busy" &&
-                            "Занято (есть консультация)"}
-                          {s.status === "unavailable" && "Недоступно"}
-                        </div>
-
-                        {isAvailable && (
-                          <button
-                            type="button"
-                            onClick={() => deleteSlot(s.id)}
-                            className="mt-1 text-[10px] font-medium text-red-600 hover:underline"
-                          >
-                            Удалить
-                          </button>
-                        )}
-
-                        {isBusy && (
-                          <button
-                            type="button"
-                            onClick={() => freeSlot(s.id)}
-                            className="mt-1 text-[10px] font-medium text-emerald-700 hover:underline"
-                          >
-                            Освободить
-                          </button>
-                        )}
+            {!loading && grouped.length > 0 && (
+              <div className="overflow-x-auto">
+                <div className="flex gap-3 min-w-full">
+                  {grouped.map(([day, daySlots]) => (
+                    <div
+                      key={day}
+                      className="min-w-[140px] rounded-2xl border bg-gray-50 p-2 flex-1"
+                    >
+                      <div className="mb-2 border-b pb-1 text-center text-[11px] font-semibold text-gray-700">
+                        {new Date(day).toLocaleDateString("ru-RU", {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
                       </div>
-                    );
-                  })}
+                      <div className="space-y-1">
+                        {daySlots.map((s) => {
+                          const isAvailable = s.status === "available";
+                          const isBusy = s.status === "busy";
+
+                          const color =
+                            s.status === "available"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                              : s.status === "busy"
+                              ? "bg-gray-100 text-gray-700 border-gray-300"
+                              : "bg-red-50 text-red-700 border-red-300";
+
+                          return (
+                            <div
+                              key={s.id}
+                              className={`rounded-xl border px-2 py-1 text-[11px] ${color}`}
+                            >
+                              <div className="font-medium">
+                                {s.time_start}–{s.time_end}
+                              </div>
+                              <div className="text-[10px] text-gray-500">
+                                {isAvailable && "Свободно"}
+                                {isBusy && "Занято"}
+                                {s.status === "unavailable" &&
+                                  "Недоступно"}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-        </section>
+            )}
+          </section>
+        )}
       </main>
     </RoleGuard>
   );
