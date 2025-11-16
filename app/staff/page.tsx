@@ -46,14 +46,12 @@ export default async function StaffDashboardPage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
-  // Предстоящие: все, что в будущем и не отменено
   const upcoming = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
     return d >= now && !a.statusLabel.toLowerCase().includes("отмен");
   });
 
-  // Приёмы сегодня
   const todayCount = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
@@ -64,12 +62,10 @@ export default async function StaffDashboardPage() {
     return sameDay;
   }).length;
 
-  // Завершено
   const completedCount = appointments.filter((a) =>
     a.statusLabel.toLowerCase().includes("заверш")
   ).length;
 
-  // Отменено
   const cancelledCount = appointments.filter((a) =>
     a.statusLabel.toLowerCase().includes("отмен")
   ).length;
@@ -89,12 +85,20 @@ export default async function StaffDashboardPage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <RegistrarHeader />
-            <Link
-              href="/staff/calendar"
-              className="text-[11px] font-medium text-emerald-700 hover:underline"
-            >
-              Календарь приёмов →
-            </Link>
+            <div className="flex flex-wrap items-center gap-3 text-[11px]">
+              <Link
+                href="/staff/schedule"
+                className="font-medium text-emerald-700 hover:underline"
+              >
+                Расписание →
+              </Link>
+              <Link
+                href="/staff/calendar"
+                className="font-medium text-emerald-700 hover:underline"
+              >
+                Календарь приёмов →
+              </Link>
+            </div>
           </div>
         </header>
 
