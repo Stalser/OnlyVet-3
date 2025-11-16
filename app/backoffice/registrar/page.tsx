@@ -25,28 +25,39 @@ export default async function RegistrarDashboardPage() {
               Управление заявками, консультациями и расписанием врачей.
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <RegistrarHeader />
-            {/* ССЫЛКА НА КАЛЕНДАРЬ В ШАПКЕ */}
-            <Link
-              href="/backoffice/registrar/calendar"
-              className="text-[11px] font-medium text-emerald-700 hover:underline"
-            >
-              Календарь записей →
-            </Link>
-          </div>
+          <RegistrarHeader />
         </header>
 
-        {/* Создать новую консультацию */}
+        {/* Создание новой консультации */}
         <RegistrarCreateAppointment />
 
-        {/* БЛОК КАЛЕНДАРЯ В ТЕЛЕ СТРАНИЦЫ — ЕГО СЛОЖНО НЕ ЗАМЕТИТЬ */}
+        {/* Блок: Расписание врачей */}
+        <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-emerald-900">
+              Расписание врачей
+            </h2>
+            <p className="mt-1 text-xs text-emerald-800 max-w-xl">
+              Управление рабочими слотами врачей. Здесь можно задать дни и
+              время приёма, отметить свободные и занятые окна. Используется
+              при выборе времени консультации.
+            </p>
+          </div>
+          <Link
+            href="/backoffice/registrar/schedule"
+            className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-emerald-700"
+          >
+            Открыть расписание
+          </Link>
+        </section>
+
+        {/* Блок: Календарь записей */}
         <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-emerald-900">
               Календарь записей
             </h2>
-            <p className="text-xs text-emerald-800 max-w-md">
+            <p className="mt-1 text-xs text-emerald-800 max-w-xl">
               Недельный календарный вид всех консультаций. Удобно, чтобы
               видеть занятость врачей и свободные окна. Нажмите кнопку
               справа, чтобы открыть.
@@ -63,7 +74,7 @@ export default async function RegistrarDashboardPage() {
         {/* Мини-картотека клиентов */}
         <RegistrarClientsMini owners={owners} />
 
-        {/* Последние консультации (без фильтров) */}
+        {/* Последние консультации */}
         <section className="rounded-2xl border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">
