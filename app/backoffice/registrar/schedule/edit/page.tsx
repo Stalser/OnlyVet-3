@@ -20,21 +20,28 @@ type Slot = {
 };
 
 export default function RegistrarScheduleEditPage() {
+  // фильтр по специализации
+  const [specializationFilter, setSpecializationFilter] = useState("all");
+
+  // врач
   const [doctorId, setDoctorId] = useState(doctors[0].id);
+
+  // фильтры статуса и периода
   const [statusFilter, setStatusFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("7");
 
+  // слоты
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Одиночное создание слота
+  // одиночный слот
   const [date, setDate] = useState("");
   const [timeStart, setTimeStart] = useState("");
   const [timeEnd, setTimeEnd] = useState("");
-  const [singleServiceCode, setSingleServiceCode] = useState<string>(""); // услуга для одиночного слота
+  const [singleServiceCode, setSingleServiceCode] = useState<string>(""); // услуга слота
   const [creating, setCreating] = useState(false);
 
-  // Массовое создание слотов
+  // массовое создание
   const [massStart, setMassStart] = useState("");
   const [massEnd, setMassEnd] = useState("");
   const [massTimeStart, setMassTimeStart] = useState("");
@@ -50,9 +57,39 @@ export default function RegistrarScheduleEditPage() {
   const [massServiceCode, setMassServiceCode] = useState<string>(""); // услуга для массовых слотов
   const [massMessage, setMassMessage] = useState("");
 
-  // --------------------------------------------------------------------
-  // Загрузка слотов
-  // --------------------------------------------------------------------
+  // ---------------------- СПЕЦИАЛИЗАЦИИ ----------------------
+
+  const specializations = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          doctors.map(
+            (d: any) => d.specialization ?? "Общая практика"
+          )
+        )
+      ),
+    []
+  );
+
+  const filteredDoctors = useMemo(() => {
+    if (specializationFilter === "all") return doctors;
+    return doctors.filter(
+      (d: any) =>
+        (d.specialization ?? "Общая практика") === specializationFilter
+    );
+  }, [specializationFilter]);
+
+  // если текущий doctorId не попадает в отфильтрованный список – берём первого
+  useEffect(() => {
+    if (!filteredDoctors.find((d) => d.id === doctorId)) {
+      if (filteredDoctors.length > 0) {
+        setDoctorId(filteredDoctors[0].id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredDoctors]);
+
+  // ---------------------- ЗАГРУЗКА СЛОТОВ ----------------------
 
   async function loadSlots() {
     setLoading(true);
@@ -96,9 +133,7 @@ export default function RegistrarScheduleEditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
-  // --------------------------------------------------------------------
-  // Фильтры и группировка
-  // --------------------------------------------------------------------
+  // ---------------------- ФИЛЬТРЫ + ГРУППИРОВКА ----------------------
 
   const filteredByStatus = useMemo(() => {
     if (statusFilter === "all") return slots;
@@ -140,9 +175,7 @@ export default function RegistrarScheduleEditPage() {
     );
   }, [filteredByPeriod]);
 
-  // --------------------------------------------------------------------
-  // Действия: удалить слот / освободить слот
-  // --------------------------------------------------------------------
+  // ---------------------- EDIT ACTIONS ----------------------
 
   async function deleteSlot(id: string) {
     const client = supabase;
@@ -164,9 +197,7 @@ export default function RegistrarScheduleEditPage() {
     loadSlots();
   }
 
-  // --------------------------------------------------------------------
-  // Создание одиночного слота
-  // --------------------------------------------------------------------
+  // ---------------------- ОДИНОЧНЫЙ СЛОТ ----------------------
 
   async function createSlot() {
     if (!date || !timeStart || !timeEnd) return;
@@ -194,9 +225,7 @@ export default function RegistrarScheduleEditPage() {
     loadSlots();
   }
 
-  // --------------------------------------------------------------------
-  // Массовое создание слотов
-  // --------------------------------------------------------------------
+  // ---------------------- МАССОВОЕ СОЗДАНИЕ ----------------------
 
   async function handleMassGenerate() {
     setMassMessage("");
@@ -267,7 +296,6 @@ export default function RegistrarScheduleEditPage() {
     loadSlots();
   }
 
-  // Авто: будни 10–18 на 7 дней
   async function handleAutoWeek() {
     setMassMessage("");
 
@@ -287,9 +315,7 @@ export default function RegistrarScheduleEditPage() {
     await handleMassGenerate();
   }
 
-  // --------------------------------------------------------------------
-  // Вспомогательная функция: имя услуги по коду
-  // --------------------------------------------------------------------
+  // ---------------------- УСЛУГИ: имя и цвет ----------------------
 
   function getServiceName(code: string | null) {
     if (!code) return null;
@@ -297,14 +323,12 @@ export default function RegistrarScheduleEditPage() {
     return found ? found.name : code;
   }
 
-  // --------------------------------------------------------------------
-  // РЕНДЕР
-  // --------------------------------------------------------------------
+  // ---------------------- RENDER ----------------------
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-        {/* Шапка */}
+        {/* ШАПКА */}
         <header className="flex items-center justify-between">
           <div>
             <Link
@@ -324,11 +348,31 @@ export default function RegistrarScheduleEditPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Фильтры */}
+        {/* ФИЛЬТРЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <h2 className="text-base font-semibold">Фильтры</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Специализация */}
+            <div>
+              <label className="text-[11px] text-gray-500">
+                Специализация
+              </label>
+              <select
+                value={specializationFilter}
+                onChange={(e) => setSpecializationFilter(e.target.value)}
+                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+              >
+                <option value="all">Все специализации</option>
+                {specializations.map((sp) => (
+                  <option key={sp} value={sp}>
+                    {sp}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Врач */}
             <div>
               <label className="text-[11px] text-gray-500">Врач</label>
               <select
@@ -336,7 +380,7 @@ export default function RegistrarScheduleEditPage() {
                 onChange={(e) => setDoctorId(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
               >
-                {doctors.map((d) => (
+                {filteredDoctors.map((d: any) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
@@ -344,6 +388,7 @@ export default function RegistrarScheduleEditPage() {
               </select>
             </div>
 
+            {/* Статус */}
             <div>
               <label className="text-[11px] text-gray-500">
                 Статус слотов
@@ -360,6 +405,7 @@ export default function RegistrarScheduleEditPage() {
               </select>
             </div>
 
+            {/* Период */}
             <div>
               <label className="text-[11px] text-gray-500">Период</label>
               <select
@@ -376,7 +422,7 @@ export default function RegistrarScheduleEditPage() {
           </div>
         </section>
 
-        {/* Добавить одиночный слот */}
+        {/* ДОБАВИТЬ ОДИН СЛОТ */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <h2 className="text-base font-semibold">Добавить слот</h2>
 
@@ -417,7 +463,7 @@ export default function RegistrarScheduleEditPage() {
 
             <div>
               <label className="text-[11px] text-gray-500">
-                Услуга (слот)
+                Услуга слота
               </label>
               <select
                 value={singleServiceCode}
@@ -445,7 +491,7 @@ export default function RegistrarScheduleEditPage() {
           </div>
         </section>
 
-        {/* Массовое создание слотов */}
+        {/* МАССОВОЕ СОЗДАНИЕ */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -453,8 +499,8 @@ export default function RegistrarScheduleEditPage() {
                 Массовое создание слотов
               </h2>
               <p className="text-xs text-gray-500">
-                Создание расписания врача на нужный период с фиксированной
-                услугой.
+                Быстрое создание расписания врача на нужный период с
+                указанной услугой.
               </p>
             </div>
             <button
@@ -544,53 +590,56 @@ export default function RegistrarScheduleEditPage() {
             </div>
           </div>
 
-          <div>
-            <label className="text-[11px] text-gray-500">
-              Шаг (мин)
-            </label>
-            <select
-              value={massStep}
-              onChange={(e) => setMassStep(e.target.value)}
-              className="w-24 rounded-xl border px-2 py-1.5 text-xs"
-            >
-              <option value="15">15</option>
-              <option value="20">20</option>
-              <option value="30">30</option>
-              <option value="60">60</option>
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-gray-500">
+                Шаг (мин)
+              </label>
+              <select
+                value={massStep}
+                onChange={(e) => setMassStep(e.target.value)}
+                className="w-24 rounded-xl border px-2 py-1.5 text-xs"
+              >
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+                <option value="60">60</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">
+                Услуга для создаваемых слотов
+              </label>
+              <select
+                value={massServiceCode}
+                onChange={(e) => setMassServiceCode(e.target.value)}
+                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+              >
+                <option value="">Без привязки</option>
+                {servicesPricing.map((s: any) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] text-gray-500">
-              Услуга (для всех создаваемых слотов)
-            </label>
-            <select
-              value={massServiceCode}
-              onChange={(e) => setMassServiceCode(e.target.value)}
-              className="w-full rounded-xl border px-2 py-1.5 text-xs"
+          <div className="pt-2">
+            <button
+              onClick={handleMassGenerate}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
             >
-              <option value="">Без привязки</option>
-              {servicesPricing.map((s: any) => (
-                <option key={s.code} value={s.code}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              Создать слоты
+            </button>
           </div>
-
-          <button
-            onClick={handleMassGenerate}
-            className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
-          >
-            Создать слоты
-          </button>
 
           {massMessage && (
             <p className="text-xs text-emerald-700 pt-2">{massMessage}</p>
           )}
         </section>
 
-        {/* Список слотов с возможностью удаления/освобождения */}
+        {/* СПИСОК СЛОТОВ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <h2 className="text-base font-semibold">Существующие слоты</h2>
 
@@ -620,7 +669,7 @@ export default function RegistrarScheduleEditPage() {
                     const isAvailable = s.status === "available";
                     const isBusy = s.status === "busy";
 
-                    const color =
+                    const baseColor =
                       s.status === "available"
                         ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                         : s.status === "busy"
@@ -632,7 +681,7 @@ export default function RegistrarScheduleEditPage() {
                     return (
                       <div
                         key={s.id}
-                        className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${color}`}
+                        className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${baseColor}`}
                       >
                         <div className="font-medium">
                           {s.time_start}–{s.time_end}
