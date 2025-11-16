@@ -33,6 +33,24 @@ type DoctorSlot = {
 };
 
 export function RegistrarCreateAppointment() {
+    const searchParams = useSearchParams();
+
+  // Подхватываем врача, дату и время из query-параметров (?doctorId&date&time)
+  useEffect(() => {
+    const qDoctor = searchParams.get("doctorId");
+    const qDate = searchParams.get("date");
+    const qTime = searchParams.get("time");
+
+    if (qDoctor) {
+      setDoctorId(qDoctor);
+    }
+    if (qDate) {
+      setDate(qDate);
+    }
+    if (qTime) {
+      setTime(qTime);
+    }
+  }, [searchParams]);
   const router = useRouter();
 
   // врач / услуга
