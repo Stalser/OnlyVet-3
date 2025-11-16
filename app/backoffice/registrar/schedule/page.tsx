@@ -29,7 +29,7 @@ export default function RegistrarSchedulePage() {
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ---- СПЕЦИАЛИЗАЦИИ ----
+  // --- СПЕЦИАЛИЗАЦИИ И ВРАЧИ ---
   const specializations = useMemo(
     () =>
       Array.from(
@@ -42,7 +42,6 @@ export default function RegistrarSchedulePage() {
     []
   );
 
-  // ---- ВРАЧИ С УЧЁТОМ СПЕЦ ----
   const filteredDoctors = useMemo(() => {
     if (specializationFilter === "all") return doctors;
     return doctors.filter(
@@ -51,7 +50,6 @@ export default function RegistrarSchedulePage() {
     );
   }, [specializationFilter]);
 
-  // если выбранный врач не попадает под текущую спец – переключаемся на первого
   useEffect(() => {
     if (!filteredDoctors.find((d) => d.id === doctorId)) {
       if (filteredDoctors.length > 0) {
@@ -61,7 +59,7 @@ export default function RegistrarSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredDoctors]);
 
-  // ---- ЗАГРУЗКА СЛОТОВ ----
+  // --- ЗАГРУЗКА СЛОТОВ ---
   async function loadSlots() {
     setLoading(true);
 
@@ -104,7 +102,7 @@ export default function RegistrarSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
-  // ---- ФИЛЬТРЫ ----
+  // --- ФИЛЬТРЫ ---
   const filteredByStatus = useMemo(() => {
     if (statusFilter === "all") return slots;
     return slots.filter((s) => s.status === statusFilter);
@@ -145,7 +143,7 @@ export default function RegistrarSchedulePage() {
     );
   }, [filteredByPeriod]);
 
-  // ---- УСЛУГИ: цвета и названия ----
+  // --- УСЛУГИ: цвета и имена ---
   const SERVICE_COLORS = [
     "bg-sky-50 text-sky-800 border-sky-300",
     "bg-pink-50 text-pink-800 border-pink-300",
@@ -167,68 +165,65 @@ export default function RegistrarSchedulePage() {
     return SERVICE_COLORS[idx % SERVICE_COLORS.length];
   }
 
-  // ---- РЕНДЕР ОДНОГО СЛОТА ----
+  // --- РЕНДЕР СЛОТА ---
   function renderSlotTile(s: SlotRow) {
     const isAvailable = s.status === "available";
     const isBusy = s.status === "busy";
-    const hasService = !!s.service_code;
     const serviceName = getServiceName(s.service_code);
 
-    // свободный слот
     if (isAvailable) {
+      // свободный слот → запись клиента, передаём slotId, doctorId, date, time, serviceCode
       const params = new URLSearchParams({
         doctorId,
         date: s.date,
         time: s.time_start,
         ...(s.service_code ? { serviceCode: s.service_code } : {}),
+        slotId: s.id,
       }).toString();
 
-      const baseClasses =
+      const base =
         "rounded-xl border px-3 py-2 text-xs flex flex-col cursor-pointer";
-      const color = hasService
-        ? getServiceClasses(s.service_code)
-        : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100";
+      const color =
+        s.service_code != null
+          ? getServiceClasses(s.service_code)
+          : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100";
 
       return (
         <Link
           key={s.id}
           href={`/backoffice/registrar?${params}`}
         >
-          <div className={`${baseClasses} ${color}`}>
+          <div className={`${base} ${color}`}>
             <div className="font-medium">
               {s.time_start}–{s.time_end}
             </div>
             <div className="text-[10px]">
-              Свободно
-              {serviceName ? ` · ${serviceName}` : ""}
+              Свободно{serviceName ? ` · ${serviceName}` : ""}
             </div>
           </div>
         </Link>
       );
     }
 
-    // занятый слот
     if (isBusy) {
-      const baseClasses =
-        "rounded-xl border px-3 py-2 text-xs flex flex-col";
-      const color = hasService
-        ? getServiceClasses(s.service_code)
-        : "bg-gray-100 text-gray-700 border-gray-300";
-
+      const base = "rounded-xl border px-3 py-2 text-xs flex flex-col";
+      const color =
+        s.service_code != null
+          ? getServiceClasses(s.service_code)
+          : "bg-gray-100 text-gray-700 border-gray-300";
       return (
-        <div key={s.id} className={`${baseClasses} ${color}`}>
+        <div key={s.id} className={`${base} ${color}`}>
           <div className="font-medium">
             {s.time_start}–{s.time_end}
           </div>
           <div className="text-[10px]">
-            Занято
-            {serviceName ? ` · ${serviceName}` : ""}
+            Занято{serviceName ? ` · ${serviceName}` : ""}
           </div>
         </div>
       );
     }
 
-    // недоступный слот
+    // Недоступный слот
     return (
       <div
         key={s.id}
@@ -273,10 +268,9 @@ export default function RegistrarSchedulePage() {
           </div>
         </header>
 
-        {/* Фильтры + вид */}
+        {/* Фильтры */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Левая часть — фильтры */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full md:w-auto md:flex-1">
               {/* Специализация */}
               <div>
@@ -350,7 +344,7 @@ export default function RegistrarSchedulePage() {
               </div>
             </div>
 
-            {/* Правая часть — переключатель вида */}
+            {/* Переключатель вида */}
             <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
               <button
                 type="button"
@@ -378,7 +372,7 @@ export default function RegistrarSchedulePage() {
           </div>
         </section>
 
-        {/* Режим: список */}
+        {/* ВИД: список */}
         {viewMode === "list" ? (
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">Слоты врача (список)</h2>
@@ -411,7 +405,7 @@ export default function RegistrarSchedulePage() {
               ))}
           </section>
         ) : (
-          // Режим: календарь
+          // ВИД: календарь
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">
               Слоты врача (календарь)
