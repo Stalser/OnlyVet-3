@@ -27,7 +27,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
               Онлайн-консультация
             </h1>
             <p className="text-sm text-gray-500">
-              Информация о приёме, пациенте и ссылке на Телемост.
+              Информация о приёме и рабочее пространство врача.
             </p>
           </div>
           <RegistrarHeader />
@@ -45,15 +45,18 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
         {appointment && (
           <>
             {/* Основная информация */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs text-gray-500">
-                    Дата / время
-                  </div>
+                  <div className="text-xs text-gray-500">Дата / время</div>
                   <div className="text-sm font-medium text-gray-900">
                     {appointment.dateLabel}
                   </div>
+                  {appointment.createdLabel && (
+                    <div className="text-[10px] text-gray-400">
+                      создано: {appointment.createdLabel}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right text-xs text-gray-500">
                   Статус
@@ -101,7 +104,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
             {/* Формат связи: Телемост */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
-                Формат связи (для подключения врача)
+                Формат связи (подключение врача)
               </h2>
               <div className="rounded-xl bg-emerald-50 p-3 text-sm space-y-2">
                 <div className="flex items-center justify-between gap-3">
@@ -119,37 +122,31 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                   </span>
                 </div>
 
-                {appointment.videoUrl ? (
-                  <div className="text-[11px]">
-                    <a
-                      href={appointment.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-700 hover:underline"
-                    >
-                      Перейти в Телемост
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-emerald-800">
-                    Ссылка на Телемост пока не указана. Уточните у
-                    регистратуры или создайте конференцию и добавьте ссылку
-                    в карточке консультации.
-                  </div>
-                )}
+                {/* Пока у appointments нет отдельного поля для video_url именно у врача,
+                    можно позже прокинуть сюда через расширение lib/registrar */}
+                <div className="text-[11px] text-emerald-800">
+                  Ссылка на Телемост указана в карточке консультации
+                  регистратуры. Позже здесь можно будет отображать её
+                  напрямую.
+                </div>
               </div>
             </section>
 
-            {/* Заглушка под блок "Заключение врача" */}
-            <section className="rounded-2xl border bg-white p-4 space-y-2">
+            {/* Рабочий блок: заключение врача — пока как скелет */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
-                Заключение врача (будет дорабатываться)
+                Заключение врача (скелет)
               </h2>
               <p className="text-xs text-gray-500">
-                Здесь будет основная рабочая зона врача: заключение,
-                назначения, шаблоны. Сейчас это заглушка, чтобы
-                архитектурно закрепить кабинет.
+                Здесь будет основной рабочий блок врача: описание жалоб,
+                осмотр, диагноз, назначения, рекомендации. На этом этапе мы
+                оставляем это как "скелет" — без записи в БД, чтобы сначала
+                утвердить структуру кабинета.
               </p>
+              <textarea
+                className="w-full min-h-[120px] rounded-xl border px-3 py-2 text-xs"
+                placeholder="Черновые заметки по приёму (пока никуда не сохраняются)…"
+              />
             </section>
           </>
         )}
