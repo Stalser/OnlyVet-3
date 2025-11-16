@@ -21,6 +21,15 @@ type PetOption = {
   species?: string | null;
 };
 
+type DoctorSlot = {
+  id: string;
+  doctor_id: string;
+  date: string;        // YYYY-MM-DD
+  time_start: string;  // HH:MM
+  time_end: string;    // HH:MM
+  status: string;
+};
+
 export function RegistrarCreateAppointment() {
   const router = useRouter();
 
@@ -32,7 +41,7 @@ export function RegistrarCreateAppointment() {
     servicesPricing[0]?.code ?? ""
   );
 
-  // визуальные данные клиента (для заметок, пока не сохраняем в отдельную таблицу)
+  // визуальные данные клиента (для заметок)
   const [clientName, setClientName] = useState("");
   const [clientContact, setClientContact] = useState("");
 
@@ -40,7 +49,7 @@ export function RegistrarCreateAppointment() {
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
 
-  // дата/время
+  // дата/время (резервный вариант + отображение выбранного слота)
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
@@ -61,6 +70,11 @@ export function RegistrarCreateAppointment() {
   const [pets, setPets] = useState<PetOption[]>([]);
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
+
+  // слоты врача
+  const [slots, setSlots] = useState<DoctorSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
 
   // загрузка клиентов
   useEffect(() => {
@@ -157,6 +171,64 @@ export function RegistrarCreateAppointment() {
     setPetSpecies((prev) => prev || pet.species || "");
   }, [selectedPetId, pets]);
 
+  // загрузка слотов выбранного врача (на ближайшие дни)
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSlots() {
+      if (!supabase || !doctorId) {
+        setSlots([]);
+        return;
+      }
+
+      setSlotsLoading(true);
+      setSelectedSlotId("");
+      // берём только свободные слоты врача в будущем
+      const { data, error } = await supabase
+        .from("doctor_slots")
+        .select("*")
+        .eq("doctor_id", doctorId)
+        .eq("status", "available")
+        .is("appointment_id", null)
+        .order("date", { ascending: true })
+        .order("time_start", { ascending: true });
+
+      if (!ignore) {
+        if (!error && data) {
+          setSlots(
+            data.map((s: any) => ({
+              id: String(s.id),
+              doctor_id: s.doctor_id,
+              date: s.date,
+              time_start: s.time_start,
+              time_end: s.time_end,
+              status: s.status,
+            }))
+          );
+        } else {
+          setSlots([]);
+        }
+        setSlotsLoading(false);
+      }
+    }
+
+    loadSlots();
+
+    return () => {
+      ignore = true;
+    };
+  }, [doctorId]);
+
+  // при выборе слота — подставляем дату/время
+  useEffect(() => {
+    if (!selectedSlotId) return;
+    const slot = slots.find((s) => s.id === selectedSlotId);
+    if (!slot) return;
+
+    setDate(slot.date);
+    setTime(slot.time_start);
+  }, [selectedSlotId, slots]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -165,9 +237,15 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
-    if (!serviceCode || !date || !time) {
+    if (!serviceCode) {
+      setErrorMessage("Выберите услугу.");
+      return;
+    }
+
+    // либо выбран слот, либо вручную указаны дата/время
+    if (!selectedSlotId && (!date || !time)) {
       setErrorMessage(
-        "Заполните услугу, дату и время. Остальные поля — по возможности."
+        "Выберите слот из расписания врача или укажите дату и время вручную."
       );
       return;
     }
@@ -175,7 +253,18 @@ export function RegistrarCreateAppointment() {
     setSaving(true);
     setErrorMessage(null);
 
-    const startsAt = new Date(`${date}T${time}`);
+    let startsAt: Date;
+
+    let chosenSlot: DoctorSlot | null = null;
+    if (selectedSlotId) {
+      chosenSlot = slots.find((s) => s.id === selectedSlotId) || null;
+    }
+
+    if (chosenSlot) {
+      startsAt = new Date(`${chosenSlot.date}T${chosenSlot.time_start}`);
+    } else {
+      startsAt = new Date(`${date}T${time}`);
+    }
 
     // owner_id — bigint
     let owner_id: number | null = null;
@@ -189,6 +278,9 @@ export function RegistrarCreateAppointment() {
     // pet_id — uuid
     const pet_id = selectedPetId || null;
 
+    // doctor_id лучше взять из выбранного слота, если он есть
+    const resolvedDoctorId = chosenSlot?.doctor_id || doctorId || null;
+
     const { data, error } = await supabase
       .from("appointments")
       .insert({
@@ -199,6 +291,7 @@ export function RegistrarCreateAppointment() {
         service_code: serviceCode,
         owner_id,
         pet_id,
+        doctor_id: resolvedDoctorId,
         contact_info: clientContact || null,
         video_platform: "yandex_telemost",
         video_url: videoUrl || null,
@@ -213,6 +306,17 @@ export function RegistrarCreateAppointment() {
       return;
     }
 
+    // если выбран слот — пометим его занятым
+    if (chosenSlot) {
+      await supabase
+        .from("doctor_slots")
+        .update({
+          appointment_id: data.id,
+          status: "busy",
+        })
+        .eq("id", chosenSlot.id);
+    }
+
     // сброс формы
     setClientName("");
     setClientContact("");
@@ -221,6 +325,7 @@ export function RegistrarCreateAppointment() {
     setDate("");
     setTime("");
     setSelectedPetId("");
+    setSelectedSlotId("");
     setVideoUrl("");
 
     setSaving(false);
@@ -425,6 +530,40 @@ export function RegistrarCreateAppointment() {
                 ))}
               </select>
             </div>
+
+            {/* Свободные слоты врача */}
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Свободные слоты врача
+              </label>
+              {slotsLoading ? (
+                <div className="text-[11px] text-gray-400">
+                  Загружаем расписание врача…
+                </div>
+              ) : slots.length === 0 ? (
+                <div className="text-[11px] text-gray-400">
+                  Свободных слотов в doctor_slots для выбранного врача пока
+                  нет. Можно указать дату и время вручную.
+                </div>
+              ) : (
+                <select
+                  value={selectedSlotId}
+                  onChange={(e) => setSelectedSlotId(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                >
+                  <option value="">Не выбран (ввести вручную)</option>
+                  {slots.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {new Date(s.date).toLocaleDateString("ru-RU", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}{" "}
+                      · {s.time_start}–{s.time_end}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
         </div>
 
@@ -484,6 +623,7 @@ export function RegistrarCreateAppointment() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                disabled={Boolean(selectedSlotId)}
               />
             </div>
             <div>
@@ -495,9 +635,15 @@ export function RegistrarCreateAppointment() {
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                disabled={Boolean(selectedSlotId)}
               />
             </div>
           </div>
+
+          <p className="text-[10px] text-gray-400">
+            Можно выбрать слот врача в расписании (тогда дата и время
+            заполнятся автоматически) или ввести дату и время вручную.
+          </p>
 
           <div className="pt-3">
             <button
