@@ -105,7 +105,7 @@ export function RegistrarCreateAppointment() {
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
   // спойлер
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   // ===== 1. Подхват параметров из URL (из расписания) =====
   useEffect(() => {
