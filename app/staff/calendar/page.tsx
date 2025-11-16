@@ -8,7 +8,6 @@ type Appointment = Awaited<
   ReturnType<typeof getRegistrarAppointments>
 >[number];
 
-// вспомогательные функции
 function startOfDay(date: Date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -25,22 +24,19 @@ export default async function StaffCalendarPage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
-  // начнём неделю с сегодняшнего дня
   const weekStart = startOfDay(now);
+  const weekEnd = addDays(weekStart, 7);
+
   const days = Array.from({ length: 7 }).map((_, i) =>
     addDays(weekStart, i)
   );
 
-  // показываем приёмы только на этой неделе (скелет, без жёсткой логики)
   const weeklyAppointments: Appointment[] = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
-    const dayStart = weekStart.getTime();
-    const dayEnd = addDays(weekStart, 7).getTime();
-    return d.getTime() >= dayStart && d.getTime() < dayEnd;
+    return d >= weekStart && d < weekEnd;
   });
 
-  // индексируем приёмы по ключу "dayIndex-hour"
   const apptsByDayAndHour: Record<string, Appointment[]> = {};
   weeklyAppointments.forEach((a) => {
     if (!a.startsAt) return;
@@ -56,8 +52,7 @@ export default async function StaffCalendarPage() {
     apptsByDayAndHour[key].push(a);
   });
 
-  // часы с 9 до 21 (скелет)
-  const hours = Array.from({ length: 13 }).map((_, i) => 9 + i);
+  const hours = Array.from({ length: 13 }).map((_, i) => 9 + i); // 9–21
 
   return (
     <RoleGuard allowed={["vet", "admin"]}>
@@ -75,8 +70,9 @@ export default async function StaffCalendarPage() {
               Календарь приёмов
             </h1>
             <p className="text-sm text-gray-500">
-              Недельный календарный вид онлайн-консультаций. Позже здесь
-              можно будет включать фильтр &quot;только мои приёмы&quot;.
+              Недельный календарный вид онлайн-консультаций. Сейчас
+              отображаются все приёмы, позже добавим фильтр &quot;только
+              мои&quot;.
             </p>
           </div>
           <RegistrarHeader />
@@ -84,7 +80,7 @@ export default async function StaffCalendarPage() {
 
         <StaffNav />
 
-        {/* Скелет календаря на неделю */}
+        {/* Недельный календарь */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-xs font-semibold text-gray-700">
@@ -107,22 +103,29 @@ export default async function StaffCalendarPage() {
             <table className="min-w-full border-separate border-spacing-0 text-xs">
               <thead>
                 <tr>
-                  {/* левая колонка с часами */}
-                  <th className="sticky left-0 z-10 bg-white px-2 py-2 text-left text-[11px] uppercase text-gray-500 border-b">
+                  <th className="sticky left-0 z-10 bg-white px-2 py-2 text_left text-[11px] uppercase text-gray-500 border-b">
                     Время
                   </th>
-                  {days.map((day, idx) => (
-                    <th
-                      key={idx}
-                      className="px-2 py-2 text-center text-[11px] uppercase text-gray-500 border-b"
-                    >
-                      {day.toLocaleDateString("ru-RU", {
-                        weekday: "short",
-                        day: "2-digit",
-                        month: "2-digit",
-                      })}
-                    </th>
-                  ))}
+                  {days.map((day, idx) => {
+                    const isToday =
+                      day.toDateString() === now.toDateString();
+                    return (
+                      <th
+                        key={idx}
+                        className={`px-2 py-2 text-center text-[11px] uppercase border-b ${
+                          isToday
+                            ? "text-emerald-700"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {day.toLocaleDateString("ru-RU", {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -132,7 +135,7 @@ export default async function StaffCalendarPage() {
                     <td className="sticky left-0 z-10 bg-white px-2 py-1 text-[11px] text-gray-600 border-t">
                       {hour.toString().padStart(2, "0")}:00
                     </td>
-                    {/* Ячейки по дням */}
+                    {/* Ячейки с приёмами */}
                     {days.map((_, dayIdx) => {
                       const key = `${dayIdx}-${hour}`;
                       const cellAppts = apptsByDayAndHour[key] || [];
@@ -181,8 +184,8 @@ export default async function StaffCalendarPage() {
 
           {weeklyAppointments.length === 0 && (
             <p className="text-xs text-gray-400">
-              На этой неделе приёмов пока нет. Позже здесь будут отображаться
-              только приёмы текущего врача.
+              На этой неделе приёмов пока нет. Позже здесь будут
+              отображаться только консультации текущего врача.
             </p>
           )}
         </section>
