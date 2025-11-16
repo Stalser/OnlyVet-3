@@ -40,6 +40,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
             <p className="text-sm text-gray-500">
               Консультация с идентификатором{" "}
               <span className="font-mono">{params.id}</span> не найдена.
+              Возможно, запись была удалена или ещё не создана.
             </p>
           </section>
         )}
@@ -47,9 +48,10 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
         {/* Если приём найден */}
         {appointment && (
           <>
-            {/* Основная информация */}
+            {/* Блок 1: Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex items-center justify-between gap-3">
+                {/* Дата / время */}
                 <div>
                   <div className="text-xs text-gray-500">Дата / время</div>
                   <div className="text-sm font-medium text-gray-900">
@@ -61,6 +63,8 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                     </div>
                   )}
                 </div>
+
+                {/* Статус */}
                 <div className="text-right text-xs text-gray-500">
                   Статус
                   <div className="mt-1 text-[11px] font-semibold text-gray-900">
@@ -87,22 +91,22 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {/* Услуга */}
+                {/* Услуга и врач */}
                 <div className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase text-gray-500">
-                    Услуга
+                    Услуга и врач
                   </h2>
-                  <div className="rounded-xl bg-gray-50 p-3 text_sm">
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
                     <div className="font-medium">
                       {appointment.serviceName}
                     </div>
                     {appointment.serviceCode && (
-                      <div className="mt-1 text-[11px] text-gray-500">
-                        код: {appointment.serviceCode}
+                      <div className="text-[11px] text-gray-500">
+                        код услуги: {appointment.serviceCode}
                       </div>
                     )}
                     {appointment.doctorName && (
-                      <div className="mt-2 text-[11px] text-gray-500">
+                      <div className="text-[11px] text-gray-500">
                         Врач: {appointment.doctorName}
                       </div>
                     )}
@@ -111,13 +115,13 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* Формат связи: Телемост */}
+            {/* Блок 2: Формат связи (Яндекс Телемост) */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
-                Формат связи (подключение врача)
+                Формат связи для подключения врача
               </h2>
               <div className="rounded-xl bg-emerald-50 p-3 text-sm space-y-2">
-                <div className="flex items-center justify_between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[11px] text-emerald-800">
                       Платформа
@@ -149,8 +153,8 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                       Перейти в Телемост
                     </a>
                     <div className="text-[10px] text-emerald-900 mt-0.5">
-                      Откроется в новой вкладке. Проверьте, что вы авторизованы
-                      в Яндексе под нужным аккаунтом.
+                      Откроется в новой вкладке. Убедитесь, что вы
+                      авторизованы в Яндексе под нужным аккаунтом.
                     </div>
                   </div>
                 ) : (
@@ -163,21 +167,22 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* Рабочий блок: Заключение врача (скелет) */}
+            {/* Блок 3: Заключение врача (пока как черновик без сохранения) */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
                 Заключение врача (черновик)
               </h2>
               <p className="text-xs text-gray-500">
-                Здесь будет основной рабочий блок врача: описание жалоб,
-                анамнеза, осмотра, диагноза и назначений. На этом этапе это
-                блок-скелет для отработки интерфейса — текст ниже пока не
-                сохраняется в базу.
+                Здесь будет основной рабочий блок врача: жалобы, анамнез,
+                осмотр, предварительный/окончательный диагноз, план и
+                назначения. Сейчас это только скелет интерфейса — текст ниже
+                пока не сохраняется в базу.
               </p>
               <textarea
-                className="w-full min-h-[140px] rounded-xl border px-3 py-2 text-xs"
-                placeholder="Черновые заметки по приёму… (позже привяжем к базе и добавим статусы 'в работе' / 'завершено')"
+                className="w-full min-h-[160px] rounded-xl border px-3 py-2 text-xs"
+                placeholder="Черновые заметки по приёму… (позже привяжем к БД и добавим статусы 'в работе' / 'завершено')"
               />
+
               <div className="flex flex-wrap justify-end gap-2 pt-2 text-[11px]">
                 <button
                   type="button"
@@ -191,7 +196,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                   className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white opacity-60"
                   disabled
                 >
-                  Отметить как завершённый (скоро)
+                  Отметить приём завершённым (скоро)
                 </button>
               </div>
             </section>
