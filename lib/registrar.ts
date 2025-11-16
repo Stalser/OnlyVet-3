@@ -18,11 +18,13 @@ export type RegistrarAppointmentRow = {
   serviceName: string;
   serviceCode?: string;
   statusLabel: string;
+  videoPlatform?: string | null;
+  videoUrl?: string | null;
 };
 
 /**
  * Берём список приёмов из БД Supabase (public.appointments)
- * и приводим к формату, удобному для регистратуры.
+ * и приводим к формату, удобному для регистратуры/врача.
  */
 async function getAppointmentsFromDb(
   limit?: number
@@ -32,7 +34,7 @@ async function getAppointmentsFromDb(
   let query = supabase
     .from("appointments")
     .select(
-      "id, starts_at, created_at, owner_id, status, pet_name, species, service_code, doctor_id, contact_info"
+      "id, starts_at, created_at, owner_id, status, pet_name, species, service_code, doctor_id, contact_info, video_platform, video_url"
     )
     .order("starts_at", { ascending: false });
 
@@ -49,7 +51,7 @@ async function getAppointmentsFromDb(
   return data.map((row: any, index: number) => {
     const startsAt: string | null = row.starts_at ?? null;
 
-    // Дата/время в человекочитаемом виде
+    // Дата/время красиво
     let dateLabel = "—";
     if (startsAt) {
       const d = new Date(startsAt);
@@ -66,17 +68,14 @@ async function getAppointmentsFromDb(
       ? new Date(row.created_at).toLocaleString("ru-RU")
       : "";
 
-    // Врач
     const doc = doctors.find((d: any) => d.id === row.doctor_id);
     const doctorName = doc?.name ?? "Не назначен";
 
-    // Услуга
     const service = servicesPricing.find(
       (s: any) => s.code === row.service_code
     );
     const serviceName = service?.name ?? "Услуга";
 
-    // Клиента пока не тянем из owner_profiles — позже добавим ФИО
     const clientName = "Без имени";
 
     return {
@@ -93,22 +92,23 @@ async function getAppointmentsFromDb(
       serviceName,
       serviceCode: row.service_code ?? "",
       statusLabel: row.status ?? "неизвестно",
+      videoPlatform: row.video_platform ?? null,
+      videoUrl: row.video_url ?? null,
     };
   });
 }
 
-/** Все консультации (для страницы "Все консультации и заявки"). */
+/** Все консультации (полная таблица). */
 export async function getRegistrarAppointments(): Promise<
   RegistrarAppointmentRow[]
 > {
   return getAppointmentsFromDb();
 }
 
-/** Последние N консультаций (для дашборда регистратуры). */
+/** Последние N консультаций (дашборд). */
 export async function getRecentRegistrarAppointments(
   limit = 10
-): Promise<RegistrarAppointmentRow[]>
-{
+): Promise<RegistrarAppointmentRow[]> {
   return getAppointmentsFromDb(limit);
 }
 
