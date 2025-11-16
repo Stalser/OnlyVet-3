@@ -2,7 +2,6 @@ import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import {
   getRegistrarAppointmentById,
-  type RegistrarAppointmentRow,
 } from "@/lib/registrar";
 import { RegistrarActions } from "@/components/registrar/RegistrarActions";
 import { RegistrarAssignSlot } from "@/components/registrar/RegistrarAssignSlot";
@@ -50,7 +49,7 @@ export default async function RegistrarConsultationPage({
           )}
         </header>
 
-        {/* Если запись не найдена */}
+        {/* Если не нашли */}
         {!appointment && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
@@ -60,14 +59,16 @@ export default async function RegistrarConsultationPage({
           </section>
         )}
 
-        {/* Если запись найдена — подробности */}
+        {/* Если нашли */}
         {appointment && (
           <>
             {/* ======= Блок "Основная информация" ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <h2 className="text-base font-semibold">Основная информация</h2>
+              <h2 className="text-base font-semibold">
+                Основная информация
+              </h2>
 
-              {/* Дата и ID */}
+              {/* ID + дата */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-xs text-gray-500">ID заявки</div>
@@ -89,22 +90,25 @@ export default async function RegistrarConsultationPage({
                 </div>
               </div>
 
-              {/* Клиент + Питомец */}
+              {/* Клиент + питомец + услуга/врач */}
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Клиент */}
+                {/* Клиент + питомец */}
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Клиент
                   </h3>
                   <div className="rounded-xl bg-gray-50 p-3 text-sm">
-                    <div className="font-medium">{appointment.clientName}</div>
+                    <div className="font-medium">
+                      {appointment.clientName || "Без имени"}
+                    </div>
                     {appointment.clientContact && (
                       <div className="mt-1 text-xs text-gray-600">
                         {appointment.clientContact}
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Позже здесь будет ссылка на карточку клиента.
+                      Позже здесь будет явная привязка к карточке клиента
+                      из owner_profiles.
                     </div>
                   </div>
 
@@ -121,12 +125,13 @@ export default async function RegistrarConsultationPage({
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Тут будет связка с карточкой пациента / Vetmanager.
+                      Здесь будет ссылка на карточку питомца из таблицы
+                      pets, если pet_id присутствует.
                     </div>
                   </div>
                 </div>
 
-                {/* Услуга + Врач */}
+                {/* Услуга + врач + платформа связи */}
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Услуга и врач
@@ -152,20 +157,39 @@ export default async function RegistrarConsultationPage({
                   </div>
 
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
-                    Служебная информация
+                    Формат связи
                   </h3>
-                  <div className="rounded-xl bg-gray-50 p-3 text-[11px] text-gray-500">
-                    <p>
-                      Сейчас данные берутся из таблицы{" "}
-                      <code className="mx-1 rounded bg-white px-1">
-                        public.appointments
-                      </code>{" "}
-                      (если она заполнена), иначе — из мок-файла{" "}
-                      <code className="mx-1 rounded bg-white px-1">
-                        lib/appointments.ts
-                      </code>
-                      . Позже здесь будет связка с Vetmanager.
-                    </p>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
+                    <div>
+                      <div className="text-xs text-gray-500">
+                        Платформа
+                      </div>
+                      <div className="font-medium text-gray-900">
+                        {appointment.videoPlatform === "yandex_telemost" ||
+                        !appointment.videoPlatform
+                          ? "Яндекс Телемост"
+                          : appointment.videoPlatform}
+                      </div>
+                    </div>
+
+                    {appointment.videoUrl ? (
+                      <div className="text-[11px]">
+                        <a
+                          href={appointment.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-700 hover:underline"
+                        >
+                          Открыть ссылку Телемоста
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-gray-400">
+                        Ссылка на Телемост пока не указана. Можно добавить
+                        её, отредактировав консультацию или через
+                        интерфейс врача в будущем.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
