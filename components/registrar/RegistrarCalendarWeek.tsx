@@ -6,6 +6,7 @@ import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
 interface Props {
   appointments: RegistrarAppointmentRow[];
+  linkBase?: string; // базовый путь для карточки приёма
 }
 
 function startOfWeek(date: Date): Date {
@@ -23,7 +24,10 @@ function addDays(date: Date, days: number): Date {
   return d;
 }
 
-export function RegistrarCalendarWeek({ appointments }: Props) {
+export function RegistrarCalendarWeek({
+  appointments,
+  linkBase = "/backoffice/registrar/consultations",
+}: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
 
@@ -202,7 +206,7 @@ export function RegistrarCalendarWeek({ appointments }: Props) {
                           {cellAppts.map((a) => (
                             <Link
                               key={a.id}
-                              href={`/backoffice/registrar/consultations/${a.id}`}
+                              href={`${linkBase}/${a.id}`}
                             >
                               <div className="rounded-lg bg-emerald-50 px-2 py-1 text-[10px] text-emerald-900 shadow-sm hover:bg-emerald-100">
                                 <div className="font-semibold line-clamp-1">
