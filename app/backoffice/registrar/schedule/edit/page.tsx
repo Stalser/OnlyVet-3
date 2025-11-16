@@ -771,8 +771,8 @@ export default function RegistrarScheduleEditPage() {
                 <div className="text-xs font-semibold text-gray-700 border-b pb-1">
                   {new Date(day).toLocaleDateString("ru-RU", {
                     weekday: "long",
-                    day: "2-дigits",
-                    month: "2-дigits",
+                    day: "2-digits",
+                    month: "2-digits",
                   })}
                 </div>
 
