@@ -44,6 +44,9 @@ export function RegistrarCreateAppointment() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
+  // Яндекс Телемост
+  const [videoUrl, setVideoUrl] = useState("");
+
   // ошибки/загрузка
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
@@ -59,7 +62,7 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // ▫️ загрузка клиентов из owner_profiles
+  // загрузка клиентов
   useEffect(() => {
     let ignore = false;
 
@@ -97,7 +100,7 @@ export function RegistrarCreateAppointment() {
     };
   }, []);
 
-  // ▫️ загрузка питомцев выбранного клиента
+  // загрузка питомцев выбранного клиента
   useEffect(() => {
     let ignore = false;
 
@@ -144,7 +147,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // ▫️ при выборе питомца — подставляем его имя/вид, если поля пустые
+  // при выборе питомца — подставляем имя/вид, если пусто
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -197,6 +200,8 @@ export function RegistrarCreateAppointment() {
         owner_id,
         pet_id,
         contact_info: clientContact || null,
+        video_platform: "yandex_telemost",
+        video_url: videoUrl || null,
       })
       .select("id")
       .single();
@@ -216,11 +221,18 @@ export function RegistrarCreateAppointment() {
     setDate("");
     setTime("");
     setSelectedPetId("");
+    setVideoUrl("");
 
     setSaving(false);
 
     router.refresh();
     router.push(`/backoffice/registrar/consultations/${data.id}`);
+  };
+
+  const handleOpenTelemost = () => {
+    if (typeof window !== "undefined") {
+      window.open("https://telemost.yandex.ru/new", "_blank");
+    }
   };
 
   return (
@@ -229,7 +241,7 @@ export function RegistrarCreateAppointment() {
         Создать новую консультацию
       </h2>
       <p className="text-xs text-gray-500">
-        Регистратор может создать запись на основании обращения клиента.
+        Регистратор может создать запись на оснований обращения клиента.
         При выборе клиента и питомца консультация будет привязана к их
         картотеке.
       </p>
@@ -413,6 +425,48 @@ export function RegistrarCreateAppointment() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Формат связи: Яндекс Телемост */}
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-gray-700">
+            Формат связи
+          </div>
+          <div className="space-y-2">
+            <div>
+              <div className="mb-1 text-[11px] text-gray-500">
+                Платформа видеоконсультации
+              </div>
+              <div className="rounded-xl bg-gray-50 px-2 py-1.5 text-[11px] text-gray-800">
+                Яндекс Телемост
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-gray-500">
+                Ссылка на Телемост
+              </label>
+              <input
+                type="text"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                placeholder="https://telemost.yandex.ru/..."
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-gray-500">
+                <button
+                  type="button"
+                  onClick={handleOpenTelemost}
+                  className="rounded-xl border border-emerald-600 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+                >
+                  Открыть Телемост для создания ссылки
+                </button>
+                <span>
+                  Откроется новая вкладка Яндекс Телемоста, сгенерируйте
+                  конференцию и вставьте ссылку выше.
+                </span>
+              </div>
             </div>
           </div>
         </div>
