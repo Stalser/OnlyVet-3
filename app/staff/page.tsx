@@ -46,6 +46,7 @@ export default async function StaffDashboardPage() {
   const appointments = await getRegistrarAppointments();
   const now = new Date();
 
+  // Пока показываем все приёмы. Позже можем фильтровать по doctorId текущего врача.
   const upcoming = appointments.filter((a) => {
     if (!a.startsAt) return false;
     const d = new Date(a.startsAt);
@@ -130,9 +131,9 @@ export default async function StaffDashboardPage() {
           </div>
         </section>
 
-        {/* Предстоящие консультации */}
-        <section className="rounded-2xl border bg-white p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        {/* Предстоящие консультации (как “рабочий список”) */}
+        <section className="rounded-2xl border bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold">
               Предстоящие консультации
             </h2>
@@ -151,7 +152,6 @@ export default async function StaffDashboardPage() {
                   <th className="px-2 py-2">Дата / время</th>
                   <th className="px-2 py-2">Пациент</th>
                   <th className="px-2 py-2">Услуга</th>
-                  <th className="px-2 py-2">Формат</th>
                   <th className="px-2 py-2">Статус</th>
                   <th className="px-2 py-2 text-right">Действия</th>
                 </tr>
@@ -172,7 +172,6 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
-
                       <td className="px-2 py-2 align-top">
                         <div className="text-[11px]">
                           {a.petName || "Без имени"}
@@ -183,7 +182,6 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
-
                       <td className="px-2 py-2 align-top">
                         <div className="text-[11px]">{a.serviceName}</div>
                         {a.serviceCode && (
@@ -192,24 +190,15 @@ export default async function StaffDashboardPage() {
                           </div>
                         )}
                       </td>
-
-                      <td className="px-2 py-2 align-top">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                          Яндекс Телемост
-                        </span>
-                      </td>
-
                       <td className="px-2 py-2 align-top">
                         <span className={badge.className}>{badge.label}</span>
                       </td>
-
                       <td className="px-2 py-2 align-top text-right">
                         <Link
                           href={`/staff/appointment/${a.id}`}
                           className="text-[11px] font-medium text-emerald-700 hover:underline"
                         >
-                          Открыть карточку →
+                          Открыть приём →
                         </Link>
                       </td>
                     </tr>
@@ -219,7 +208,7 @@ export default async function StaffDashboardPage() {
                 {upcoming.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={5}
                       className="px-2 py-8 text-center text-xs text-gray-400"
                     >
                       Предстоящих консультаций нет.
