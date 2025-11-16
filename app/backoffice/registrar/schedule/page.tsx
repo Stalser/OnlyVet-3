@@ -16,7 +16,7 @@ type SlotRow = {
   time_end: string;
   status: string;
   appointment_id: string | null;
-  serviceCode?: string | null;
+  service_code: string | null;
 };
 
 export default function RegistrarSchedulePage() {
@@ -24,12 +24,12 @@ export default function RegistrarSchedulePage() {
   const [doctorId, setDoctorId] = useState(doctors[0].id);
   const [statusFilter, setStatusFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("7");
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
 
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- СПИСОК СПЕЦИАЛИЗАЦИЙ ---
+  // ---- СПЕЦИАЛИЗАЦИИ ----
   const specializations = useMemo(
     () =>
       Array.from(
@@ -42,7 +42,7 @@ export default function RegistrarSchedulePage() {
     []
   );
 
-  // --- ВРАЧИ С УЧЁТОМ СПЕЦИАЛИЗАЦИИ ---
+  // ---- ВРАЧИ С УЧЁТОМ СПЕЦ ----
   const filteredDoctors = useMemo(() => {
     if (specializationFilter === "all") return doctors;
     return doctors.filter(
@@ -51,7 +51,7 @@ export default function RegistrarSchedulePage() {
     );
   }, [specializationFilter]);
 
-  // если выбранный врач не входит в отфильтрованный список — переключаемся на первого
+  // если выбранный врач не попадает под текущую спец – переключаемся на первого
   useEffect(() => {
     if (!filteredDoctors.find((d) => d.id === doctorId)) {
       if (filteredDoctors.length > 0) {
@@ -61,7 +61,7 @@ export default function RegistrarSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredDoctors]);
 
-  // --- ЗАГРУЗКА СЛОТОВ + ПОДТЯГИВАНИЕ УСЛУГ ДЛЯ ЗАНЯТЫХ ---
+  // ---- ЗАГРУЗКА СЛОТОВ ----
   async function loadSlots() {
     setLoading(true);
 
@@ -72,7 +72,6 @@ export default function RegistrarSchedulePage() {
       return;
     }
 
-    // 1) слоты по врачу
     const { data, error } = await client
       .from("doctor_slots")
       .select("*")
@@ -80,46 +79,22 @@ export default function RegistrarSchedulePage() {
       .order("date", { ascending: true })
       .order("time_start", { ascending: true });
 
-    if (error || !data) {
+    if (!error && data) {
+      setSlots(
+        data.map((s: any) => ({
+          id: String(s.id),
+          doctor_id: s.doctor_id,
+          date: s.date,
+          time_start: s.time_start,
+          time_end: s.time_end,
+          status: s.status,
+          appointment_id: s.appointment_id,
+          service_code: s.service_code ?? null,
+        }))
+      );
+    } else {
       setSlots([]);
-      setLoading(false);
-      return;
     }
-
-    // 2) вытаскиваем service_code для занятых слотов
-    const apptIds = data
-      .map((s: any) => s.appointment_id)
-      .filter((id: any) => id !== null);
-
-    let apptMap: Record<string, string | null> = {};
-    if (apptIds.length > 0) {
-      const { data: appts, error: apptsError } = await client
-        .from("appointments")
-        .select("id, service_code")
-        .in("id", apptIds);
-
-      if (!apptsError && appts) {
-        appts.forEach((a: any) => {
-          apptMap[String(a.id)] = a.service_code ?? null;
-        });
-      }
-    }
-
-    setSlots(
-      data.map((s: any) => ({
-        id: String(s.id),
-        doctor_id: s.doctor_id,
-        date: s.date,
-        time_start: s.time_start,
-        time_end: s.time_end,
-        status: s.status,
-        appointment_id: s.appointment_id,
-        serviceCode:
-          s.appointment_id != null
-            ? apptMap[String(s.appointment_id)] ?? null
-            : null,
-      }))
-    );
 
     setLoading(false);
   }
@@ -129,7 +104,7 @@ export default function RegistrarSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
-  // --- ФИЛЬТРЫ ---
+  // ---- ФИЛЬТРЫ ----
   const filteredByStatus = useMemo(() => {
     if (statusFilter === "all") return slots;
     return slots.filter((s) => s.status === statusFilter);
@@ -170,75 +145,90 @@ export default function RegistrarSchedulePage() {
     );
   }, [filteredByPeriod]);
 
-  // --- ЦВЕТА ДЛЯ УСЛУГ ---
+  // ---- УСЛУГИ: цвета и названия ----
   const SERVICE_COLORS = [
     "bg-sky-50 text-sky-800 border-sky-300",
     "bg-pink-50 text-pink-800 border-pink-300",
     "bg-amber-50 text-amber-800 border-amber-300",
-    "bg-indigo-50 text-indigo-800 border-indigo-300",
     "bg-lime-50 text-lime-800 border-lime-300",
+    "bg-indigo-50 text-indigo-800 border-indigo-300",
   ];
 
-  function getServiceClasses(code: string | null | undefined): string {
-    if (!code) return "bg-gray-100 text-gray-700 border-gray-300";
-    const idx = servicesPricing.findIndex((s: any) => s.code === code);
-    if (idx === -1) return "bg-gray-100 text-gray-700 border-gray-300";
-    const colorIdx = idx % SERVICE_COLORS.length;
-    return SERVICE_COLORS[colorIdx];
-  }
-
-  function getServiceName(code: string | null | undefined): string | null {
+  function getServiceName(code: string | null): string | null {
     if (!code) return null;
-    const s = servicesPricing.find((x: any) => x.code === code);
+    const s = servicesPricing.find((sp: any) => sp.code === code);
     return s ? s.name : code;
   }
 
-  // --- РЕНДЕР ОДНОГО СЛОТА (список/календарь) ---
+  function getServiceClasses(code: string | null): string {
+    if (!code) return "bg-gray-100 text-gray-700 border-gray-300";
+    const idx = servicesPricing.findIndex((s: any) => s.code === code);
+    if (idx === -1) return "bg-gray-100 text-gray-700 border-gray-300";
+    return SERVICE_COLORS[idx % SERVICE_COLORS.length];
+  }
+
+  // ---- РЕНДЕР ОДНОГО СЛОТА ----
   function renderSlotTile(s: SlotRow) {
     const isAvailable = s.status === "available";
     const isBusy = s.status === "busy";
+    const hasService = !!s.service_code;
+    const serviceName = getServiceName(s.service_code);
 
+    // свободный слот
     if (isAvailable) {
       const params = new URLSearchParams({
         doctorId,
         date: s.date,
         time: s.time_start,
+        ...(s.service_code ? { serviceCode: s.service_code } : {}),
       }).toString();
+
+      const baseClasses =
+        "rounded-xl border px-3 py-2 text-xs flex flex-col cursor-pointer";
+      const color = hasService
+        ? getServiceClasses(s.service_code)
+        : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100";
 
       return (
         <Link
           key={s.id}
           href={`/backoffice/registrar?${params}`}
         >
-          <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 hover:bg-emerald-100 cursor-pointer flex flex-col">
+          <div className={`${baseClasses} ${color}`}>
             <div className="font-medium">
               {s.time_start}–{s.time_end}
             </div>
-            <div className="text-[10px] text-emerald-700">Свободно</div>
+            <div className="text-[10px]">
+              Свободно
+              {serviceName ? ` · ${serviceName}` : ""}
+            </div>
           </div>
         </Link>
       );
     }
 
+    // занятый слот
     if (isBusy) {
-      const name = getServiceName(s.serviceCode);
-      const colorClasses = getServiceClasses(s.serviceCode ?? null);
+      const baseClasses =
+        "rounded-xl border px-3 py-2 text-xs flex flex-col";
+      const color = hasService
+        ? getServiceClasses(s.service_code)
+        : "bg-gray-100 text-gray-700 border-gray-300";
+
       return (
-        <div
-          key={s.id}
-          className={`rounded-xl border px-3 py-2 text-xs flex flex-col ${colorClasses}`}
-        >
+        <div key={s.id} className={`${baseClasses} ${color}`}>
           <div className="font-medium">
             {s.time_start}–{s.time_end}
           </div>
           <div className="text-[10px]">
-            Занято{ name ? ` · ${name}` : "" }
+            Занято
+            {serviceName ? ` · ${serviceName}` : ""}
           </div>
         </div>
       );
     }
 
-    // Недоступный слот
+    // недоступный слот
     return (
       <div
         key={s.id}
@@ -268,8 +258,8 @@ export default function RegistrarSchedulePage() {
               Расписание врачей
             </h1>
             <p className="text-sm text-gray-500">
-              Просмотр рабочих слотов врачей. Определяет, когда можно
-              записывать клиентов.
+              Просмотр рабочих слотов врачей. Свободные слоты можно
+              использовать для записи клиентов.
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -286,6 +276,7 @@ export default function RegistrarSchedulePage() {
         {/* Фильтры + вид */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Левая часть — фильтры */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full md:w-auto md:flex-1">
               {/* Специализация */}
               <div>
@@ -359,7 +350,7 @@ export default function RegistrarSchedulePage() {
               </div>
             </div>
 
-            {/* Переключатель вида */}
+            {/* Правая часть — переключатель вида */}
             <div className="inline-flex rounded-xl bg-gray-100 p-1 text-[11px]">
               <button
                 type="button"
@@ -387,7 +378,7 @@ export default function RegistrarSchedulePage() {
           </div>
         </section>
 
-        {/* ВИД: СПИСОК */}
+        {/* Режим: список */}
         {viewMode === "list" ? (
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">Слоты врача (список)</h2>
@@ -420,7 +411,7 @@ export default function RegistrarSchedulePage() {
               ))}
           </section>
         ) : (
-          // ВИД: КАЛЕНДАРЬ
+          // Режим: календарь
           <section className="rounded-2xl border bg-white p-4 space-y-4">
             <h2 className="text-base font-semibold">
               Слоты врача (календарь)
