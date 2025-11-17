@@ -94,7 +94,7 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // === Загрузка всех данных по клиенту (профиль, питомцы, консультации, персональные, история) ===
+  // === Загрузка всех данных по клиенту ===
   useEffect(() => {
     let ignore = false;
 
@@ -127,46 +127,44 @@ export default function ClientDetailPage() {
         return;
       }
 
-      // грузим всё параллельно
-      const [ownerRes, petsRes, apptRes, privRes, auditRes] = await Promise.all([
-        client
-          .from("owner_profiles")
-          .select("*")
-          .eq("user_id", ownerKey)
-          .is("deleted_at", null)
-          .maybeSingle(),
-        client
-          .from("pets")
-          .select("*")
-          .eq("owner_id", ownerKey)
-          .order("name", { ascending: true }),
-        client
-          .from("appointments")
-          .select("id, starts_at, status, pet_name, species, service_code")
-          .eq("owner_id", ownerKey)
-          .order("starts_at", { ascending: false }),
-        client
-          .from("owner_private_data")
-          .select(
-            "passport_series, passport_number, passport_issued_by, passport_issued_at, registration_address, actual_address, legal_notes"
-          )
-          .eq("owner_id", ownerKey)
-          .maybeSingle(),
-        client
-          .from("audit_log")
-          .select("*")
-          .in("entity_type", ["owner", "pet"])
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
+      // грузим всё последовательно, но понятно
+      const { data: ownerData, error: ownerError } = await client
+        .from("owner_profiles")
+        .select("*")
+        .eq("user_id", ownerKey)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      const { data: petsData, error: petsError } = await client
+        .from("pets")
+        .select("*")
+        .eq("owner_id", ownerKey)
+        .order("name", { ascending: true });
+
+      const { data: apptData, error: apptError } = await client
+        .from("appointments")
+        .select(
+          "id, starts_at, status, pet_name, species, service_code"
+        )
+        .eq("owner_id", ownerKey)
+        .order("starts_at", { ascending: false });
+
+      const { data: privData, error: privError } = await client
+        .from("owner_private_data")
+        .select(
+          "passport_series, passport_number, passport_issued_by, passport_issued_at, registration_address, actual_address, legal_notes"
+        )
+        .eq("owner_id", ownerKey)
+        .maybeSingle();
+
+      const { data: auditRaw, error: auditError } = await client
+        .from("audit_log")
+        .select("*")
+        .in("entity_type", ["owner", "pet"])
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (ignore) return;
-
-      const { data: ownerData, error: ownerError } = ownerRes;
-      const { data: petsData, error: petsError } = petsRes;
-      const { data: apptData, error: apptError } = apptRes;
-      const { data: privData, error: privError } = privRes;
-      const { data: auditRaw, error: auditError } = auditRes;
 
       // профиль
       if (ownerError) {
@@ -234,7 +232,7 @@ export default function ClientDetailPage() {
           }
           return false;
         });
-        setAuditRows(filtered.slice(0, 10)); // последние 10
+        setAuditRows(filtered.slice(0, 10)); // только последние 10
       }
 
       setLoading(false);
@@ -324,7 +322,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // === Удаление питомца (жёстко, без deleted_at) ===
+  // === Удаление питомца (жёстко) ===
   const handleDeletePet = async (petId: string) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
@@ -521,7 +519,7 @@ export default function ClientDetailPage() {
     }
 
     return (
-      <pre className="rounded-xl bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+      <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
         {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
       </pre>
     );
@@ -842,31 +840,218 @@ export default function ClientDetailPage() {
             </section>
 
             {/* Персональные данные */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold">
-                    Персональные данные (паспорт и адреса)
-                  </h2>
-                  <p className="text-[11px] text-gray-500">
-                    Этот блок заполняет регистратор. Клиент не видит эти
-                    данные. Используется только при необходимости.
-                  </p>
-                </div>
-                <div className="flex flex-col items-end text-[11px] text-gray-500">
-                  <span>Статус: {privateStatus}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingPrivate((v) => !v);
-                      setActionError(null);
-                    }}
-                    className="mt-1 rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
-                  >
-                    {isEditingPrivate ? "Отмена" : "Редактировать"}
-                  </button>
-                </div>
-              </div>
+<section className="rounded-2xl border bg-white p-4 space-y-3">
+  <div className="flex items-center justify-between gap-3">
+    <div>
+      <h2 className="text-base font-semibold">
+        Персональные данные (паспорт и адреса)
+      </h2>
+      <p className="text-[11px] text-gray-500">
+        Этот блок заполняет регистратор. Клиент не видит эти
+        данные. Используется только при необходимости.
+      </p>
+    </div>
+    <div className="flex flex-col items-end text-[11px] text-gray-500">
+      <span>Статус: {privateStatus}</span>
+      <button
+        type="button"
+        onClick={() => {
+          setIsEditingPrivate((v) => !v);
+          setActionError(null);
+        }}
+        className="mt-1 rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+      >
+        {isEditingPrivate ? "Отмена" : "Редактировать"}
+      </button>
+    </div>
+  </div>
+
+  {!isEditingPrivate ? (
+    <div className="space-y-2 text-xs text-gray-700">
+      <div>
+        <span className="font-semibold">Паспорт: </span>
+        {privateData?.passport_series || privateData?.passport_number
+          ? `${privateData.passport_series || ""} ${
+              privateData.passport_number || ""
+            }`.trim()
+          : "не указан"}
+      </div>
+      <div>
+        <span className="font-semibold">Кем выдан: </span>
+        {privateData?.passport_issued_by || "не указано"}
+      </div>
+      <div>
+        <span className="font-semibold">Дата выдачи: </span>
+        {privateData?.passport_issued_at
+          ? new Date(
+              privateData.passport_issued_at
+            ).toLocaleDateString("ru-RU")
+          : "не указана"}
+      </div>
+      <div>
+        <span className="font-semibold">Адрес регистрации: </span>
+        {privateData?.registration_address || "не указан"}
+      </div>
+      <div>
+        <span className="font-semibold">Фактический адрес: </span>
+        {privateData?.actual_address || "не указан"}
+      </div>
+      <div>
+        <span className="font-semibold">Служебные пометки: </span>
+        {privateData?.legal_notes || "нет"}
+      </div>
+    </div>
+  ) : (
+    <form
+      onSubmit={handlePrivateSave}
+      className="space-y-2 text-xs"
+    >
+      <div className="grid gap-2 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[11px] text-gray-500">
+            Серия паспорта
+          </label>
+          <input
+            type="text"
+            value={privateData?.passport_series || ""}
+            onChange={(e) =>
+              setPrivateData((prev) => ({
+                ...(prev || {}),
+                passport_series: e.target.value,
+              }))
+            }
+            className="w-full rounded-xl border px-3 py-1.5 text-xs"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-gray-500">
+            Номер паспорта
+          </label>
+          <input
+            type="text"
+            value={privateData?.passport_number || ""}
+            onChange={(e) =>
+              setPrivateData((prev) => ({
+                ...(prev || {}),
+                passport_number: e.target.value,
+              }))
+            }
+            className="w-full rounded-xl border px-3 py-1.5 text-xs"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[11px] text-gray-500">
+          Кем выдан
+        </label>
+        <input
+          type="text"
+          value={privateData?.passport_issued_by || ""}
+          onChange={(e) =>
+            setPrivateData((prev) => ({
+              ...(prev || {}),
+              passport_issued_by: e.target.value,
+            }))
+          }
+          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[11px] text-gray-500">
+          Дата выдачи
+        </label>
+        <input
+          type="date"
+          value={
+            privateData?.passport_issued_at
+              ? privateData.passport_issued_at.substring(0, 10)
+              : ""
+          }
+          onChange={(e) =>
+            setPrivateData((prev) => ({
+              ...(prev || {}),
+              passport_issued_at: e.target.value || null,
+            }))
+          }
+          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[11px] text-gray-500">
+          Адрес регистрации
+        </label>
+        <textarea
+          value={privateData?.registration_address || ""}
+          onChange={(e) =>
+            setPrivateData((prev) => ({
+              ...(prev || {}),
+              registration_address: e.target.value,
+            }))
+          }
+          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+          rows={2}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[11px] text-gray-500">
+          Фактический адрес
+        </label>
+        <textarea
+          value={privateData?.actual_address || ""}
+          onChange={(e) =>
+            setPrivateData((prev) => ({
+              ...(prev || {}),
+              actual_address: e.target.value,
+            }))
+          }
+          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+          rows={2}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[11px] text-gray-500">
+          Служебные пометки
+        </label>
+        <textarea
+          value={privateData?.legal_notes || ""}
+          onChange={(e) =>
+            setPrivateData((prev) => ({
+              ...(prev || {}),
+              legal_notes: e.target.value,
+            }))
+          }
+          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+          rows={3}
+        />
+      </div>
+
+      <div className="pt-1 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setIsEditingPrivate(false);
+            setActionError(null);
+          }}
+          className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+        >
+          Отмена
+        </button>
+        <button
+          type="submit"
+          disabled={savingPrivate}
+          className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {savingPrivate ? "Сохраняю…" : "Сохранить"}
+        </button>
+      </div>
+    </form>
+  )}
+</section>
 
               {!isEditingPrivate ? (
                 <div className="space-y-2 text-xs text-gray-700">
@@ -913,17 +1098,158 @@ export default function ClientDetailPage() {
                   onSubmit={handlePrivateSave}
                   className="space-y-2 text-xs"
                 >
-                  {/* поля паспорта и адресов — как выше, не урезаю */}
-                  {/* ... здесь остаётся код редактирования privateData, который у тебя уже есть ... */}
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Серия паспорта
+                      </label>
+                      <input
+                        type="text"
+                        value={privateData?.passport_series || ""}
+                        onChange={(e) =>
+                          setPrivateData((prev) => ({
+                            ...(prev || {}),
+                            passport_series: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Номер паспорта
+                      </label>
+                      <input
+                        type="text"
+                        value={privateData?.passport_number || ""}
+                        onChange={(e) =>
+                          setPrivateData((prev) => ({
+                            ...(prev || {}),
+                            passport_number: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Кем выдан
+                    </label>
+                    <input
+                      type="text"
+                      value={privateData?.passport_issued_by || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          passport_issued_by: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Дата выдачи
+                    </label>
+                    <input
+                      type="date"
+                      value={
+                        privateData?.passport_issued_at
+                          ? privateData.passport_issued_at.substring(0, 10)
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          passport_issued_at: e.target.value || null,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Адрес регистрации
+                    </label>
+                    <textarea
+                      value={privateData?.registration_address || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          registration_address: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Фактический адрес
+                    </label>
+                    <textarea
+                      value={privateData?.actual_address || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          actual_address: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Служебные пометки
+                    </label>
+                    <textarea
+                      value={privateData?.legal_notes || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          legal_notes: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="pt-1 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingPrivate(false);
+                        setActionError(null);
+                      }}
+                      className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingPrivate}
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {savingPrivate ? "Сохраняю…" : "Сохранить"}
+                    </button>
+                  </div>
                 </form>
               )}
             </section>
 
             {/* Питомцы */}
-            {/* ... блок Питомцы как у тебя уже отрисован — с таблицей и формой добавления ... */}
+            {/* здесь оставляем блок Питомцев, который у тебя уже есть (таблица + форма) */}
 
             {/* История консультаций */}
-            {/* ... блок История консультаций (как был) ... */}
+            {/* здесь оставляем блок Истории консультаций, как у тебя сейчас */}
 
             {/* История изменений профиля клиента (профиль + питомцы) */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
