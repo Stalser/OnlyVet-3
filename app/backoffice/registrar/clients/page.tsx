@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
-import { getOwnersSummary } from "@/lib/clients";
+import type { OwnerSummary } from "@/lib/clients";
 
 type OwnerSummary = any;
 
