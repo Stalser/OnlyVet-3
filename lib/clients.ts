@@ -13,24 +13,31 @@ export type OwnerSummary = {
   phone?: string;
   petsCount: number;
   appointmentsCount: number;
+  hasPrivateData: boolean; // есть ли запись в owner_private_data
 };
 
 export type OwnerDetails = {
   owner: any | null;
   pets: any[];
   appointments: RegistrarAppointmentRow[];
+  privateData: {
+    passport_series?: string | null;
+    passport_number?: string | null;
+    passport_issued_by?: string | null;
+    passport_issued_at?: string | null;
+    registration_address?: string | null;
+    actual_address?: string | null;
+    legal_notes?: string | null;
+  } | null;
 };
 
 /**
  * Достаём аккуратно контакты из extra_contacts (jsonb):
- * ждём что-то вроде { "phone": "...", "email": "...", "telegram": "..." }
+ * ожидаем что-то вроде { "phone": "...", "email": "...", "telegram": "..." }
  */
 function extractContacts(extra: any): { email?: string; phone?: string } {
   if (!extra || typeof extra !== "object") return {};
-  const email =
-    extra.email ||
-    extra.mail ||
-    undefined;
+  const email = extra.email || extra.mail || undefined;
   const phone =
     extra.phone ||
     extra.phone_main ||
@@ -44,11 +51,12 @@ function extractContacts(extra: any): { email?: string; phone?: string } {
 /**
  * Суммарная информация по клиентам.
  * Учитывает soft-delete для owner_profiles и pets.
+ * hasPrivateData = есть ли строка в owner_private_data для этого клиента.
  */
 export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   if (!supabase) return [];
 
-  // Берём только не удалённых клиентов
+  // 1. Не удалённые клиенты
   const { data: owners, error: ownersError } = await supabase
     .from("owner_profiles")
     .select("*")
@@ -61,16 +69,14 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   }
 
   const ownerIds = owners.map((o: any) => o.user_id) as number[];
-
-  // Если клиентов нет — выходим
   if (ownerIds.length === 0) {
     return [];
   }
 
-  // Считаем количество не удалённых питомцев на каждого владельца
+  // 2. Не удалённые питомцы (для подсчёта petsCount)
   const { data: pets, error: petsError } = await supabase
     .from("pets")
-    .select("id, owner_id")
+    .select("owner_id")
     .in("owner_id", ownerIds)
     .is("deleted_at", null);
 
@@ -78,14 +84,24 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
     console.error("getOwnersSummary petsError", petsError);
   }
 
+  // 3. Консультации по owner_id (appointmentsCount)
   const { data: appts, error: apptsError } = await supabase
     .from("appointments")
     .select("id, owner_id")
     .in("owner_id", ownerIds);
-    // soft-delete для appointments добавим позже, когда внедрим deleted_at туда
 
   if (apptsError) {
     console.error("getOwnersSummary apptsError", apptsError);
+  }
+
+  // 4. Персональные данные (owner_private_data)
+  const { data: priv, error: privError } = await supabase
+    .from("owner_private_data")
+    .select("owner_id")
+    .in("owner_id", ownerIds);
+
+  if (privError) {
+    console.error("getOwnersSummary privError", privError);
   }
 
   const petsCountMap = new Map<string, number>();
@@ -102,8 +118,15 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
     apptCountMap.set(key, (apptCountMap.get(key) ?? 0) + 1);
   });
 
+  const privateSet = new Set<string>();
+  (priv ?? []).forEach((r: any) => {
+    if (r.owner_id == null) return;
+    privateSet.add(String(r.owner_id));
+  });
+
+  // 5. Собираем итог
   return owners.map((o: any) => {
-    const key = String(o.user_id); // основной идентификатор клиента
+    const key = String(o.user_id);
     const fullName = o.full_name || "Без имени";
     const city = o.city || undefined;
     const { email, phone } = extractContacts(o.extra_contacts);
@@ -116,12 +139,14 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
       phone,
       petsCount: petsCountMap.get(key) ?? 0,
       appointmentsCount: apptCountMap.get(key) ?? 0,
+      hasPrivateData: privateSet.has(key),
     };
   });
 }
 
 /**
  * История консультаций конкретного клиента по owner_id.
+ * Используется в карточке клиента.
  */
 async function getOwnerAppointments(
   ownerId: string
@@ -140,7 +165,6 @@ async function getOwnerAppointments(
     )
     .eq("owner_id", ownerKey)
     .order("starts_at", { ascending: false });
-    // когда добавим deleted_at в appointments, сюда тоже можно будет добавить .is("deleted_at", null)
 
   if (error || !data) {
     console.error("getOwnerAppointments error", error);
@@ -172,7 +196,7 @@ async function getOwnerAppointments(
     );
     const serviceName = service?.name ?? "Услуга";
 
-    const clientName = "Без имени"; // при желании можно подтянуть из owner_profiles
+    const clientName = "Без имени";
 
     return {
       id: String(row.id ?? index),
@@ -195,19 +219,18 @@ async function getOwnerAppointments(
 }
 
 /**
- * Детали конкретного клиента + его питомцы + его консультации.
- * Тоже учитывает soft-delete для владельца и питомцев.
+ * Детали конкретного клиента + его питомцы + его консультации + персональные данные.
  */
 export async function getOwnerWithPets(
   ownerId: string
 ): Promise<OwnerDetails> {
   if (!supabase) {
-    return { owner: null, pets: [], appointments: [] };
+    return { owner: null, pets: [], appointments: [], privateData: null };
   }
 
   const ownerKey = parseInt(ownerId, 10);
   if (Number.isNaN(ownerKey)) {
-    return { owner: null, pets: [], appointments: [] };
+    return { owner: null, pets: [], appointments: [], privateData: null };
   }
 
   const { data: owner, error: ownerError } = await supabase
@@ -232,11 +255,24 @@ export async function getOwnerWithPets(
     console.error("getOwnerWithPets petsError", petsError);
   }
 
+  const { data: privateData, error: privError } = await supabase
+    .from("owner_private_data")
+    .select(
+      "passport_series, passport_number, passport_issued_by, passport_issued_at, registration_address, actual_address, legal_notes"
+    )
+    .eq("owner_id", ownerKey)
+    .maybeSingle();
+
+  if (privError) {
+    console.error("getOwnerWithPets privateError", privError);
+  }
+
   const appointments = await getOwnerAppointments(ownerId);
 
   return {
     owner: owner ?? null,
     pets: pets ?? [],
     appointments,
+    privateData: (privateData as any) ?? null,
   };
 }
