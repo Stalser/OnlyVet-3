@@ -66,7 +66,6 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // ===== Загрузка клиента, питомцев и консультаций =====
   useEffect(() => {
     let ignore = false;
 
@@ -95,31 +94,19 @@ export default function ClientDetailPage() {
         return;
       }
 
-      // клиент
-      const {
-        data: ownerData,
-        error: ownerError,
-      } = await client
+      const { data: ownerData, error: ownerError } = await client
         .from("owner_profiles")
         .select("*")
         .eq("user_id", ownerId)
         .maybeSingle();
 
-      // питомцы
-      const {
-        data: petsData,
-        error: petsError,
-      } = await client
+      const { data: petsData, error: petsError } = await client
         .from("pets")
         .select("*")
         .eq("owner_id", ownerId)
         .order("name", { ascending: true });
 
-      // консультации этого клиента
-      const {
-        data: apptData,
-        error: apptError,
-      } = await client
+      const { data: apptData, error: apptError } = await client
         .from("appointments")
         .select("id, starts_at, status, pet_name, species, service_code")
         .eq("owner_id", ownerId)
@@ -164,7 +151,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // ===== Сохранение изменений клиента =====
+  // сохранение клиента
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -207,7 +194,7 @@ export default function ClientDetailPage() {
     setIsEditingOwner(false);
   };
 
-  // ===== Удаление питомца =====
+  // удаление питомца
   const handleDeletePet = async (petId: string) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
@@ -230,7 +217,7 @@ export default function ClientDetailPage() {
     setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
-  // ===== Удаление клиента целиком =====
+  // удаление клиента
   const handleDeleteOwner = async () => {
     if (
       !owner ||
@@ -277,7 +264,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // ===== Добавление нового питомца =====
+  // добавление питомца
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -329,7 +316,7 @@ export default function ClientDetailPage() {
     setAddingPet(false);
   };
 
-  // ===== Красивый вывод контактов клиента =====
+  // красивый вывод контактов
   const renderContacts = (extra: any) => {
     if (!extra) {
       return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
@@ -399,7 +386,6 @@ export default function ClientDetailPage() {
     );
   };
 
-  // ===== Вспомогательная функция для формата даты консультации =====
   const formatApptDate = (starts_at: string | null) => {
     if (!starts_at) return "—";
     const d = new Date(starts_at);
@@ -427,9 +413,8 @@ export default function ClientDetailPage() {
               Клиент
             </h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента и список его питомцев. Питомцы всегда
-              привязаны к этому клиенту. У одного клиента может быть
-              несколько животных.
+              Карточка клиента, его питомцы и история консультаций. Питомцы
+              всегда привязаны к этому клиенту.
             </p>
           </div>
           <RegistrarHeader />
@@ -456,7 +441,7 @@ export default function ClientDetailPage() {
 
         {!loading && !loadError && !owner && (
           <section className="rounded-2xl border bg-white p-4">
-            <p className="text_sm text-gray-500">
+            <p className="text-sm text-gray-500">
               Клиент с идентификатором{" "}
               <span className="font-mono">{idParam}</span> не найден.
             </p>
@@ -467,11 +452,18 @@ export default function ClientDetailPage() {
           <>
             {/* Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify_between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">
                   Основная информация
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Кнопка: создать консультацию для клиента */}
+                  <Link
+                    href={`/backoffice/registrar?ownerId=${owner.user_id}`}
+                    className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Создать консультацию для клиента
+                  </Link>
                   <button
                     type="button"
                     onClick={() => {
@@ -499,7 +491,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         ФИО
                       </div>
-                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-sm text-gray-800">
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.full_name || "Без имени"}
                       </div>
                     </div>
@@ -507,7 +499,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         Город
                       </div>
-                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-sm text-gray-800">
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.city || "Не указан"}
                       </div>
                     </div>
@@ -515,7 +507,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         ID клиента (user_id)
                       </div>
-                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-xs font-mono text-gray-800">
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800">
                         {owner.user_id}
                       </div>
                     </div>
@@ -523,7 +515,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         Дата создания профиля
                       </div>
-                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-xs text-gray-800">
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
                           ? new Date(owner.created_at).toLocaleString(
                               "ru-RU"
@@ -533,7 +525,7 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
-                  <div className="space-y=2">
+                  <div className="space-y-2">
                     <div className="text-[11px] text-gray-500 mb-1">
                       Контакты
                     </div>
@@ -584,7 +576,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         Дата создания профиля
                       </div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text_gray-800">
                         {owner.created_at
                           ? new Date(owner.created_at).toLocaleString(
                               "ru-RU"
@@ -670,11 +662,18 @@ export default function ClientDetailPage() {
                           <td className="px-2 py-2 align-top text-[11px] text-gray-500 font-mono">
                             {p.id}
                           </td>
-                          <td className="px-2 py-2 align-top text-right">
+                          <td className="px-2 py-2 align-top text-right space-y-1">
+                            {/* Записать на консультацию конкретно этого питомца */}
+                            <Link
+                              href={`/backoffice/registrar?ownerId=${owner.user_id}&petId=${p.id}`}
+                              className="block text-[10px] font-medium text-emerald-700 hover:underline"
+                            >
+                              Записать на консультацию
+                            </Link>
                             <button
                               type="button"
                               onClick={() => handleDeletePet(p.id)}
-                              className="text-[10px] font-medium text-red-600 hover:underline"
+                              className="block text-[10px] font-medium text-red-600 hover:underline"
                             >
                               Удалить питомца
                             </button>
@@ -757,7 +756,7 @@ export default function ClientDetailPage() {
                     <button
                       type="submit"
                       disabled={addingPet}
-                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text_white hover:bg-emerald-700 disabled:opacity-60"
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
                       {addingPet
                         ? "Добавляем питомца…"
