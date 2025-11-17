@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
@@ -24,6 +23,10 @@ export default async function ClientsListPage({
     | "withPets"
     | "withoutPets";
 
+  const withPetsCount = (owner: any): number =>
+    owner.petsCount ?? owner.totalPets ?? owner.petCount ?? 0;
+
+  // Текстовый поиск
   const afterTextFilter = q
     ? owners.filter((owner: any) => {
         const name =
@@ -41,12 +44,7 @@ export default async function ClientsListPage({
       })
     : owners;
 
-  const withPetsCount = (owner: any): number =>
-    owner.petsCount ??
-    owner.totalPets ??
-    owner.petCount ??
-    0;
-
+  // Фильтр по наличию питомцев
   const filteredOwners = afterTextFilter.filter((owner: any) => {
     const pc = withPetsCount(owner);
     if (filter === "withPets") return pc > 0;
@@ -92,7 +90,7 @@ export default async function ClientsListPage({
           <RegistrarHeader />
         </header>
 
-        {/* Фильтр / поиск */}
+        {/* Поиск */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">Поиск по картотеке</h2>
@@ -219,7 +217,7 @@ export default async function ClientsListPage({
 
         {/* Список клиентов */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify_between gap-3">
             <h2 className="text-base font-semibold">Клиенты</h2>
             <span className="text-[11px] text-gray-500">
               Нажмите &quot;Открыть&quot; для просмотра карточки клиента и
