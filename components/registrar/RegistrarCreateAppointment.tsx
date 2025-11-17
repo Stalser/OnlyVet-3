@@ -64,7 +64,7 @@ export function RegistrarCreateAppointment() {
   // слот (если пришли из расписания)
   const [slotId, setSlotId] = useState<string | null>(null);
 
-  // ФИО клиента
+  // ФИО клиента (визуально, плюс можем использовать при авто-создании)
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -89,7 +89,7 @@ export function RegistrarCreateAppointment() {
   // Телемост
   const [videoUrl, setVideoUrl] = useState("");
 
-  // Ошибка / загрузка
+  // Ошибки / загрузка
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
@@ -104,10 +104,10 @@ export function RegistrarCreateAppointment() {
   const [petsLoading, setPetsLoading] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
-  // спойлер
-  const [isOpen, setIsOpen] = useState(false); // по умолчанию свёрнута
+  // спойлер (по умолчанию свёрнута)
+  const [isOpen, setIsOpen] = useState(false);
 
-  // ===== 1. Подхватываем параметры из URL (из расписания) =====
+  // ===== 1. Подхват параметров из URL (из расписания) =====
   useEffect(() => {
     const qDoctor = searchParams.get("doctorId");
     const qDate = searchParams.get("date");
@@ -120,7 +120,6 @@ export function RegistrarCreateAppointment() {
     if (qTime) setTime(qTime);
     if (qService) setServiceCode(qService);
     if (qSlotId) setSlotId(qSlotId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   // ===== 2. Загружаем клиентов =====
@@ -147,8 +146,6 @@ export function RegistrarCreateAppointment() {
             label: o.full_name || `Клиент ${o.user_id}`,
           }));
           setOwners(opts);
-          // больше не выставляем selectedOwnerId по умолчанию,
-          // чтобы можно было явно добавить нового клиента позже
         }
         setOwnersLoading(false);
       }
@@ -209,7 +206,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // При выборе питомца подставляем имя/вид, если ещё ничего не введено
+  // При выборе питомца — подставляем имя/вид, если ещё пустые
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -286,16 +283,7 @@ export function RegistrarCreateAppointment() {
 
     const startsAt = new Date(`${date}T${time}`);
 
-    // owner_id — только существующий клиент, выбранный из селекта
-    let owner_id: number | null = null;
-    if (selectedOwnerId) {
-      const parsed = parseInt(selectedOwnerId, 10);
-      if (!Number.isNaN(parsed)) {
-        owner_id = parsed;
-      }
-    }
-
-    // контактная строка
+    // ===== 5.1. Собираем контактную строку =====
     const contactParts: string[] = [];
     if (clientEmail) contactParts.push(`email: ${clientEmail.trim()}`);
     if (clientPhone) contactParts.push(`phone: ${clientPhone.trim()}`);
@@ -305,11 +293,55 @@ export function RegistrarCreateAppointment() {
 
     const speciesString = buildSpeciesString();
 
-    // pet_id: либо существующий, либо создаём нового питомца
+    // ===== 5.2. owner_id: либо выбран из картотеки, либо создаём нового клиента =====
+    let owner_id: number | null = null;
+
+    if (selectedOwnerId) {
+      const parsed = parseInt(selectedOwnerId, 10);
+      if (!Number.isNaN(parsed)) {
+        owner_id = parsed;
+      }
+    } else {
+      // создаём нового клиента в картотеке
+      const fullNameCombined = [lastName, firstName, middleName]
+        .filter(Boolean)
+        .join(" ") || null;
+
+      const extraContacts: Record<string, string> = {};
+      if (clientEmail.trim()) extraContacts.email = clientEmail.trim();
+      if (clientPhone.trim()) extraContacts.phone = clientPhone.trim();
+      if (clientTelegram.trim())
+        extraContacts.telegram = clientTelegram.trim();
+
+      const { data: newOwner, error: ownerError } = await client
+        .from("owner_profiles")
+        .insert({
+          full_name: fullNameCombined,
+          city: null,
+          extra_contacts:
+            Object.keys(extraContacts).length > 0
+              ? extraContacts
+              : null,
+        })
+        .select("user_id")
+        .single();
+
+      if (ownerError || !newOwner) {
+        console.error(ownerError);
+        setErrorMessage(
+          "Не удалось создать карточку клиента в картотеке."
+        );
+        setSaving(false);
+        return;
+      }
+
+      owner_id = newOwner.user_id as number;
+    }
+
+    // ===== 5.3. pet_id: либо выбран, либо создаём нового питомца для owner_id =====
     let pet_id: string | null = selectedPetId || null;
 
     if (!pet_id && owner_id !== null && petName.trim()) {
-      // автоматическое создание нового питомца для выбранного клиента
       const { data: newPet, error: petError } = await client
         .from("pets")
         .insert({
@@ -322,7 +354,6 @@ export function RegistrarCreateAppointment() {
 
       if (petError) {
         console.error(petError);
-        // не роняем создание консультации, но предупреждаем
         setErrorMessage(
           "Питомец не был добавлен в картотеку, но консультация будет создана. Проверьте таблицу pets."
         );
@@ -331,7 +362,7 @@ export function RegistrarCreateAppointment() {
       }
     }
 
-    // создаём консультацию
+    // ===== 5.4. Создаём консультацию =====
     const { data, error } = await client
       .from("appointments")
       .insert({
@@ -397,14 +428,15 @@ export function RegistrarCreateAppointment() {
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex items-center justify_between">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold">
             Создать новую консультацию
           </h2>
           <p className="text-xs text-gray-500">
             При создании из расписания врач, услуга, дата и время уже
-            подставлены. Выберите клиента и питомца, заполните контакты.
+            подставлены. Можно выбрать клиента/питомца из картотеки или
+            создать новую пару &quot;клиент + питомец&quot; автоматически.
           </p>
         </div>
         <button
@@ -429,12 +461,12 @@ export function RegistrarCreateAppointment() {
         >
           {/* Клиент */}
           <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
-            <div className="flex items-center justify_between">
+            <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-700">
                 Клиент
               </span>
               <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500 border">
-                из картотеки
+                из картотеки / новый
               </span>
             </div>
 
@@ -451,7 +483,7 @@ export function RegistrarCreateAppointment() {
                 ) : owners.length === 0 ? (
                   <div className="text-[11px] text-gray-400">
                     Клиентов пока нет в таблице owner_profiles. Можно
-                    добавить вручную через картотеку.
+                    создать нового клиента через эту форму.
                   </div>
                 ) : (
                   <select
@@ -462,7 +494,7 @@ export function RegistrarCreateAppointment() {
                     }}
                     className="w-full rounded-xl border px-2 py-1.5 text-xs"
                   >
-                    <option value="">Не выбран</option>
+                    <option value="">Новый клиент (по данным ниже)</option>
                     {owners.map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.label}
@@ -471,18 +503,17 @@ export function RegistrarCreateAppointment() {
                   </select>
                 )}
                 <p className="mt-1 text-[10px] text-gray-400">
-                  Автоматическое добавление нового клиента из этой формы
-                  будет реализовано позже. Сейчас выбирается только
-                  существующий клиент.
+                  Если клиент не выбран, будет создан новый профиль в
+                  картотеке по ФИО и контактам.
                 </p>
               </div>
 
-              {/* ФИО клиента (для заметки) */}
+              {/* ФИО клиента */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
-                  ФИО клиента (для заметки)
+                  ФИО клиента (для заметки / нового профиля)
                 </label>
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols=3">
                   <input
                     type="text"
                     value={lastName}
@@ -501,7 +532,7 @@ export function RegistrarCreateAppointment() {
                     type="text"
                     value={middleName}
                     onChange={(e) => setMiddleName(e.target.value)}
-                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    className="rounded-xl border px=2 py-1.5 text-xs"
                     placeholder="Отчество"
                   />
                 </div>
@@ -542,9 +573,7 @@ export function RegistrarCreateAppointment() {
                   <input
                     type="text"
                     value={clientTelegram}
-                    onChange={(e) =>
-                      setClientTelegram(e.target.value)
-                    }
+                    onChange={(e) => setClientTelegram(e.target.value)}
                     className="w-full rounded-xl border px-2 py-1.5 text-xs"
                     placeholder="@username"
                   />
@@ -555,17 +584,16 @@ export function RegistrarCreateAppointment() {
 
           {/* Питомец */}
           <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
-            <div className="flex items-center justify_between">
+            <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-700">
                 Питомец
               </span>
               <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500 border">
-                из базы pets
+                из базы pets / новый
               </span>
             </div>
 
-            <div className="space-y-2">
-              {/* Питомец из базы */}
+          <div className="space-y-2">
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Питомец из картотеки
@@ -591,18 +619,18 @@ export function RegistrarCreateAppointment() {
                 )}
                 {selectedOwnerId && !petsLoading && pets.length === 0 && (
                   <div className="text-[11px] text-gray-400">
-                    У этого клиента пока нет питомцев. Можно указать
-                    данные ниже — питомец будет добавлен автоматически.
+                    У этого клиента пока нет питомцев. Можно указать данные
+                    ниже — питомец будет добавлен автоматически.
                   </div>
                 )}
                 {!selectedOwnerId && (
                   <div className="text-[11px] text-gray-400">
-                    Сначала выберите клиента, чтобы увидеть его питомцев.
+                    Если клиент не выбран, питомец будет привязан к новому
+                    клиенту.
                   </div>
                 )}
               </div>
 
-              {/* Имя питомца */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Имя питомца
@@ -616,7 +644,6 @@ export function RegistrarCreateAppointment() {
                 />
               </div>
 
-              {/* Вид и порода */}
               <div className="grid gap-2 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-[11px] text-gray-500">
@@ -740,8 +767,7 @@ export function RegistrarCreateAppointment() {
                   </button>
                 </div>
                 <p className="mt-1 text-[10px] text-gray-400">
-                  Откроется новая вкладка Телемоста. Создайте конференцию и
-                  вставьте ссылку в поле.
+                  Откроется Телемост в новой вкладке. Вставьте ссылку сюда.
                 </p>
               </div>
             </div>
