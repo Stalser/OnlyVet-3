@@ -20,7 +20,6 @@ type Pet = {
   id: string;
   name: string | null;
   species: string | null;
-  deleted_at?: string | null;
 };
 
 type Appointment = {
@@ -62,6 +61,7 @@ export default function ClientDetailPage() {
   const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(
     null
   );
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -116,7 +116,7 @@ export default function ClientDetailPage() {
         return;
       }
 
-      // клиент (только не удалённый)
+      // клиент (не удалённый)
       const {
         data: ownerData,
         error: ownerError,
@@ -127,7 +127,7 @@ export default function ClientDetailPage() {
         .is("deleted_at", null)
         .maybeSingle();
 
-      // питомцы (только не удалённые)
+      // питомцы (все, привязанные к owner_id)
       const {
         data: petsData,
         error: petsError,
@@ -135,10 +135,9 @@ export default function ClientDetailPage() {
         .from("pets")
         .select("*")
         .eq("owner_id", ownerKey)
-        .is("deleted_at", null)
         .order("name", { ascending: true });
 
-      // консультации
+      // консультации этого клиента
       const {
         data: apptData,
         error: apptError,
@@ -250,33 +249,7 @@ export default function ClientDetailPage() {
     setIsEditingOwner(false);
   };
 
-  // === Soft-delete питомца ===
-  const handleDeletePet = async (petId: string) => {
-    if (!confirm("Удалить этого питомца из картотеки?")) return;
-
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
-
-    setActionError(null);
-
-    const { error } = await client
-      .from("pets")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", petId);
-
-    if (error) {
-      console.error(error);
-      setActionError("Не удалось удалить питомца.");
-      return;
-    }
-
-    setPets((prev) => prev.filter((p) => p.id !== petId));
-  };
-
-  // === Soft-delete клиента ===
+  // === Удаление клиента (soft-delete по deleted_at) ===
   const handleDeleteOwner = async () => {
     if (
       !owner ||
@@ -309,6 +282,32 @@ export default function ClientDetailPage() {
     }
 
     router.push("/backoffice/registrar/clients");
+  };
+
+  // === Удаление питомца (пока жёстко delete, без deleted_at) ===
+  const handleDeletePet = async (petId: string) => {
+    if (!confirm("Удалить этого питомца из картотеки?")) return;
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    setActionError(null);
+
+    const { error } = await client
+      .from("pets")
+      .delete()
+      .eq("id", petId);
+
+    if (error) {
+      console.error(error);
+      setActionError("Не удалось удалить питомца.");
+      return;
+    }
+
+    setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
   // === Добавление питомца ===
@@ -389,7 +388,6 @@ export default function ClientDetailPage() {
 
     let error = null;
 
-    // если запись уже есть — обновляем, если нет — создаём
     if (privateData) {
       const { error: updError } = await client
         .from("owner_private_data")
@@ -499,7 +497,6 @@ export default function ClientDetailPage() {
     });
   };
 
-  // Статус персональных данных (заполнены / нет)
   const privateStatus =
     privateData &&
     (privateData.passport_series ||
@@ -957,7 +954,7 @@ export default function ClientDetailPage() {
 
             {/* Питомцы */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify_between">
                 <h2 className="text-base font-semibold">Питомцы</h2>
               </div>
 
@@ -1045,8 +1042,7 @@ export default function ClientDetailPage() {
                         value={newPetSpecies}
                         onChange={(e) =>
                           setNewPetSpecies(
-                            e.target
-                              .value as (typeof SPECIES_OPTIONS)[number]
+                            e.target.value as (typeof SPECIES_OPTIONS)[number]
                           )
                         }
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
