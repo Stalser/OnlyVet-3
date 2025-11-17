@@ -91,7 +91,7 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // === ЗАГРУЗКА ВСЕГО КЛИЕНТА ===
+  // === Загрузка всех данных по клиенту ===
   useEffect(() => {
     let ignore = false;
 
@@ -102,24 +102,32 @@ export default function ClientDetailPage() {
 
       const ownerKey = parseInt(idParam, 10);
       if (Number.isNaN(ownerKey)) {
-        setLoadError("Некорректный ID клиента");
+        setLoadError("Некорректный ID клиента.");
         setLoading(false);
         return;
       }
 
       const client = supabase;
       if (!client) {
-        setLoadError("Supabase не доступен");
+        setLoadError("Supabase недоступен на клиенте.");
+        setLoading(false);
         return;
       }
 
-      // --- КЛИЕНТ ---
-      const { data: ownerData } = await client
+      // Клиент
+      const { data: ownerData, error: ownerError } = await client
         .from("owner_profiles")
         .select("*")
         .eq("user_id", ownerKey)
         .is("deleted_at", null)
         .maybeSingle();
+
+      if (ownerError) {
+        console.error(ownerError);
+        setLoadError("Ошибка загрузки данных клиента.");
+        setLoading(false);
+        return;
+      }
 
       setOwner(ownerData ?? null);
       if (ownerData) {
@@ -127,60 +135,86 @@ export default function ClientDetailPage() {
         setOwnerCity(ownerData.city ?? "");
       }
 
-      // --- ПИТОМЦЫ ---
-      const { data: petsData } = await client
+      // Питомцы
+      const { data: petsData, error: petsError } = await client
         .from("pets")
         .select("*")
         .eq("owner_id", ownerKey)
         .order("name", { ascending: true });
 
-      setPets((petsData as any[]) || []);
-      const petIds = (petsData || []).map((p: any) => p.id?.toString());
+      if (petsError) {
+        console.error(petsError);
+        setPets([]);
+      } else {
+        setPets((petsData as Pet[]) || []);
+      }
 
-      // --- КОНСУЛЬТАЦИИ ---
-      const { data: apptData } = await client
+      const petIds = ((petsData as Pet[]) || []).map((p) =>
+        p.id?.toString(),
+      );
+
+      // Консультации
+      const { data: apptData, error: apptError } = await client
         .from("appointments")
         .select(
-          "id, starts_at, status, pet_name, species, service_code"
+          "id, starts_at, status, pet_name, species, service_code",
         )
         .eq("owner_id", ownerKey)
         .order("starts_at", { ascending: false });
 
-      setAppointments((apptData as any[]) || []);
+      if (apptError) {
+        console.error(apptError);
+        setAppointments([]);
+      } else {
+        setAppointments((apptData as Appointment[]) || []);
+      }
 
-      // --- ПЕРСОНАЛЬНЫЕ ДАННЫЕ ---
-      const { data: privData } = await client
+      // Персональные данные
+      const { data: privData, error: privError } = await client
         .from("owner_private_data")
         .select("*")
         .eq("owner_id", ownerKey)
         .maybeSingle();
 
-      setPrivateData(privData ?? null);
+      if (privError) {
+        console.error(privError);
+        setPrivateData(null);
+      } else {
+        setPrivateData((privData as OwnerPrivateData) || null);
+      }
 
-      // --- ИСТОРИЯ (owner + pet) ---
-      const { data: auditRaw } = await client
+      // История (owner + pet)
+      const { data: auditRaw, error: auditError } = await client
         .from("audit_log")
         .select("*")
         .in("entity_type", ["owner", "pet"])
         .order("created_at", { ascending: false });
 
-      const history = (auditRaw as AuditRow[]).filter((row) => {
-        if (row.entity_type === "owner") {
-          return row.entity_id === ownerKey.toString();
-        }
-        if (row.entity_type === "pet") {
-          const before = row.payload_before || {};
-          const after = row.payload_after || {};
-          return (
-            petIds.includes(row.entity_id) ||
-            before.owner_id === ownerKey ||
-            after.owner_id === ownerKey
-          );
-        }
-        return false;
-      });
+      if (auditError) {
+        console.error(auditError);
+        setAuditRows([]);
+      } else {
+        const history = (auditRaw as AuditRow[]).filter((row) => {
+          if (row.entity_type === "owner") {
+            return row.entity_id === ownerKey.toString();
+          }
+          if (row.entity_type === "pet") {
+            const before = row.payload_before || {};
+            const after = row.payload_after || {};
+            const petMatch =
+              petIds.includes(row.entity_id) ||
+              petIds.includes((before.id || "").toString()) ||
+              petIds.includes((after.id || "").toString());
+            const ownerMatch =
+              before.owner_id === ownerKey || after.owner_id === ownerKey;
+            return petMatch || ownerMatch;
+          }
+          return false;
+        });
 
-      setAuditRows(history.slice(0, 10));
+        setAuditRows(history.slice(0, 10)); // только последние 10
+      }
+
       setLoading(false);
     }
 
@@ -189,7 +223,8 @@ export default function ClientDetailPage() {
       ignore = true;
     };
   }, [idParam]);
-    // === СОХРАНЕНИЕ КЛИЕНТА (ФИО / ГОРОД) ===
+
+  // === Сохранение клиента (ФИО / город) ===
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -232,12 +267,12 @@ export default function ClientDetailPage() {
     setIsEditingOwner(false);
   };
 
-  // === УДАЛЕНИЕ КЛИЕНТА (SOFT-DELETE) ===
+  // === Удаление клиента (soft-delete) ===
   const handleDeleteOwner = async () => {
     if (
       !owner ||
       !confirm(
-        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже."
+        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже.",
       )
     ) {
       return;
@@ -252,13 +287,13 @@ export default function ClientDetailPage() {
     setActionError(null);
     setLoading(true);
 
-    const { error: ownerError } = await client
+    const { error } = await client
       .from("owner_profiles")
       .update({ deleted_at: new Date().toISOString() })
       .eq("user_id", owner.user_id);
 
-    if (ownerError) {
-      console.error(ownerError);
+    if (error) {
+      console.error(error);
       setActionError("Не удалось пометить клиента как удалённого.");
       setLoading(false);
       return;
@@ -267,7 +302,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // === УДАЛЕНИЕ ПИТОМЦА (ПОКА ЖЁСТКО) ===
+  // === Удаление питомца ===
   const handleDeletePet = async (petId: string) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
@@ -284,7 +319,7 @@ export default function ClientDetailPage() {
     if (error) {
       console.error(error);
       setActionError(
-        "Не удалось удалить питомца: " + (error.message || "")
+        "Не удалось удалить питомца: " + (error.message || ""),
       );
       return;
     }
@@ -292,7 +327,7 @@ export default function ClientDetailPage() {
     setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
-  // === ДОБАВЛЕНИЕ ПИТОМЦА ===
+  // === Добавление питомца ===
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -333,7 +368,7 @@ export default function ClientDetailPage() {
       console.error("add pet error", error);
       setActionError(
         "Не удалось добавить питомца: " +
-          (error?.message || "ошибка базы данных")
+          (error?.message || "ошибка базы данных"),
       );
       setAddingPet(false);
       return;
@@ -347,7 +382,7 @@ export default function ClientDetailPage() {
     setAddingPet(false);
   };
 
-  // === СОХРАНЕНИЕ ПЕРСОНАЛЬНЫХ ДАННЫХ ===
+  // === Сохранение персональных данных ===
   const handlePrivateSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -391,7 +426,9 @@ export default function ClientDetailPage() {
 
     if (error) {
       console.error(error);
-      setActionError("Не удалось сохранить персональные данные клиента.");
+      setActionError(
+        "Не удалось сохранить персональные данные клиента.",
+      );
       setSavingPrivate(false);
       return;
     }
@@ -400,7 +437,7 @@ export default function ClientDetailPage() {
     setIsEditingPrivate(false);
   };
 
-  // === РЕНДЕР КОНТАКТОВ ===
+  // === Рендер контактов ===
   const renderContacts = (extra: any) => {
     if (!extra) {
       return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
@@ -470,7 +507,7 @@ export default function ClientDetailPage() {
     );
   };
 
-  // === ФОРМАТИРОВАНИЕ ДАТЫ КОНСУЛЬТАЦИИ ===
+  // === Форматирование даты консультации ===
   const formatApptDate = (starts_at: string | null) => {
     if (!starts_at) return "—";
     const d = new Date(starts_at);
@@ -483,6 +520,7 @@ export default function ClientDetailPage() {
     });
   };
 
+  // === Статус заполненности персональных данных ===
   const privateStatus =
     privateData &&
     (privateData.passport_series ||
@@ -492,7 +530,7 @@ export default function ClientDetailPage() {
       ? "заполнены"
       : "не заполнены";
 
-  // === ЗАГОЛОВОК ДЕЙСТВИЯ ИСТОРИИ ===
+  // === Заголовок действия истории ===
   const getAuditActionLabel = (row: AuditRow) => {
     const a = row.action.toLowerCase();
 
@@ -513,7 +551,7 @@ export default function ClientDetailPage() {
     return row.action;
   };
 
-  // === ОПИСАНИЕ ДЕЙСТВИЯ ИСТОРИИ ===
+  // === Описание события истории ===
   const renderAuditSummary = (row: AuditRow) => {
     const before = row.payload_before || {};
     const after = row.payload_after || {};
@@ -523,12 +561,12 @@ export default function ClientDetailPage() {
 
       if (before.full_name !== after.full_name) {
         changes.push(
-          `ФИО: "${before.full_name || "—"}" → "${after.full_name || "—"}"`
+          `ФИО: "${before.full_name || "—"}" → "${after.full_name || "—"}"`,
         );
       }
       if (before.city !== after.city) {
         changes.push(
-          `Город: "${before.city || "—"}" → "${after.city || "—"}"`
+          `Город: "${before.city || "—"}" → "${after.city || "—"}"`,
         );
       }
 
@@ -546,10 +584,14 @@ export default function ClientDetailPage() {
       const species = after.species || before.species || "";
 
       if (row.action === "create") {
-        return `Создан питомец "${name}"${species ? ` (${species})` : ""}`;
+        return `Создан питомец "${name}"${
+          species ? ` (${species})` : ""
+        }`;
       }
       if (row.action === "delete") {
-        return `Удалён питомец "${name}"${species ? ` (${species})` : ""}`;
+        return `Удалён питомец "${name}"${
+          species ? ` (${species})` : ""
+        }`;
       }
       if (row.action === "update") {
         return `Изменены данные питомца "${name}"`;
@@ -558,10 +600,10 @@ export default function ClientDetailPage() {
 
     return "Изменение данных";
   };
-    return (
+
+  return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-
         {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
@@ -573,7 +615,8 @@ export default function ClientDetailPage() {
             </Link>
             <h1 className="mt-2 text-2xl font-bold tracking-tight">Клиент</h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента, его питомцы, персональные данные и история изменений.
+              Карточка клиента, его питомцы, персональные данные и история
+              изменений.
             </p>
           </div>
           <RegistrarHeader />
@@ -601,21 +644,19 @@ export default function ClientDetailPage() {
         {!loading && !loadError && !owner && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
-              Клиент с идентификатором <span className="font-mono">{idParam}</span> не найден.
+              Клиент с идентификатором{" "}
+              <span className="font-mono">{idParam}</span> не найден.
             </p>
           </section>
         )}
 
-        {/* === ОСНОВНОЙ КОНТЕНТ === */}
+        {/* Основной контент */}
         {!loading && !loadError && owner && (
           <>
-
-            {/* === БЛОК "ОСНОВНАЯ ИНФОРМАЦИЯ" === */}
+            {/* Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">Основная информация</h2>
-
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/backoffice/registrar?ownerId=${owner.user_id}`}
@@ -623,7 +664,6 @@ export default function ClientDetailPage() {
                   >
                     Создать консультацию
                   </Link>
-
                   <button
                     type="button"
                     onClick={() => {
@@ -634,7 +674,6 @@ export default function ClientDetailPage() {
                   >
                     {isEditingOwner ? "Отмена" : "Редактировать клиента"}
                   </button>
-
                   <button
                     type="button"
                     onClick={handleDeleteOwner}
@@ -645,10 +684,8 @@ export default function ClientDetailPage() {
                 </div>
               </div>
 
-              {/* Просмотр или редактирование */}
               {!isEditingOwner ? (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {/* Левый блок */}
                   <div className="space-y-2">
                     <div>
                       <div className="text-[11px] text-gray-500 mb-1">ФИО</div>
@@ -656,46 +693,55 @@ export default function ClientDetailPage() {
                         {owner.full_name || "Без имени"}
                       </div>
                     </div>
-
                     <div>
-                      <div className="text-[11px] text-gray-500 mb-1">Город</div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Город
+                      </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.city || "Не указан"}
                       </div>
                     </div>
-
                     <div>
-                      <div className="text-[11px] text-gray-500 mb-1">ID клиента</div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        ID клиента
+                      </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800">
                         {owner.user_id}
                       </div>
                     </div>
-
                     <div>
-                      <div className="text-[11px] text-gray-500 mb-1">Дата создания</div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Дата создания
+                      </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
-                          ? new Date(owner.created_at).toLocaleString("ru-RU")
+                          ? new Date(owner.created_at).toLocaleString(
+                              "ru-RU",
+                            )
                           : "—"}
                       </div>
                     </div>
                   </div>
 
-                  {/* Контакты */}
                   <div className="space-y-2">
-                    <div className="text-[11px] text-gray-500 mb-1">Контакты</div>
+                    <div className="text-[11px] text-gray-500 mb-1">
+                      Контакты
+                    </div>
                     <div className="rounded-xl border bg-gray-50 px-3 py-2">
                       {renderContacts(owner.extra_contacts)}
                     </div>
                   </div>
                 </div>
               ) : (
-                /* Форма редактирования */
-                <form onSubmit={handleOwnerSave} className="grid gap-4 md:grid-cols-2">
-
+                <form
+                  onSubmit={handleOwnerSave}
+                  className="grid gap-4 md:grid-cols-2"
+                >
                   <div className="space-y-2">
                     <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">ФИО</label>
+                      <label className="text-[11px] text-gray-500 mb-1 block">
+                        ФИО
+                      </label>
                       <input
                         type="text"
                         value={ownerFullName}
@@ -703,9 +749,10 @@ export default function ClientDetailPage() {
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
                       />
                     </div>
-
                     <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">Город</label>
+                      <label className="text-[11px] text-gray-500 mb-1 block">
+                        Город
+                      </label>
                       <input
                         type="text"
                         value={ownerCity}
@@ -713,43 +760,46 @@ export default function ClientDetailPage() {
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
                       />
                     </div>
-
                     <div>
-                      <div className="text-[11px] text-gray-500 mb-1">ID</div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs font-mono">
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        ID клиента
+                      </div>
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800">
                         {owner.user_id}
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[11px] text-gray-500">Контакты</label>
+                    <div className="text-[11px] text-gray-500 mb-1">
+                      Контакты
+                    </div>
                     <div className="rounded-xl border bg-gray-50 px-3 py-2">
                       {renderContacts(owner.extra_contacts)}
                     </div>
                     <p className="text-[10px] text-gray-400">
-                      Контакты пока редактировать нельзя.
+                      Контакты сейчас только для чтения. Позже сделаем
+                      редактирование.
                     </p>
                   </div>
 
-                  {/* Кнопки */}
                   <div className="md:col-span-2 flex justify-end gap-2 pt-2">
                     <button
                       type="button"
                       onClick={() => {
                         setIsEditingOwner(false);
-                        setOwnerFullName(owner.full_name || "");
-                        setOwnerCity(owner.city || "");
+                        setOwnerFullName(owner.full_name ?? "");
+                        setOwnerCity(owner.city ?? "");
+                        setActionError(null);
                       }}
-                      className="rounded-xl border px-3 py-1.5 text-xs text-gray-600"
+                      className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
                     >
                       Отмена
                     </button>
-
                     <button
                       type="submit"
                       disabled={savingOwner}
-                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs text-white"
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
                       {savingOwner ? "Сохраняю…" : "Сохранить"}
                     </button>
@@ -758,64 +808,457 @@ export default function ClientDetailPage() {
               )}
             </section>
 
-            {/* === ПЕРСОНАЛЬНЫЕ ДАННЫЕ === */}
-            (… блок персональных данных — остаётся как в твоём файле из Части 2 …)
+        {/* Персональные данные */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">
+                Персональные данные (паспорт и адреса)
+              </h2>
+              <p className="text-[11px] text-gray-500">
+                Этот блок заполняет регистратор. Клиент не видит эти
+                данные. Используется только при необходимости.
+              </p>
+            </div>
+            <div className="flex flex-col items-end text-[11px] text-gray-500">
+              <span>Статус: {privateStatus}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingPrivate((v) => !v);
+                  setActionError(null);
+                }}
+                className="mt-1 rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+              >
+                {isEditingPrivate ? "Отмена" : "Редактировать"}
+              </button>
+            </div>
+          </div>
 
-            {/* === ПИТОМЦЫ === */}
-            (… блок питомцев — оставь полностью как в Части 2 …)
+          {!isEditingPrivate ? (
+            <div className="space-y-2 text-xs text-gray-700">
+              <div>
+                <span className="font-semibold">Паспорт: </span>
+                {privateData?.passport_series || privateData?.passport_number
+                  ? `${privateData.passport_series || ""} ${
+                      privateData.passport_number || ""
+                    }`.trim()
+                  : "не указан"}
+              </div>
+              <div>
+                <span className="font-semibold">Кем выдан: </span>
+                {privateData?.passport_issued_by || "не указано"}
+              </div>
+              <div>
+                <span className="font-semibold">Дата выдачи: </span>
+                {privateData?.passport_issued_at
+                  ? new Date(
+                      privateData.passport_issued_at,
+                    ).toLocaleDateString("ru-RU")
+                  : "не указана"}
+              </div>
+              <div>
+                <span className="font-semibold">Адрес регистрации: </span>
+                {privateData?.registration_address || "не указан"}
+              </div>
+              <div>
+                <span className="font-semibold">Фактический адрес: </span>
+                {privateData?.actual_address || "не указан"}
+              </div>
+              <div>
+                <span className="font-semibold">Служебные пометки: </span>
+                {privateData?.legal_notes || "нет"}
+              </div>
+            </div>
+          ) : (
+            <form
+              onSubmit={handlePrivateSave}
+              className="space-y-2 text-xs"
+            >
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Серия паспорта
+                  </label>
+                  <input
+                    type="text"
+                    value={privateData?.passport_series || ""}
+                    onChange={(e) =>
+                      setPrivateData((prev) => ({
+                        ...(prev || {}),
+                        passport_series: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Номер паспорта
+                  </label>
+                  <input
+                    type="text"
+                    value={privateData?.passport_number || ""}
+                    onChange={(e) =>
+                      setPrivateData((prev) => ({
+                        ...(prev || {}),
+                        passport_number: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  />
+                </div>
+              </div>
 
-            {/* === ИСТОРИЯ КОНСУЛЬТАЦИЙ === */}
-            (… оставь как в Части 2 …)
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Кем выдан
+                </label>
+                <input
+                  type="text"
+                  value={privateData?.passport_issued_by || ""}
+                  onChange={(e) =>
+                    setPrivateData((prev) => ({
+                      ...(prev || {}),
+                      passport_issued_by: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                />
+              </div>
 
-            {/* === ИСТОРИЯ ИЗМЕНЕНИЙ ПРОФИЛЯ + ПИТОМЦЕВ === */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <h2 className="text-base font-semibold">История изменений</h2>
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Дата выдачи
+                </label>
+                <input
+                  type="date"
+                  value={
+                    privateData?.passport_issued_at
+                      ? privateData.passport_issued_at.substring(0, 10)
+                      : ""
+                  }
+                  onChange={(e) =>
+                    setPrivateData((prev) => ({
+                      ...(prev || {}),
+                      passport_issued_at: e.target.value || null,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                />
+              </div>
 
-              {auditRows.length === 0 && (
-                <p className="text-xs text-gray-400">
-                  История пока пуста. Изменения появятся после редактирования профиля или питомцев.
-                </p>
-              )}
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Адрес регистрации
+                </label>
+                <textarea
+                  value={privateData?.registration_address || ""}
+                  onChange={(e) =>
+                    setPrivateData((prev) => ({
+                      ...(prev || {}),
+                      registration_address: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  rows={2}
+                />
+              </div>
 
-              {auditRows.length > 0 && (
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                      <th className="px-2 py-2">Дата</th>
-                      <th className="px-2 py-2">Тип</th>
-                      <th className="px-2 py-2">Описание</th>
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Фактический адрес
+                </label>
+                <textarea
+                  value={privateData?.actual_address || ""}
+                  onChange={(e) =>
+                    setPrivateData((prev) => ({
+                      ...(prev || {}),
+                      actual_address: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Служебные пометки
+                </label>
+                <textarea
+                  value={privateData?.legal_notes || ""}
+                  onChange={(e) =>
+                    setPrivateData((prev) => ({
+                      ...(prev || {}),
+                      legal_notes: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  rows={3}
+                />
+              </div>
+
+              <div className="pt-1 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingPrivate(false);
+                    setActionError(null);
+                  }}
+                  className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPrivate}
+                  className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {savingPrivate ? "Сохраняю…" : "Сохранить"}
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
+
+        {/* Питомцы */}
+        <section className="rounded-2xl border bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Питомцы</h2>
+          </div>
+
+          {pets.length === 0 && (
+            <p className="text-xs text-gray-400">
+              У клиента пока нет ни одного питомца.
+            </p>
+          )}
+
+          {pets.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                    <th className="px-2 py-2">Имя</th>
+                    <th className="px-2 py-2">Вид / порода</th>
+                    <th className="px-2 py-2">ID</th>
+                    <th className="px-2 py-2 text-right">Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pets.map((p) => (
+                    <tr
+                      key={p.id}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-800">
+                        {p.name || "Без имени"}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-600">
+                        {p.species || "Не указана"}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-500 font-mono">
+                        {p.id}
+                      </td>
+                      <td className="px-2 py-2 align-top text-right space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePet(p.id)}
+                          className="block text-[10px] font-medium text-red-600 hover:underline"
+                        >
+                          Удалить питомца
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-                  <tbody>
-                    {auditRows.map((row) => (
-                      <tr key={row.id} className="border-b hover:bg-gray-50">
-                        <td className="px-2 py-2 text-[11px]">
-                          {new Date(row.created_at).toLocaleString("ru-RU")}
-                        </td>
-
-                        <td className="px-2 py-2 text-[11px]">
-                          {getAuditActionLabel(row)}
-                        </td>
-
-                        <td className="px-2 py-2 text-[11px]">
-                          {renderAuditSummary(row)}
-                        </td>
-                      </tr>
+          {/* Добавление питомца */}
+          <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
+            <h3 className="text-xs font-semibold text-gray-700">
+              Добавить нового питомца этому клиенту
+            </h3>
+            <form onSubmit={handleAddPet} className="space-y-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-gray-500">
+                  Имя питомца <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newPetName}
+                  onChange={(e) => setNewPetName(e.target.value)}
+                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  placeholder="Например: Мурзик"
+                />
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Вид
+                  </label>
+                  <select
+                    value={newPetSpecies}
+                    onChange={(e) =>
+                      setNewPetSpecies(
+                        e.target.value as (typeof SPECIES_OPTIONS)[number],
+                      )
+                    }
+                    className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                  >
+                    {SPECIES_OPTIONS.map((sp) => (
+                      <option key={sp} value={sp}>
+                        {sp}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              )}
+                  </select>
+                  {newPetSpecies === "Другое" && (
+                    <input
+                      type="text"
+                      value={newPetSpeciesOther}
+                      onChange={(e) =>
+                        setNewPetSpeciesOther(e.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border px-3 py-1.5 text-xs"
+                      placeholder="Уточните вид"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Порода / описание
+                  </label>
+                  <input
+                    type="text"
+                    value={newPetBreed}
+                    onChange={(e) => setNewPetBreed(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                    placeholder="Например: британская, метис…"
+                  />
+                </div>
+              </div>
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={addingPet}
+                  className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {addingPet ? "Добавляем…" : "Добавить питомца"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
 
-              {auditRows.length > 0 && (
-                <p className="text-[10px] text-gray-400">
-                  Показаны только последние 10 изменений. Позже сделаем полный журнал.
-                </p>
-              )}
-            </section>
+        {/* История консультаций */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">
+              История консультаций клиента
+            </h2>
+          </div>
 
-          </>
-        )}
+          {appointments.length === 0 && (
+            <p className="text-xs text-gray-400">
+              У клиента пока нет ни одной консультации.
+            </p>
+          )}
+
+          {appointments.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                    <th className="px-2 py-2">Дата / время</th>
+                    <th className="px-2 py-2">Питомец</th>
+                    <th className="px-2 py-2">Услуга (код)</th>
+                    <th className="px-2 py-2">Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appointments.map((a) => (
+                    <tr
+                      key={a.id}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {formatApptDate(a.starts_at)}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {a.pet_name || "Без имени"}
+                        {a.species && (
+                          <span className="text-[10px] text-gray-500">
+                            {" "}
+                            ({a.species})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {a.service_code || "—"}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {a.status || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* История изменений профиля + питомцев */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <h2 className="text-base font-semibold">История изменений</h2>
+
+          {auditRows.length === 0 && (
+            <p className="text-xs text-gray-400">
+              История пока пуста. Изменения появятся после редактирования
+              профиля или питомцев.
+            </p>
+          )}
+
+          {auditRows.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                    <th className="px-2 py-2">Дата</th>
+                    <th className="px-2 py-2">Тип</th>
+                    <th className="px-2 py-2">Описание</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {new Date(row.created_at).toLocaleString("ru-RU")}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {getAuditActionLabel(row)}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {renderAuditSummary(row)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {auditRows.length > 0 && (
+            <p className="text-[10px] text-gray-400">
+              Показаны только последние 10 изменений. Полный журнал можно будет
+              вынести в отдельный раздел.
+            </p>
+          )}
+        </section>
       </main>
     </RoleGuard>
   );
