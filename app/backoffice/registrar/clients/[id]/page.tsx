@@ -32,6 +32,16 @@ type Appointment = {
   service_code: string | null;
 };
 
+type AuditRow = {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  payload_before: any;
+  payload_after: any;
+  created_at: string;
+};
+
 const SPECIES_OPTIONS = [
   "Собака",
   "Кошка",
@@ -49,6 +59,7 @@ export default function ClientDetailPage() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -68,7 +79,7 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // === Загрузка клиента, питомцев и консультаций ===
+  // === Загрузка клиента, питомцев, консультаций и аудита ===
   useEffect(() => {
     let ignore = false;
 
@@ -82,6 +93,7 @@ export default function ClientDetailPage() {
         setOwner(null);
         setPets([]);
         setAppointments([]);
+        setAudit([]);
         setLoading(false);
         setLoadError("Некорректный идентификатор клиента.");
         return;
@@ -92,6 +104,7 @@ export default function ClientDetailPage() {
         setOwner(null);
         setPets([]);
         setAppointments([]);
+        setAudit([]);
         setLoading(false);
         setLoadError("Supabase недоступен на клиенте.");
         return;
@@ -119,7 +132,7 @@ export default function ClientDetailPage() {
         .is("deleted_at", null)
         .order("name", { ascending: true });
 
-      // консультации клиента
+      // консультации этого клиента
       const {
         data: apptData,
         error: apptError,
@@ -130,6 +143,18 @@ export default function ClientDetailPage() {
         )
         .eq("owner_id", ownerKey)
         .order("starts_at", { ascending: false });
+
+      // история изменений по клиенту
+      const {
+        data: auditData,
+        error: auditError,
+      } = await client
+        .from("audit_log")
+        .select("*")
+        .eq("entity_type", "owner")
+        .eq("entity_id", ownerKey.toString())
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (!ignore) {
         if (ownerError) {
@@ -156,6 +181,13 @@ export default function ClientDetailPage() {
           setAppointments([]);
         } else {
           setAppointments((apptData as Appointment[]) || []);
+        }
+
+        if (auditError) {
+          console.error(auditError);
+          setAudit([]);
+        } else {
+          setAudit((auditData as AuditRow[]) || []);
         }
 
         setLoading(false);
@@ -407,6 +439,41 @@ export default function ClientDetailPage() {
     });
   };
 
+  // === Человеческое имя действия лога и краткое описание ===
+  const getAuditActionLabel = (action: string) => {
+    const a = action.toLowerCase();
+    if (a === "create") return "Создание";
+    if (a === "update") return "Изменение";
+    if (a === "delete") return "Удаление";
+    return action;
+  };
+
+  const renderAuditSummary = (row: AuditRow) => {
+    const before = row.payload_before || {};
+    const after = row.payload_after || {};
+
+    const changes: string[] = [];
+
+    if (before.full_name !== after.full_name) {
+      changes.push(
+        `ФИО: "${before.full_name || "—"}" → "${after.full_name || "—"}"`
+      );
+    }
+    if (before.city !== after.city) {
+      changes.push(
+        `Город: "${before.city || "—"}" → "${after.city || "—"}"`
+      );
+    }
+
+    if (changes.length === 0) {
+      if (row.action === "create") return "Создан профиль клиента";
+      if (row.action === "delete") return "Клиент помечен как удалённый";
+      return "Изменение записи клиента";
+    }
+
+    return changes.join("; ");
+  };
+
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
@@ -429,7 +496,7 @@ export default function ClientDetailPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Состояния */}
+        {/* Ошибки / загрузка */}
         {loadError && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-red-700">{loadError}</p>
@@ -467,7 +534,6 @@ export default function ClientDetailPage() {
                   Основная информация
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Создать консультацию для клиента */}
                   <Link
                     href={`/backoffice/registrar?ownerId=${owner.user_id}`}
                     className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
@@ -851,6 +917,63 @@ export default function ClientDetailPage() {
                 <p className="text-[10px] text-gray-400">
                   Показаны последние {appointments.length} консультаций этого
                   клиента.
+                </p>
+              )}
+            </section>
+
+            {/* История изменений клиента (audit_log) */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <h2 className="text-base font-semibold">
+                История изменений профиля клиента
+              </h2>
+
+              {audit.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  Изменений профиля клиента пока не зафиксировано. Журнал
+                  начнёт наполняться при изменении данных клиента.
+                </p>
+              )}
+
+              {audit.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                        <th className="px-2 py-2">Дата / время</th>
+                        <th className="px-2 py-2">Действие</th>
+                        <th className="px-2 py-2">Описание</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {audit.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b last:border-0 hover:bg-gray-50"
+                        >
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {new Date(row.created_at).toLocaleString(
+                              "ru-RU"
+                            )}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {getAuditActionLabel(row.action)}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {renderAuditSummary(row)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {audit.length > 0 && (
+                <p className="text-[10px] text-gray-400">
+                  Журнал изменений строится автоматически по таблице audit_log.
+                  Здесь показаны только изменения профиля клиента. Отдельный
+                  журнал по питомцам и консультациям можно будет добавить
+                  аналогично.
                 </p>
               )}
             </section>
