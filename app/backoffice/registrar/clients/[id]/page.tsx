@@ -47,12 +47,12 @@ export default function ClientDetailPage() {
   const [savingOwner, setSavingOwner] = useState(false);
 
   // Добавление питомца
-  const [addingPet, setAddingPet] = useState(false);
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] =
     useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
   const [newPetSpeciesOther, setNewPetSpeciesOther] = useState("");
   const [newPetBreed, setNewPetBreed] = useState("");
+  const [addingPet, setAddingPet] = useState(false);
 
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -199,7 +199,7 @@ export default function ClientDetailPage() {
     setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
-  // Удаление клиента целиком (с питомцами)
+  // Удаление клиента и всех питомцев
   const handleDeleteOwner = async () => {
     if (
       !owner ||
@@ -219,7 +219,6 @@ export default function ClientDetailPage() {
     setActionError(null);
     setLoading(true);
 
-    // удаляем питомцев
     const { error: petsError } = await client
       .from("pets")
       .delete()
@@ -232,7 +231,6 @@ export default function ClientDetailPage() {
       return;
     }
 
-    // удаляем клиента
     const { error: ownerError } = await client
       .from("owner_profiles")
       .delete()
@@ -252,6 +250,7 @@ export default function ClientDetailPage() {
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
+
     const client = supabase;
     if (!client) {
       setActionError("Supabase недоступен на клиенте.");
@@ -263,8 +262,8 @@ export default function ClientDetailPage() {
       return;
     }
 
-    setActionError(null);
     setAddingPet(true);
+    setActionError(null);
 
     const speciesText =
       newPetSpecies === "Другое"
@@ -291,16 +290,82 @@ export default function ClientDetailPage() {
       return;
     }
 
-    // обновляем локальный список питомцев
     setPets((prev) => [...prev, data as Pet]);
-
-    // сбрасываем форму
     setNewPetName("");
     setNewPetSpecies("Кошка");
     setNewPetSpeciesOther("");
     setNewPetBreed("");
-
     setAddingPet(false);
+  };
+
+  // Красивое форматирование extra_contacts
+  const renderContacts = (extra: any) => {
+    if (!extra) {
+      return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
+    }
+
+    let parsed: Record<string, any> | null = null;
+
+    if (typeof extra === "object" && !Array.isArray(extra)) {
+      parsed = extra as Record<string, any>;
+    } else if (typeof extra === "string") {
+      try {
+        parsed = JSON.parse(extra);
+      } catch {
+        parsed = null;
+      }
+    }
+
+    if (parsed) {
+      const email = parsed.email ?? parsed.mail ?? null;
+      const phone = parsed.phone ?? parsed.tel ?? null;
+      const telegram = parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? null;
+
+      const hasKnown =
+        (email && String(email).trim()) ||
+        (phone && String(phone).trim()) ||
+        (telegram && String(telegram).trim());
+
+      return (
+        <div className="space-y-1 text-xs text-gray-800">
+          {email && (
+            <div>
+              <span className="font-semibold">E-mail: </span>
+              <span>{String(email)}</span>
+            </div>
+          )}
+          {phone && (
+            <div>
+              <span className="font-semibold">Телефон: </span>
+              <span>{String(phone)}</span>
+            </div>
+          )}
+          {telegram && (
+            <div>
+              <span className="font-semibold">Telegram: </span>
+              <span>{String(telegram)}</span>
+            </div>
+          )}
+          {!hasKnown && (
+            <div className="text-gray-500">
+              Контакты указаны, но структура не распознана. Сырые данные:
+            </div>
+          )}
+          {!hasKnown && (
+            <pre className="mt-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+              {JSON.stringify(parsed, null, 2)}
+            </pre>
+          )}
+        </div>
+      );
+    }
+
+    // если это вообще не JSON и не объект — просто покажем как есть
+    return (
+      <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+        {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
+      </pre>
+    );
   };
 
   return (
@@ -320,14 +385,14 @@ export default function ClientDetailPage() {
             </h1>
             <p className="text-sm text-gray-500">
               Карточка клиента и список его питомцев. Питомцы всегда
-              привязаны к этому клиенту, у одного клиента может быть
+              привязаны к этому клиенту. У одного клиента может быть
               несколько животных.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Сообщения об ошибках */}
+        {/* Ошибки */}
         {loadError && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-red-700">{loadError}</p>
@@ -357,7 +422,7 @@ export default function ClientDetailPage() {
 
         {!loading && !loadError && owner && (
           <>
-            {/* Основная информация о клиенте */}
+            {/* Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">
@@ -384,7 +449,6 @@ export default function ClientDetailPage() {
                 </div>
               </div>
 
-              {/* Просмотр / редактирование клиента */}
               {!isEditingOwner ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -426,18 +490,14 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
+                  {/* Контакты — красиво */}
                   <div className="space-y-2">
                     <div className="text-[11px] text-gray-500 mb-1">
-                      Контакты (из extra_contacts)
+                      Контакты
                     </div>
-                    <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap break-words">
-                      {owner.extra_contacts
-                        ? JSON.stringify(owner.extra_contacts, null, 2)
-                        : "Контакты не указаны."}
+                    <div className="rounded-xl border bg-gray-50 px-3 py-2">
+                      {renderContacts(owner.extra_contacts)}
                     </div>
-                    <p className="text-[10px] text-gray-400">
-                      Позже можно будет редактировать контакты напрямую.
-                    </p>
                   </div>
                 </div>
               ) : (
@@ -494,16 +554,14 @@ export default function ClientDetailPage() {
 
                   <div className="space-y-2">
                     <div className="text-[11px] text-gray-500 mb-1">
-                      Контакты (из extra_contacts, только чтение)
+                      Контакты (только чтение)
                     </div>
-                    <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap break-words">
-                      {owner.extra_contacts
-                        ? JSON.stringify(owner.extra_contacts, null, 2)
-                        : "Контакты не указаны."}
+                    <div className="rounded-xl border bg-gray-50 px-3 py-2">
+                      {renderContacts(owner.extra_contacts)}
                     </div>
                     <p className="text-[10px] text-gray-400">
-                      Редактирование контактов добавим позже. Сейчас можно
-                      менять только ФИО и город.
+                      Редактирование контактов будет добавлено позже. Сейчас
+                      можно менять только ФИО и город.
                     </p>
                   </div>
 
@@ -587,10 +645,10 @@ export default function ClientDetailPage() {
                 </div>
               )}
 
-              {/* Форма добавления питомца */}
+              {/* Добавление питомца */}
               <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
                 <h3 className="text-xs font-semibold text-gray-700">
-                  Добавить нового питомца
+                  Добавить нового питомца этому клиенту
                 </h3>
                 <form
                   onSubmit={handleAddPet}
