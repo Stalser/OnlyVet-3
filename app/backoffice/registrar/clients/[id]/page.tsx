@@ -176,7 +176,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // === Сохранение клиента ===
+  // === Сохранение клиента (ФИО / город) ===
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -317,7 +317,7 @@ export default function ClientDetailPage() {
       .single();
 
     if (error || !data) {
-      console.error(error);
+      console.error("add pet error", error);
       setActionError(
         "Не удалось добавить питомца: " +
           (error?.message || "ошибка базы данных")
@@ -452,7 +452,7 @@ export default function ClientDetailPage() {
     }
 
     return (
-      <pre className="rounded-xl bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+      <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
         {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
       </pre>
     );
@@ -491,7 +491,9 @@ export default function ClientDetailPage() {
             >
               ← К картотеке клиентов
             </Link>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight">Клиент</h1>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight">
+              Клиент
+            </h1>
             <p className="text-sm text-gray-500">
               Карточка клиента, его питомцы и персональные данные.
             </p>
@@ -589,7 +591,9 @@ export default function ClientDetailPage() {
                       </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
-                          ? new Date(owner.created_at).toLocaleString("ru-RU")
+                          ? new Date(owner.created_at).toLocaleString(
+                              "ru-RU"
+                            )
                           : "—"}
                       </div>
                     </div>
@@ -724,7 +728,7 @@ export default function ClientDetailPage() {
                 <span className="font-semibold">Дата выдачи: </span>
                 {privateData?.passport_issued_at
                   ? new Date(
-                      privateData.passport_issued_at,
+                      privateData.passport_issued_at
                     ).toLocaleDateString("ru-RU")
                   : "не указана"}
               </div>
@@ -950,7 +954,7 @@ export default function ClientDetailPage() {
           {/* Добавление питомца */}
           <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
             <h3 className="text-xs font-semibold text-gray-700">
-              Добавить нового питомца этому клиенту
+              Добавить нового питомца
             </h3>
             <form onSubmit={handleAddPet} className="space-y-2">
               <div>
@@ -1079,6 +1083,9 @@ export default function ClientDetailPage() {
             </div>
           )}
         </section>
+        </>
+        )}
+
       </main>
     </RoleGuard>
   );
