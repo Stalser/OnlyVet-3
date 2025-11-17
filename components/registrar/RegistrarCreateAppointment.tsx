@@ -105,9 +105,9 @@ export function RegistrarCreateAppointment() {
   const [selectedPetId, setSelectedPetId] = useState<string>("");
 
   // спойлер
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false); // по умолчанию свёрнута
 
-  // ===== 1. Подхват параметров из URL (из расписания) =====
+  // ===== 1. Подхватываем параметры из URL (из расписания) =====
   useEffect(() => {
     const qDoctor = searchParams.get("doctorId");
     const qDate = searchParams.get("date");
@@ -123,7 +123,7 @@ export function RegistrarCreateAppointment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // ===== 2. Загрузка клиентов из owner_profiles =====
+  // ===== 2. Загружаем клиентов =====
   useEffect(() => {
     let ignore = false;
 
@@ -147,9 +147,8 @@ export function RegistrarCreateAppointment() {
             label: o.full_name || `Клиент ${o.user_id}`,
           }));
           setOwners(opts);
-          if (opts.length > 0 && !selectedOwnerId) {
-            setSelectedOwnerId(opts[0].id);
-          }
+          // больше не выставляем selectedOwnerId по умолчанию,
+          // чтобы можно было явно добавить нового клиента позже
         }
         setOwnersLoading(false);
       }
@@ -160,9 +159,9 @@ export function RegistrarCreateAppointment() {
     return () => {
       ignore = true;
     };
-  }, [selectedOwnerId]);
+  }, []);
 
-  // ===== 3. Загрузка питомцев для выбранного клиента =====
+  // ===== 3. Загружаем питомцев выбранного клиента =====
   useEffect(() => {
     let ignore = false;
 
@@ -210,7 +209,7 @@ export function RegistrarCreateAppointment() {
     };
   }, [selectedOwnerId]);
 
-  // При выборе питомца подставляем имя/вид, если поля пустые
+  // При выборе питомца подставляем имя/вид, если ещё ничего не введено
   useEffect(() => {
     if (!selectedPetId) return;
     const pet = pets.find((p) => p.id === selectedPetId);
@@ -223,7 +222,7 @@ export function RegistrarCreateAppointment() {
     }
   }, [selectedPetId, pets]);
 
-  // ===== 4. Формируем строку вида/породы для БД =====
+  // ===== 4. Формируем строку вида/породы =====
   const buildSpeciesString = () => {
     let baseSpecies: string;
     if (petSpeciesType === "Другое") {
@@ -255,7 +254,7 @@ export function RegistrarCreateAppointment() {
     return baseSpecies;
   };
 
-  // ===== 5. Отправка формы =====
+  // ===== 5. Submit =====
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -287,6 +286,7 @@ export function RegistrarCreateAppointment() {
 
     const startsAt = new Date(`${date}T${time}`);
 
+    // owner_id — только существующий клиент, выбранный из селекта
     let owner_id: number | null = null;
     if (selectedOwnerId) {
       const parsed = parseInt(selectedOwnerId, 10);
@@ -295,8 +295,7 @@ export function RegistrarCreateAppointment() {
       }
     }
 
-    const pet_id = selectedPetId || null;
-
+    // контактная строка
     const contactParts: string[] = [];
     if (clientEmail) contactParts.push(`email: ${clientEmail.trim()}`);
     if (clientPhone) contactParts.push(`phone: ${clientPhone.trim()}`);
@@ -306,6 +305,33 @@ export function RegistrarCreateAppointment() {
 
     const speciesString = buildSpeciesString();
 
+    // pet_id: либо существующий, либо создаём нового питомца
+    let pet_id: string | null = selectedPetId || null;
+
+    if (!pet_id && owner_id !== null && petName.trim()) {
+      // автоматическое создание нового питомца для выбранного клиента
+      const { data: newPet, error: petError } = await client
+        .from("pets")
+        .insert({
+          owner_id,
+          name: petName.trim(),
+          species: speciesString || null,
+        })
+        .select("id")
+        .single();
+
+      if (petError) {
+        console.error(petError);
+        // не роняем создание консультации, но предупреждаем
+        setErrorMessage(
+          "Питомец не был добавлен в картотеку, но консультация будет создана. Проверьте таблицу pets."
+        );
+      } else if (newPet) {
+        pet_id = String(newPet.id);
+      }
+    }
+
+    // создаём консультацию
     const { data, error } = await client
       .from("appointments")
       .insert({
@@ -367,7 +393,7 @@ export function RegistrarCreateAppointment() {
       ? CAT_BREEDS
       : ["Другая порода"];
 
-  // ===== 6. Рендер (компактно, вертикально, со спойлером) =====
+  // ===== 6. UI (компактный, под спойлером) =====
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
@@ -378,8 +404,7 @@ export function RegistrarCreateAppointment() {
           </h2>
           <p className="text-xs text-gray-500">
             При создании из расписания врач, услуга, дата и время уже
-            подставлены. Выберите клиента, питомца, заполните контакты и при
-            необходимости скорректируйте данные.
+            подставлены. Выберите клиента и питомца, заполните контакты.
           </p>
         </div>
         <button
@@ -425,7 +450,8 @@ export function RegistrarCreateAppointment() {
                   </div>
                 ) : owners.length === 0 ? (
                   <div className="text-[11px] text-gray-400">
-                    Клиентов пока нет в таблице owner_profiles.
+                    Клиентов пока нет в таблице owner_profiles. Можно
+                    добавить вручную через картотеку.
                   </div>
                 ) : (
                   <select
@@ -436,6 +462,7 @@ export function RegistrarCreateAppointment() {
                     }}
                     className="w-full rounded-xl border px-2 py-1.5 text-xs"
                   >
+                    <option value="">Не выбран</option>
                     {owners.map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.label}
@@ -443,9 +470,14 @@ export function RegistrarCreateAppointment() {
                     ))}
                   </select>
                 )}
+                <p className="mt-1 text-[10px] text-gray-400">
+                  Автоматическое добавление нового клиента из этой формы
+                  будет реализовано позже. Сейчас выбирается только
+                  существующий клиент.
+                </p>
               </div>
 
-              {/* ФИО в одну строку */}
+              {/* ФИО клиента (для заметки) */}
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   ФИО клиента (для заметки)
@@ -510,7 +542,9 @@ export function RegistrarCreateAppointment() {
                   <input
                     type="text"
                     value={clientTelegram}
-                    onChange={(e) => setClientTelegram(e.target.value)}
+                    onChange={(e) =>
+                      setClientTelegram(e.target.value)
+                    }
                     className="w-full rounded-xl border px-2 py-1.5 text-xs"
                     placeholder="@username"
                   />
@@ -521,7 +555,7 @@ export function RegistrarCreateAppointment() {
 
           {/* Питомец */}
           <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify_between">
               <span className="text-xs font-semibold text-gray-700">
                 Питомец
               </span>
@@ -547,7 +581,7 @@ export function RegistrarCreateAppointment() {
                     onChange={(e) => setSelectedPetId(e.target.value)}
                     className="w-full rounded-xl border px-2 py-1.5 text-xs"
                   >
-                    <option value="">Не выбрано</option>
+                    <option value="">Новый питомец (по данным ниже)</option>
                     {pets.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label}
@@ -557,12 +591,13 @@ export function RegistrarCreateAppointment() {
                 )}
                 {selectedOwnerId && !petsLoading && pets.length === 0 && (
                   <div className="text-[11px] text-gray-400">
-                    У этого клиента пока нет ни одного питомца.
+                    У этого клиента пока нет питомцев. Можно указать
+                    данные ниже — питомец будет добавлен автоматически.
                   </div>
                 )}
                 {!selectedOwnerId && (
                   <div className="text-[11px] text-gray-400">
-                    Сначала выберите клиента.
+                    Сначала выберите клиента, чтобы увидеть его питомцев.
                   </div>
                 )}
               </div>
@@ -581,64 +616,52 @@ export function RegistrarCreateAppointment() {
                 />
               </div>
 
-              {/* Вид */}
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Вид
-                </label>
-                <select
-                  value={petSpeciesType}
-                  onChange={(e) =>
-                    setPetSpeciesType(
-                      e.target.value as (typeof SPECIES_OPTIONS)[number]
-                    )
-                  }
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                >
-                  {SPECIES_OPTIONS.map((sp) => (
-                    <option key={sp} value={sp}>
-                      {sp}
-                    </option>
-                  ))}
-                </select>
-                {petSpeciesType === "Другое" && (
+              {/* Вид и порода */}
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Вид
+                  </label>
+                  <select
+                    value={petSpeciesType}
+                    onChange={(e) =>
+                      setPetSpeciesType(
+                        e.target
+                          .value as (typeof SPECIES_OPTIONS)[number]
+                      )
+                    }
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  >
+                    {SPECIES_OPTIONS.map((sp) => (
+                      <option key={sp} value={sp}>
+                        {sp}
+                      </option>
+                    ))}
+                  </select>
+                  {petSpeciesType === "Другое" && (
+                    <input
+                      type="text"
+                      value={petSpeciesOther}
+                      onChange={(e) =>
+                        setPetSpeciesOther(e.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
+                      placeholder="Уточните вид"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-gray-500">
+                    Порода / описание
+                  </label>
                   <input
                     type="text"
-                    value={petSpeciesOther}
-                    onChange={(e) => setPetSpeciesOther(e.target.value)}
-                    className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
-                    placeholder="Уточните вид животного"
+                    value={petBreed}
+                    onChange={(e) => setPetBreed(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                    placeholder="Например: британская, метис..."
                   />
-                )}
-              </div>
-
-              {/* Порода */}
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Порода
-                </label>
-                <select
-                  value={petBreed}
-                  onChange={(e) => setPetBreed(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                >
-                  <option value="">Не указана</option>
-                  {currentBreedOptions.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                {(petBreed === "Другая порода" ||
-                  petSpeciesType === "Другое") && (
-                  <input
-                    type="text"
-                    value={petBreedOther}
-                    onChange={(e) => setPetBreedOther(e.target.value)}
-                    className="mt-2 w-full rounded-xl border px-2 py-1.5 text-xs"
-                    placeholder="Уточните породу"
-                  />
-                )}
+                </div>
               </div>
             </div>
           </div>
@@ -684,7 +707,7 @@ export function RegistrarCreateAppointment() {
             </div>
           </div>
 
-          {/* Формат связи: Телемост */}
+          {/* Формат связи */}
           <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-700">
@@ -724,7 +747,7 @@ export function RegistrarCreateAppointment() {
             </div>
           </div>
 
-          {/* Дата и время + кнопка */}
+          {/* Дата / время + кнопка */}
           <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
             <div className="text-xs font-semibold text-gray-700">
               Дата и время
