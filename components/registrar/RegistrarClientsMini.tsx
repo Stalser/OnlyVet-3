@@ -1,86 +1,107 @@
-"use client";
-
 import Link from "next/link";
-import type { OwnerSummary } from "@/lib/clients";
 
-interface Props {
-  owners: OwnerSummary[];
+interface RegistrarClientsMiniProps {
+  owners: any[];
 }
 
-export function RegistrarClientsMini({ owners }: Props) {
-  const limited = owners.slice(0, 5); // показываем максимум 5 клиентов
+export function RegistrarClientsMini({ owners }: RegistrarClientsMiniProps) {
+  const total = owners.length;
 
   return (
-    <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="rounded-2xl border bg-white p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">
+          <h2 className="text-sm font-semibold text-gray-900">
             Краткая картотека клиентов
           </h2>
-          <p className="text-xs text-gray-500">
-            Показаны последние {limited.length} клиентов. Всего в базе:{" "}
-            {owners.length}.
+          <p className="text-[11px] text-gray-500">
+            Быстрый доступ к последним клиентам. Полный список доступен в
+            разделе &quot;Картотека клиентов&quot;.
           </p>
         </div>
-        <Link
-          href="/backoffice/registrar/clients"
-          className="text-xs font-medium text-emerald-700 hover:underline"
-        >
-          Открыть картотеку клиентов →
-        </Link>
+        <div className="flex flex-col items-end gap-1">
+          <div className="text-[11px] text-gray-500">
+            Всего клиентов в системе:
+          </div>
+          <div className="text-xl font-semibold text-gray-900">
+            {total}
+          </div>
+          <Link
+            href="/backoffice/registrar/clients"
+            className="mt-1 rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+          >
+            Открыть картотеку →
+          </Link>
+        </div>
       </div>
 
-      {owners.length === 0 && (
+      {total === 0 && (
         <p className="text-xs text-gray-400">
-          Клиентов пока нет. Профили владельцев появятся здесь, когда вы
-          начнёте заполнять таблицу owner_profiles.
+          Клиентов пока нет. Они появятся после добавления через картотеку или
+          автоматического создания при новых консультациях.
         </p>
       )}
 
-      {owners.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                <th className="px-2 py-2">Клиент</th>
-                <th className="px-2 py-2">Город</th>
-                <th className="px-2 py-2">Питомцев</th>
-                <th className="px-2 py-2">Консультаций</th>
-                <th className="px-2 py-2 text-right">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {limited.map((o) => (
-                <tr
-                  key={o.ownerId}
-                  className="border-b last:border-0 hover:bg-gray-50"
+      {total > 0 && (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] text-gray-500">
+            Последние клиенты:
+          </p>
+          <ul className="space-y-1">
+            {owners.slice(0, 5).map((o: any) => {
+              const id = o.id ?? o.user_id;
+              const name =
+                o.fullName ??
+                o.full_name ??
+                o.name ??
+                "Без имени";
+              const city = o.city ?? "—";
+              const petsCount =
+                o.petsCount ?? o.totalPets ?? o.petCount ?? 0;
+
+              return (
+                <li
+                  key={id}
+                  className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs hover:bg-gray-50"
                 >
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px] font-medium">
-                      {o.fullName}
+                  <div>
+                    <div className="font-medium text-gray-900">
+                      {name}
                     </div>
-                  </td>
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px] text-gray-700">
-                      {o.city || "—"}
+                    <div className="text-[10px] text-gray-500">
+                      Город: {city || "—"}
                     </div>
-                  </td>
-                  <td className="px-2 py-2 align-top">{o.petsCount}</td>
-                  <td className="px-2 py-2 align-top">
-                    {o.appointmentsCount}
-                  </td>
-                  <td className="px-2 py-2 align-top text-right">
-                    <Link
-                      href={`/backoffice/registrar/clients/${o.ownerId}`}
-                      className="text-[11px] font-medium text-emerald-700 hover:underline"
-                    >
-                      Карточка
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="text-[10px] text-gray-500">
+                      {petsCount > 0 ? (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
+                          {petsCount}{" "}
+                          {petsCount === 1
+                            ? "питомец"
+                            : petsCount < 5
+                            ? "питомца"
+                            : "питомцев"}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-400">
+                          нет питомцев
+                        </span>
+                      )}
+                    </div>
+                    {id && (
+                      <Link
+                        href={`/backoffice/registrar/clients/${id}`}
+                        className="text-[10px] font-medium text-emerald-700 hover:underline"
+                      >
+                        Открыть →
+                      </Link>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </section>
