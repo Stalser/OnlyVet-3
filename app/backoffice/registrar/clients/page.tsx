@@ -11,7 +11,9 @@ interface ClientsListPageProps {
   };
 }
 
-export default async function ClientsListPage({ searchParams }: ClientsListPageProps) {
+export default async function ClientsListPage({
+  searchParams,
+}: ClientsListPageProps) {
   const owners: OwnerSummary[] = await getOwnersSummary();
   const q = (searchParams?.q || "").trim().toLowerCase();
 
@@ -33,6 +35,14 @@ export default async function ClientsListPage({ searchParams }: ClientsListPageP
       })
     : owners;
 
+  const total = filteredOwners.length;
+  const withPets = filteredOwners.filter((o: any) => {
+    const pc =
+      o.petsCount ?? o.totalPets ?? o.petCount ?? 0;
+    return (pc as number) > 0;
+  }).length;
+  const withoutPets = total - withPets;
+
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
@@ -49,8 +59,8 @@ export default async function ClientsListPage({ searchParams }: ClientsListPageP
               Картотека клиентов
             </h1>
             <p className="text-sm text-gray-500">
-              Список владельцев, зарегистрированных в системе. Фильтр по
-              имени, городу или контактам.
+              Список владельцев и их питомцев. Поиск по имени, городу или
+              контактам.
             </p>
           </div>
           <RegistrarHeader />
@@ -94,17 +104,53 @@ export default async function ClientsListPage({ searchParams }: ClientsListPageP
           )}
         </section>
 
-        {/* Список клиентов */}
-        <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Клиенты</h2>
-            {/* Теперь это живая кнопка */}
+        {/* Краткая сводка по картотеке */}
+        <section className="rounded-2xl border bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs font-semibold text-gray-700">
+              Сводка по картотеке (по текущему фильтру)
+            </div>
             <Link
               href="/backoffice/registrar/clients/new"
               className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
             >
               Добавить клиента
             </Link>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3 text-xs">
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">Клиентов</div>
+              <div className="mt-1 text-xl font-semibold text-gray-900">
+                {total}
+              </div>
+            </div>
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">
+                Клиентов с питомцами
+              </div>
+              <div className="mt-1 text-xl font-semibold text-gray-900">
+                {withPets}
+              </div>
+            </div>
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">
+                Клиентов без питомцев
+              </div>
+              <div className="mt-1 text-xl font-semibold text-gray-900">
+                {withoutPets}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Список клиентов */}
+        <section className="rounded-2xl border bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">Клиенты</h2>
+            <span className="text-[11px] text-gray-500">
+              Нажмите &quot;Открыть&quot; для просмотра карточки клиента и
+              его питомцев
+            </span>
           </div>
 
           {filteredOwners.length === 0 && (
@@ -121,7 +167,7 @@ export default async function ClientsListPage({ searchParams }: ClientsListPageP
                   <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
                     <th className="px-2 py-2">Клиент</th>
                     <th className="px-2 py-2">Город</th>
-                    <th className="px-2 py-2">Питомцев</th>
+                    <th className="px-2 py-2">Питомцы</th>
                     <th className="px-2 py-2">Последняя активность</th>
                     <th className="px-2 py-2 text-right">Действия</th>
                   </tr>
@@ -151,18 +197,40 @@ export default async function ClientsListPage({ searchParams }: ClientsListPageP
                         key={id}
                         className="border-b last:border-0 hover:bg-gray-50"
                       >
+                        {/* Клиент */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-800">
                           {name}
                         </td>
+
+                        {/* Город */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {city || "—"}
                         </td>
+
+                        {/* Питомцы */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
-                          {petsCount}
+                          {petsCount > 0 ? (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
+                              {petsCount}{" "}
+                              {petsCount === 1
+                                ? "питомец"
+                                : petsCount < 5
+                                ? "питомца"
+                                : "питомцев"}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">
+                              нет питомцев
+                            </span>
+                          )}
                         </td>
+
+                        {/* Последняя активность */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {lastActivity}
                         </td>
+
+                        {/* Действия */}
                         <td className="px-2 py-2 align-top text-right">
                           {id ? (
                             <Link
