@@ -107,7 +107,7 @@ export default function NewClientPage() {
             (petError.message || "")
         );
         setSaving(false);
-        // Всё равно переходим в карточку клиента — питомца можно добавить там
+        // всё равно переходим в карточку клиента — питомца можно добавить там
         router.push(`/backoffice/registrar/clients/${ownerId}`);
         return;
       }
@@ -121,7 +121,7 @@ export default function NewClientPage() {
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         {/* Шапка */}
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify_between">
           <div>
             <Link
               href="/backoffice/registrar/clients"
