@@ -21,6 +21,15 @@ type Pet = {
   species: string | null;
 };
 
+const SPECIES_OPTIONS = [
+  "Собака",
+  "Кошка",
+  "Грызун",
+  "Птица",
+  "Рептилия",
+  "Другое",
+] as const;
+
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -31,11 +40,19 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // режим редактирования владельца
+  // Редактирование владельца
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
+
+  // Добавление питомца
+  const [addingPet, setAddingPet] = useState(false);
+  const [newPetName, setNewPetName] = useState("");
+  const [newPetSpecies, setNewPetSpecies] =
+    useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
+  const [newPetSpeciesOther, setNewPetSpeciesOther] = useState("");
+  const [newPetBreed, setNewPetBreed] = useState("");
 
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -171,10 +188,7 @@ export default function ClientDetailPage() {
 
     setActionError(null);
 
-    const { error } = await client
-      .from("pets")
-      .delete()
-      .eq("id", petId);
+    const { error } = await client.from("pets").delete().eq("id", petId);
 
     if (error) {
       console.error(error);
@@ -205,7 +219,7 @@ export default function ClientDetailPage() {
     setActionError(null);
     setLoading(true);
 
-    // сначала удаляем питомцев
+    // удаляем питомцев
     const { error: petsError } = await client
       .from("pets")
       .delete()
@@ -218,7 +232,7 @@ export default function ClientDetailPage() {
       return;
     }
 
-    // затем самого клиента
+    // удаляем клиента
     const { error: ownerError } = await client
       .from("owner_profiles")
       .delete()
@@ -231,8 +245,62 @@ export default function ClientDetailPage() {
       return;
     }
 
-    // возвращаемся к списку
     router.push("/backoffice/registrar/clients");
+  };
+
+  // Добавление нового питомца
+  const handleAddPet = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!owner) return;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    if (!newPetName.trim()) {
+      setActionError("Укажите имя питомца.");
+      return;
+    }
+
+    setActionError(null);
+    setAddingPet(true);
+
+    const speciesText =
+      newPetSpecies === "Другое"
+        ? newPetSpeciesOther.trim() || "другое"
+        : newPetSpecies;
+    const fullSpecies = newPetBreed.trim()
+      ? `${speciesText}, ${newPetBreed.trim()}`
+      : speciesText;
+
+    const { data, error } = await client
+      .from("pets")
+      .insert({
+        owner_id: owner.user_id,
+        name: newPetName.trim(),
+        species: fullSpecies,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      console.error(error);
+      setActionError("Не удалось добавить питомца.");
+      setAddingPet(false);
+      return;
+    }
+
+    // обновляем локальный список питомцев
+    setPets((prev) => [...prev, data as Pet]);
+
+    // сбрасываем форму
+    setNewPetName("");
+    setNewPetSpecies("Кошка");
+    setNewPetSpeciesOther("");
+    setNewPetBreed("");
+
+    setAddingPet(false);
   };
 
   return (
@@ -251,15 +319,15 @@ export default function ClientDetailPage() {
               Клиент
             </h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента и список его питомцев. Можно редактировать
-              основные данные и удалять питомцев. Удаление клиента приводит
-              к удалению всех его питомцев.
+              Карточка клиента и список его питомцев. Питомцы всегда
+              привязаны к этому клиенту, у одного клиента может быть
+              несколько животных.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Сообщения об ошибках/состоянии */}
+        {/* Сообщения об ошибках */}
         {loadError && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-red-700">{loadError}</p>
@@ -298,7 +366,10 @@ export default function ClientDetailPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsEditingOwner((v) => !v)}
+                    onClick={() => {
+                      setIsEditingOwner((v) => !v);
+                      setActionError(null);
+                    }}
                     className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
                   >
                     {isEditingOwner ? "Отмена" : "Редактировать клиента"}
@@ -313,7 +384,7 @@ export default function ClientDetailPage() {
                 </div>
               </div>
 
-              {/* Режим просмотра или редактирования */}
+              {/* Просмотр / редактирование клиента */}
               {!isEditingOwner ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -355,24 +426,17 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
-                  {/* Контакты (extra_contacts) */}
                   <div className="space-y-2">
                     <div className="text-[11px] text-gray-500 mb-1">
                       Контакты (из extra_contacts)
                     </div>
                     <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap break-words">
                       {owner.extra_contacts
-                        ? JSON.stringify(
-                            owner.extra_contacts,
-                            null,
-                            2
-                          )
+                        ? JSON.stringify(owner.extra_contacts, null, 2)
                         : "Контакты не указаны."}
                     </div>
                     <p className="text-[10px] text-gray-400">
-                      В будущем здесь можно будет красиво разобрать контакты
-                      по полям (e-mail, телефон, Telegram) и редактировать
-                      их прямо в интерфейсе.
+                      Позже можно будет редактировать контакты напрямую.
                     </p>
                   </div>
                 </div>
@@ -408,7 +472,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div>
                       <div className="text-[11px] text-gray-500 mb-1">
-                        ID клиента (read-only)
+                        ID клиента (только чтение)
                       </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800">
                         {owner.user_id}
@@ -428,23 +492,18 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
-                  {/* Контакты пока read-only */}
                   <div className="space-y-2">
                     <div className="text-[11px] text-gray-500 mb-1">
                       Контакты (из extra_contacts, только чтение)
                     </div>
                     <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap break-words">
                       {owner.extra_contacts
-                        ? JSON.stringify(
-                            owner.extra_contacts,
-                            null,
-                            2
-                          )
+                        ? JSON.stringify(owner.extra_contacts, null, 2)
                         : "Контакты не указаны."}
                     </div>
                     <p className="text-[10px] text-gray-400">
-                      Редактирование контактов будет добавлено позже. Сейчас
-                      можно менять только ФИО и город.
+                      Редактирование контактов добавим позже. Сейчас можно
+                      менять только ФИО и город.
                     </p>
                   </div>
 
@@ -466,9 +525,7 @@ export default function ClientDetailPage() {
                       disabled={savingOwner}
                       className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
-                      {savingOwner
-                        ? "Сохраняю…"
-                        : "Сохранить изменения"}
+                      {savingOwner ? "Сохраняю…" : "Сохранить изменения"}
                     </button>
                   </div>
                 </form>
@@ -476,18 +533,12 @@ export default function ClientDetailPage() {
             </section>
 
             {/* Питомцы клиента */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify_between">
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
+              <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Питомцы</h2>
-                <button
-                  type="button"
-                  className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-500 cursor-not-allowed"
-                  disabled
-                >
-                  Добавить питомца (скоро)
-                </button>
               </div>
 
+              {/* Список питомцев */}
               {pets.length === 0 && (
                 <p className="text-xs text-gray-400">
                   У этого клиента пока нет ни одного питомца в базе.
@@ -501,7 +552,7 @@ export default function ClientDetailPage() {
                       <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
                         <th className="px-2 py-2">Имя</th>
                         <th className="px-2 py-2">Вид / порода</th>
-                        <th className="px-2 py-2">Идентификатор</th>
+                        <th className="px-2 py-2">ID</th>
                         <th className="px-2 py-2 text-right">Действия</th>
                       </tr>
                     </thead>
@@ -535,6 +586,87 @@ export default function ClientDetailPage() {
                   </table>
                 </div>
               )}
+
+              {/* Форма добавления питомца */}
+              <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
+                <h3 className="text-xs font-semibold text-gray-700">
+                  Добавить нового питомца
+                </h3>
+                <form
+                  onSubmit={handleAddPet}
+                  className="space-y-2"
+                >
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Имя питомца <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newPetName}
+                      onChange={(e) => setNewPetName(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      placeholder="Например: Мурзик"
+                    />
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Вид
+                      </label>
+                      <select
+                        value={newPetSpecies}
+                        onChange={(e) =>
+                          setNewPetSpecies(
+                            e.target
+                              .value as (typeof SPECIES_OPTIONS)[number]
+                          )
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      >
+                        {SPECIES_OPTIONS.map((sp) => (
+                          <option key={sp} value={sp}>
+                            {sp}
+                          </option>
+                        ))}
+                      </select>
+                      {newPetSpecies === "Другое" && (
+                        <input
+                          type="text"
+                          value={newPetSpeciesOther}
+                          onChange={(e) =>
+                            setNewPetSpeciesOther(e.target.value)
+                          }
+                          className="mt-2 w-full rounded-xl border px-3 py-1.5 text-xs"
+                          placeholder="Уточните вид"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Порода / описание
+                      </label>
+                      <input
+                        type="text"
+                        value={newPetBreed}
+                        onChange={(e) => setNewPetBreed(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        placeholder="Например: британская, метис..."
+                      />
+                    </div>
+                  </div>
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={addingPet}
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {addingPet
+                        ? "Добавляем питомца…"
+                        : "Добавить питомца"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </section>
           </>
         )}
