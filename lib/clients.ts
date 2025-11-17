@@ -43,25 +43,50 @@ function extractContacts(extra: any): { email?: string; phone?: string } {
 
 /**
  * Суммарная информация по клиентам.
+ * Учитывает soft-delete для owner_profiles и pets.
  */
 export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   if (!supabase) return [];
 
+  // Берём только не удалённых клиентов
   const { data: owners, error: ownersError } = await supabase
     .from("owner_profiles")
-    .select("*");
+    .select("*")
+    .is("deleted_at", null)
+    .order("full_name", { ascending: true });
 
   if (ownersError || !owners) {
+    console.error("getOwnersSummary ownersError", ownersError);
     return [];
   }
 
-  const { data: pets } = await supabase
-    .from("pets")
-    .select("id, owner_id");
+  const ownerIds = owners.map((o: any) => o.user_id) as number[];
 
-  const { data: appts } = await supabase
+  // Если клиентов нет — выходим
+  if (ownerIds.length === 0) {
+    return [];
+  }
+
+  // Считаем количество не удалённых питомцев на каждого владельца
+  const { data: pets, error: petsError } = await supabase
+    .from("pets")
+    .select("id, owner_id")
+    .in("owner_id", ownerIds)
+    .is("deleted_at", null);
+
+  if (petsError) {
+    console.error("getOwnersSummary petsError", petsError);
+  }
+
+  const { data: appts, error: apptsError } = await supabase
     .from("appointments")
-    .select("id, owner_id");
+    .select("id, owner_id")
+    .in("owner_id", ownerIds);
+    // soft-delete для appointments добавим позже, когда внедрим deleted_at туда
+
+  if (apptsError) {
+    console.error("getOwnersSummary apptsError", apptsError);
+  }
 
   const petsCountMap = new Map<string, number>();
   (pets ?? []).forEach((p: any) => {
@@ -78,7 +103,7 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   });
 
   return owners.map((o: any) => {
-    const key = String(o.user_id); // это основной идентификатор клиента
+    const key = String(o.user_id); // основной идентификатор клиента
     const fullName = o.full_name || "Без имени";
     const city = o.city || undefined;
     const { email, phone } = extractContacts(o.extra_contacts);
@@ -115,8 +140,10 @@ async function getOwnerAppointments(
     )
     .eq("owner_id", ownerKey)
     .order("starts_at", { ascending: false });
+    // когда добавим deleted_at в appointments, сюда тоже можно будет добавить .is("deleted_at", null)
 
   if (error || !data) {
+    console.error("getOwnerAppointments error", error);
     return [];
   }
 
@@ -145,12 +172,13 @@ async function getOwnerAppointments(
     );
     const serviceName = service?.name ?? "Услуга";
 
-    const clientName = "Без имени"; // можно будет подтянуть из owner_profiles при отображении
+    const clientName = "Без имени"; // при желании можно подтянуть из owner_profiles
 
     return {
       id: String(row.id ?? index),
       dateLabel,
       createdLabel,
+      startsAt: row.starts_at ?? null,
       clientName,
       clientContact: "",
       petName: row.pet_name ?? "",
@@ -160,12 +188,15 @@ async function getOwnerAppointments(
       serviceName,
       serviceCode: row.service_code ?? "",
       statusLabel: row.status ?? "неизвестно",
+      videoPlatform: null,
+      videoUrl: null,
     };
   });
 }
 
 /**
  * Детали конкретного клиента + его питомцы + его консультации.
+ * Тоже учитывает soft-delete для владельца и питомцев.
  */
 export async function getOwnerWithPets(
   ownerId: string
@@ -175,17 +206,31 @@ export async function getOwnerWithPets(
   }
 
   const ownerKey = parseInt(ownerId, 10);
+  if (Number.isNaN(ownerKey)) {
+    return { owner: null, pets: [], appointments: [] };
+  }
 
-  const { data: owner } = await supabase
+  const { data: owner, error: ownerError } = await supabase
     .from("owner_profiles")
     .select("*")
     .eq("user_id", ownerKey)
+    .is("deleted_at", null)
     .maybeSingle();
 
-  const { data: pets } = await supabase
+  if (ownerError) {
+    console.error("getOwnerWithPets ownerError", ownerError);
+  }
+
+  const { data: pets, error: petsError } = await supabase
     .from("pets")
     .select("*")
-    .eq("owner_id", ownerKey);
+    .eq("owner_id", ownerKey)
+    .is("deleted_at", null)
+    .order("name", { ascending: true });
+
+  if (petsError) {
+    console.error("getOwnerWithPets petsError", petsError);
+  }
 
   const appointments = await getOwnerAppointments(ownerId);
 
