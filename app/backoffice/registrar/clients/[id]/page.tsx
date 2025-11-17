@@ -41,6 +41,16 @@ type OwnerPrivateData = {
   legal_notes?: string | null;
 };
 
+type AuditRow = {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  payload_before: any;
+  payload_after: any;
+  created_at: string;
+};
+
 const SPECIES_OPTIONS = [
   "Собака",
   "Кошка",
@@ -61,6 +71,7 @@ export default function ClientDetailPage() {
   const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(
     null
   );
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -85,7 +96,7 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // === Загрузка клиента, питомцев, консультаций и персональных данных ===
+  // === Загрузка всех данных по клиенту ===
   useEffect(() => {
     let ignore = false;
 
@@ -100,6 +111,7 @@ export default function ClientDetailPage() {
         setPets([]);
         setAppointments([]);
         setPrivateData(null);
+        setAuditRows([]);
         setLoading(false);
         setLoadError("Некорректный идентификатор клиента.");
         return;
@@ -111,12 +123,13 @@ export default function ClientDetailPage() {
         setPets([]);
         setAppointments([]);
         setPrivateData(null);
+        setAuditRows([]);
         setLoading(false);
         setLoadError("Supabase недоступен на клиенте.");
         return;
       }
 
-      // клиент (не удалённый)
+      // 1. Клиент
       const {
         data: ownerData,
         error: ownerError,
@@ -127,7 +140,7 @@ export default function ClientDetailPage() {
         .is("deleted_at", null)
         .maybeSingle();
 
-      // питомцы (все, привязанные к owner_id)
+      // 2. Питомцы
       const {
         data: petsData,
         error: petsError,
@@ -137,7 +150,7 @@ export default function ClientDetailPage() {
         .eq("owner_id", ownerKey)
         .order("name", { ascending: true });
 
-      // консультации этого клиента
+      // 3. Консультации
       const {
         data: apptData,
         error: apptError,
@@ -149,7 +162,7 @@ export default function ClientDetailPage() {
         .eq("owner_id", ownerKey)
         .order("starts_at", { ascending: false });
 
-      // персональные данные
+      // 4. Персональные данные
       const {
         data: privData,
         error: privError,
@@ -160,6 +173,18 @@ export default function ClientDetailPage() {
         )
         .eq("owner_id", ownerKey)
         .maybeSingle();
+
+      // 5. История изменений профиля (audit_log)
+      const {
+        data: auditData,
+        error: auditError,
+      } = await client
+        .from("audit_log")
+        .select("*")
+        .eq("entity_type", "owner")
+        .eq("entity_id", ownerKey.toString())
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (!ignore) {
         if (ownerError) {
@@ -195,6 +220,13 @@ export default function ClientDetailPage() {
           setPrivateData((privData as OwnerPrivateData) ?? null);
         }
 
+        if (auditError) {
+          console.error(auditError);
+          setAuditRows([]);
+        } else {
+          setAuditRows((auditData as AuditRow[]) || []);
+        }
+
         setLoading(false);
       }
     }
@@ -206,7 +238,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // === Сохранение изменений клиента (ФИО/город) ===
+  // === Сохранение клиента ===
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -249,7 +281,7 @@ export default function ClientDetailPage() {
     setIsEditingOwner(false);
   };
 
-  // === Удаление клиента (soft-delete по deleted_at) ===
+  // === Удаление клиента (soft-delete) ===
   const handleDeleteOwner = async () => {
     if (
       !owner ||
@@ -284,7 +316,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // === Удаление питомца (пока жёстко delete, без deleted_at) ===
+  // === Удаление питомца (пока жёсткое delete) ===
   const handleDeletePet = async (petId: string) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
@@ -303,7 +335,9 @@ export default function ClientDetailPage() {
 
     if (error) {
       console.error(error);
-      setActionError("Не удалось удалить питомца.");
+      setActionError(
+        "Не удалось удалить питомца: " + (error.message || "")
+      );
       return;
     }
 
@@ -348,8 +382,11 @@ export default function ClientDetailPage() {
       .single();
 
     if (error || !data) {
-      console.error(error);
-      setActionError("Не удалось добавить питомца.");
+      console.error("add pet error", error);
+      setActionError(
+        "Не удалось добавить питомца: " +
+          (error?.message || "ошибка базы данных")
+      );
       setAddingPet(false);
       return;
     }
@@ -479,7 +516,7 @@ export default function ClientDetailPage() {
     }
 
     return (
-      <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+      <pre className="rounded-xl bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
         {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
       </pre>
     );
@@ -505,6 +542,41 @@ export default function ClientDetailPage() {
       privateData.actual_address)
       ? "заполнены"
       : "не заполнены";
+
+  // === Расшифровка действий audit_log для профиля клиента ===
+  const getAuditActionLabel = (action: string) => {
+    const a = action.toLowerCase();
+    if (a === "create") return "Создание профиля";
+    if (a === "update") return "Изменение профиля";
+    if (a === "delete") return "Удаление профиля";
+    return action;
+  };
+
+  const renderAuditSummary = (row: AuditRow) => {
+    const before = row.payload_before || {};
+    const after = row.payload_after || {};
+
+    const changes: string[] = [];
+
+    if (before.full_name !== after.full_name) {
+      changes.push(
+        `ФИО: "${before.full_name || "—"}" → "${after.full_name || "—"}"`
+      );
+    }
+    if (before.city !== after.city) {
+      changes.push(
+        `Город: "${before.city || "—"}" → "${after.city || "—"}"`
+      );
+    }
+
+    if (changes.length === 0) {
+      if (row.action === "create") return "Создан профиль клиента";
+      if (row.action === "delete") return "Клиент помечен как удалённый";
+      return "Изменение записи клиента";
+    }
+
+    return changes.join("; ");
+  };
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -954,7 +1026,7 @@ export default function ClientDetailPage() {
 
             {/* Питомцы */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex items-center justify_between">
+              <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Питомцы</h2>
               </div>
 
@@ -1168,6 +1240,62 @@ export default function ClientDetailPage() {
                 <p className="text-[10px] text-gray-400">
                   Показаны последние {appointments.length} консультаций этого
                   клиента.
+                </p>
+              )}
+            </section>
+
+            {/* История изменений профиля клиента */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <h2 className="text-base font-semibold">
+                История изменений профиля клиента
+              </h2>
+
+              {auditRows.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  Изменений профиля клиента пока не зафиксировано. Журнал
+                  начнёт наполняться при изменении данных клиента.
+                </p>
+              )}
+
+              {auditRows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                        <th className="px-2 py-2">Дата / время</th>
+                        <th className="px-2 py-2">Действие</th>
+                        <th className="px-2 py-2">Описание</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditRows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b last:border-0 hover:bg-gray-50"
+                        >
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {new Date(row.created_at).toLocaleString(
+                              "ru-RU"
+                            )}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {getAuditActionLabel(row.action)}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {renderAuditSummary(row)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {auditRows.length > 0 && (
+                <p className="text-[10px] text-gray-400">
+                  История строится по таблице audit_log. Здесь показываются
+                  только изменения профиля клиента. Историю по питомцам можно
+                  будет добавить аналогично позже.
                 </p>
               )}
             </section>
