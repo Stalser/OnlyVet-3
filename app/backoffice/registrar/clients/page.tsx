@@ -8,6 +8,7 @@ type OwnerSummary = any;
 interface ClientsListPageProps {
   searchParams?: {
     q?: string;
+    filter?: string; // all | withPets | withoutPets
   };
 }
 
@@ -15,9 +16,15 @@ export default async function ClientsListPage({
   searchParams,
 }: ClientsListPageProps) {
   const owners: OwnerSummary[] = await getOwnersSummary();
-  const q = (searchParams?.q || "").trim().toLowerCase();
 
-  const filteredOwners = q
+  const q = (searchParams?.q || "").trim().toLowerCase();
+  const filter = (searchParams?.filter || "all") as
+    | "all"
+    | "withPets"
+    | "withoutPets";
+
+  // 1. Текстовый фильтр
+  const afterTextFilter = q
     ? owners.filter((owner: any) => {
         const name =
           owner.fullName ??
@@ -35,13 +42,34 @@ export default async function ClientsListPage({
       })
     : owners;
 
+  // 2. Фильтр по наличию питомцев
+  const withPetsCount = (owner: any): number =>
+    owner.petsCount ??
+    owner.totalPets ??
+    owner.petCount ??
+    0;
+
+  const filteredOwners = afterTextFilter.filter((owner: any) => {
+    const pc = withPetsCount(owner);
+    if (filter === "withPets") return pc > 0;
+    if (filter === "withoutPets") return pc === 0;
+    return true; // all
+  });
+
   const total = filteredOwners.length;
-  const withPets = filteredOwners.filter((o: any) => {
-    const pc =
-      o.petsCount ?? o.totalPets ?? o.petCount ?? 0;
-    return (pc as number) > 0;
-  }).length;
-  const withoutPets = total - withPets;
+  const withPetsNum = filteredOwners.filter((o: any) => withPetsCount(o) > 0)
+    .length;
+  const withoutPetsNum = total - withPetsNum;
+
+  const buildLink = (newFilter: "all" | "withPets" | "withoutPets") => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (newFilter !== "all") params.set("filter", newFilter);
+    const search = params.toString();
+    return search
+      ? `/backoffice/registrar/clients?${search}`
+      : `/backoffice/registrar/clients`;
+  };
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -60,7 +88,7 @@ export default async function ClientsListPage({
             </h1>
             <p className="text-sm text-gray-500">
               Список владельцев и их питомцев. Поиск по имени, городу или
-              контактам.
+              контактам и фильтр по наличию питомцев.
             </p>
           </div>
           <RegistrarHeader />
@@ -82,6 +110,10 @@ export default async function ClientsListPage({
               className="flex-1 min-w-[180px] rounded-xl border px-3 py-1.5 text-xs"
               placeholder="Например: Иванов, Москва, +7 900..."
             />
+            {/* сохраняем filter при поиске */}
+            {filter && filter !== "all" && (
+              <input type="hidden" name="filter" value={filter} />
+            )}
             <button
               type="submit"
               className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
@@ -90,10 +122,14 @@ export default async function ClientsListPage({
             </button>
             {q && (
               <Link
-                href="/backoffice/registrar/clients"
+                href={`/backoffice/registrar/clients${
+                  filter && filter !== "all"
+                    ? `?filter=${filter}`
+                    : ""
+                }`}
                 className="text-[11px] text-gray-500 hover:underline"
               >
-                Сбросить фильтр
+                Сбросить строку поиска
               </Link>
             )}
           </form>
@@ -104,41 +140,82 @@ export default async function ClientsListPage({
           )}
         </section>
 
-        {/* Краткая сводка по картотеке */}
-        <section className="rounded-2xl border bg-white p-4">
+        {/* Сводка + фильтр по питомцам */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs font-semibold text-gray-700">
-              Сводка по картотеке (по текущему фильтру)
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-gray-700">
+                Сводка по картотеке (с учётом фильтра)
+              </div>
+              <div className="grid gap-2 md:grid-cols-3 text-xs">
+                <div className="rounded-xl border bg-gray-50 px-3 py-2">
+                  <div className="text-[11px] text-gray-500">Клиентов</div>
+                  <div className="mt-1 text-xl font-semibold text-gray-900">
+                    {total}
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-gray-50 px-3 py-2">
+                  <div className="text-[11px] text-gray-500">
+                    Клиентов с питомцами
+                  </div>
+                  <div className="mt-1 text-xl font-semibold text-gray-900">
+                    {withPetsNum}
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-gray-50 px-3 py-2">
+                  <div className="text-[11px] text-gray-500">
+                    Клиентов без питомцев
+                  </div>
+                  <div className="mt-1 text-xl font-semibold text-gray-900">
+                    {withoutPetsNum}
+                  </div>
+                </div>
+              </div>
             </div>
-            <Link
-              href="/backoffice/registrar/clients/new"
-              className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
-            >
-              Добавить клиента
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/backoffice/registrar/clients/new"
+                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+              >
+                Добавить клиента
+              </Link>
+            </div>
           </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-3 text-xs">
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">Клиентов</div>
-              <div className="mt-1 text-xl font-semibold text-gray-900">
-                {total}
-              </div>
-            </div>
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">
-                Клиентов с питомцами
-              </div>
-              <div className="mt-1 text-xl font-semibold text-gray-900">
-                {withPets}
-              </div>
-            </div>
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">
-                Клиентов без питомцев
-              </div>
-              <div className="mt-1 text-xl font-semibold text-gray-900">
-                {withoutPets}
-              </div>
+
+          {/* Чипы-фильтры */}
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="text-gray-500">Показать:</span>
+            <div className="inline-flex rounded-xl bg-gray-100 p-1">
+              <Link
+                href={buildLink("all")}
+                className={
+                  filter === "all"
+                    ? "px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm"
+                    : "px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900"
+                }
+              >
+                Все
+              </Link>
+              <Link
+                href={buildLink("withPets")}
+                className={
+                  filter === "withPets"
+                    ? "px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm"
+                    : "px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900"
+                }
+              >
+                С питомцами
+              </Link>
+              <Link
+                href={buildLink("withoutPets")}
+                className={
+                  filter === "withoutPets"
+                    ? "px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm"
+                    : "px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900"
+                }
+              >
+                Без питомцев
+              </Link>
             </div>
           </div>
         </section>
@@ -181,11 +258,7 @@ export default async function ClientsListPage({
                       owner.name ??
                       "Без имени";
                     const city = owner.city ?? "—";
-                    const petsCount =
-                      owner.petsCount ??
-                      owner.totalPets ??
-                      owner.petCount ??
-                      0;
+                    const petsCount = withPetsCount(owner);
                     const lastActivity =
                       owner.lastVisitLabel ??
                       owner.lastActivityLabel ??
