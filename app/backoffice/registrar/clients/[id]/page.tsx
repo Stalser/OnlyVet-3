@@ -41,16 +41,6 @@ type OwnerPrivateData = {
   legal_notes?: string | null;
 };
 
-type AuditRow = {
-  id: number;
-  entity_type: string;
-  entity_id: string;
-  action: string;
-  payload_before: any;
-  payload_after: any;
-  created_at: string;
-};
-
 const SPECIES_OPTIONS = [
   "Собака",
   "Кошка",
@@ -69,10 +59,10 @@ export default function ClientDetailPage() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(null);
-  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
@@ -89,9 +79,7 @@ export default function ClientDetailPage() {
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  // === Загрузка всех данных по клиенту ===
+  // === Загрузка данных клиента ===
   useEffect(() => {
     let ignore = false;
 
@@ -149,15 +137,11 @@ export default function ClientDetailPage() {
         setPets((petsData as Pet[]) || []);
       }
 
-      const petIds = ((petsData as Pet[]) || []).map((p) =>
-        p.id?.toString(),
-      );
-
       // Консультации
       const { data: apptData, error: apptError } = await client
         .from("appointments")
         .select(
-          "id, starts_at, status, pet_name, species, service_code",
+          "id, starts_at, status, pet_name, species, service_code"
         )
         .eq("owner_id", ownerKey)
         .order("starts_at", { ascending: false });
@@ -183,38 +167,6 @@ export default function ClientDetailPage() {
         setPrivateData((privData as OwnerPrivateData) || null);
       }
 
-      // История (owner + pet)
-      const { data: auditRaw, error: auditError } = await client
-        .from("audit_log")
-        .select("*")
-        .in("entity_type", ["owner", "pet"])
-        .order("created_at", { ascending: false });
-
-      if (auditError) {
-        console.error(auditError);
-        setAuditRows([]);
-      } else {
-        const history = (auditRaw as AuditRow[]).filter((row) => {
-          if (row.entity_type === "owner") {
-            return row.entity_id === ownerKey.toString();
-          }
-          if (row.entity_type === "pet") {
-            const before = row.payload_before || {};
-            const after = row.payload_after || {};
-            const petMatch =
-              petIds.includes(row.entity_id) ||
-              petIds.includes((before.id || "").toString()) ||
-              petIds.includes((after.id || "").toString());
-            const ownerMatch =
-              before.owner_id === ownerKey || after.owner_id === ownerKey;
-            return petMatch || ownerMatch;
-          }
-          return false;
-        });
-
-        setAuditRows(history.slice(0, 10)); // только последние 10
-      }
-
       setLoading(false);
     }
 
@@ -224,7 +176,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // === Сохранение клиента (ФИО / город) ===
+  // === Сохранение клиента ===
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -272,7 +224,7 @@ export default function ClientDetailPage() {
     if (
       !owner ||
       !confirm(
-        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже.",
+        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже."
       )
     ) {
       return;
@@ -319,7 +271,7 @@ export default function ClientDetailPage() {
     if (error) {
       console.error(error);
       setActionError(
-        "Не удалось удалить питомца: " + (error.message || ""),
+        "Не удалось удалить питомца: " + (error.message || "")
       );
       return;
     }
@@ -352,7 +304,7 @@ export default function ClientDetailPage() {
         : newPetSpecies;
     const fullSpecies = newPetBreed.trim()
       ? `${speciesText}, ${newPetBreed.trim()}`
-      : speciesText;
+      : newPetSpecies;
 
     const { data, error } = await client
       .from("pets")
@@ -365,10 +317,10 @@ export default function ClientDetailPage() {
       .single();
 
     if (error || !data) {
-      console.error("add pet error", error);
+      console.error(error);
       setActionError(
         "Не удалось добавить питомца: " +
-          (error?.message || "ошибка базы данных"),
+          (error?.message || "ошибка базы данных")
       );
       setAddingPet(false);
       return;
@@ -427,7 +379,7 @@ export default function ClientDetailPage() {
     if (error) {
       console.error(error);
       setActionError(
-        "Не удалось сохранить персональные данные клиента.",
+        "Не удалось сохранить персональные данные клиента."
       );
       setSavingPrivate(false);
       return;
@@ -437,7 +389,6 @@ export default function ClientDetailPage() {
     setIsEditingPrivate(false);
   };
 
-  // === Рендер контактов ===
   const renderContacts = (extra: any) => {
     if (!extra) {
       return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
@@ -501,13 +452,12 @@ export default function ClientDetailPage() {
     }
 
     return (
-      <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+      <pre className="rounded-xl bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
         {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
       </pre>
     );
   };
 
-  // === Форматирование даты консультации ===
   const formatApptDate = (starts_at: string | null) => {
     if (!starts_at) return "—";
     const d = new Date(starts_at);
@@ -520,7 +470,6 @@ export default function ClientDetailPage() {
     });
   };
 
-  // === Статус заполненности персональных данных ===
   const privateStatus =
     privateData &&
     (privateData.passport_series ||
@@ -529,77 +478,6 @@ export default function ClientDetailPage() {
       privateData.actual_address)
       ? "заполнены"
       : "не заполнены";
-
-  // === Заголовок действия истории ===
-  const getAuditActionLabel = (row: AuditRow) => {
-    const a = row.action.toLowerCase();
-
-    if (row.entity_type === "owner") {
-      if (a === "create") return "Создание профиля";
-      if (a === "update") return "Изменение профиля";
-      if (a === "delete") return "Удаление профиля";
-      return row.action;
-    }
-
-    if (row.entity_type === "pet") {
-      if (a === "create") return "Создание питомца";
-      if (a === "update") return "Изменение питомца";
-      if (a === "delete") return "Удаление питомца";
-      return row.action;
-    }
-
-    return row.action;
-  };
-
-  // === Описание события истории ===
-  const renderAuditSummary = (row: AuditRow) => {
-    const before = row.payload_before || {};
-    const after = row.payload_after || {};
-
-    if (row.entity_type === "owner") {
-      const changes: string[] = [];
-
-      if (before.full_name !== after.full_name) {
-        changes.push(
-          `ФИО: "${before.full_name || "—"}" → "${after.full_name || "—"}"`,
-        );
-      }
-      if (before.city !== after.city) {
-        changes.push(
-          `Город: "${before.city || "—"}" → "${after.city || "—"}"`,
-        );
-      }
-
-      if (changes.length === 0) {
-        if (row.action === "create") return "Создан профиль клиента";
-        if (row.action === "delete") return "Клиент помечен как удалённый";
-        return "Изменение записи клиента";
-      }
-
-      return changes.join("; ");
-    }
-
-    if (row.entity_type === "pet") {
-      const name = after.name || before.name || `ID ${row.entity_id}`;
-      const species = after.species || before.species || "";
-
-      if (row.action === "create") {
-        return `Создан питомец "${name}"${
-          species ? ` (${species})` : ""
-        }`;
-      }
-      if (row.action === "delete") {
-        return `Удалён питомец "${name}"${
-          species ? ` (${species})` : ""
-        }`;
-      }
-      if (row.action === "update") {
-        return `Изменены данные питомца "${name}"`;
-      }
-    }
-
-    return "Изменение данных";
-  };
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -615,8 +493,7 @@ export default function ClientDetailPage() {
             </Link>
             <h1 className="mt-2 text-2xl font-bold tracking-tight">Клиент</h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента, его питомцы, персональные данные и история
-              изменений.
+              Карточка клиента, его питомцы и персональные данные.
             </p>
           </div>
           <RegistrarHeader />
@@ -650,7 +527,6 @@ export default function ClientDetailPage() {
           </section>
         )}
 
-        {/* Основной контент */}
         {!loading && !loadError && owner && (
           <>
             {/* Основная информация */}
@@ -694,9 +570,7 @@ export default function ClientDetailPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-gray-500 mb-1">
-                        Город
-                      </div>
+                      <div className="text-[11px] text-gray-500 mb-1">Город</div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.city || "Не указан"}
                       </div>
@@ -715,9 +589,7 @@ export default function ClientDetailPage() {
                       </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
-                          ? new Date(owner.created_at).toLocaleString(
-                              "ru-RU",
-                            )
+                          ? new Date(owner.created_at).toLocaleString("ru-RU")
                           : "—"}
                       </div>
                     </div>
@@ -778,8 +650,7 @@ export default function ClientDetailPage() {
                       {renderContacts(owner.extra_contacts)}
                     </div>
                     <p className="text-[10px] text-gray-400">
-                      Контакты сейчас только для чтения. Позже сделаем
-                      редактирование.
+                      Контакты редактируются позже.
                     </p>
                   </div>
 
@@ -1030,7 +901,7 @@ export default function ClientDetailPage() {
 
           {pets.length === 0 && (
             <p className="text-xs text-gray-400">
-              У клиента пока нет ни одного питомца.
+              У этого клиента пока нет ни одного питомца.
             </p>
           )}
 
@@ -1103,7 +974,7 @@ export default function ClientDetailPage() {
                     value={newPetSpecies}
                     onChange={(e) =>
                       setNewPetSpecies(
-                        e.target.value as (typeof SPECIES_OPTIONS)[number],
+                        e.target.value as (typeof SPECIES_OPTIONS)[number]
                       )
                     }
                     className="w-full rounded-xl border px-3 py-1.5 text-xs"
@@ -1206,57 +1077,6 @@ export default function ClientDetailPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </section>
-
-        {/* История изменений профиля + питомцев */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="text-base font-semibold">История изменений</h2>
-
-          {auditRows.length === 0 && (
-            <p className="text-xs text-gray-400">
-              История пока пуста. Изменения появятся после редактирования
-              профиля или питомцев.
-            </p>
-          )}
-
-          {auditRows.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                    <th className="px-2 py-2">Дата</th>
-                    <th className="px-2 py-2">Тип</th>
-                    <th className="px-2 py-2">Описание</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b last:border-0 hover:bg-gray-50"
-                    >
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {new Date(row.created_at).toLocaleString("ru-RU")}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {getAuditActionLabel(row)}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {renderAuditSummary(row)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {auditRows.length > 0 && (
-            <p className="text-[10px] text-gray-400">
-              Показаны только последние 10 изменений. Полный журнал можно будет
-              вынести в отдельный раздел.
-            </p>
           )}
         </section>
       </main>
