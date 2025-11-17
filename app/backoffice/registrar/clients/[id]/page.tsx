@@ -32,14 +32,14 @@ type Appointment = {
   service_code: string | null;
 };
 
-type AuditRow = {
-  id: number;
-  entity_type: string;
-  entity_id: string;
-  action: string;
-  payload_before: any;
-  payload_after: any;
-  created_at: string;
+type OwnerPrivateData = {
+  passport_series?: string | null;
+  passport_number?: string | null;
+  passport_issued_by?: string | null;
+  passport_issued_at?: string | null;
+  registration_address?: string | null;
+  actual_address?: string | null;
+  legal_notes?: string | null;
 };
 
 const SPECIES_OPTIONS = [
@@ -59,7 +59,9 @@ export default function ClientDetailPage() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -77,9 +79,13 @@ export default function ClientDetailPage() {
   const [newPetBreed, setNewPetBreed] = useState("");
   const [addingPet, setAddingPet] = useState(false);
 
+  // персональные данные
+  const [isEditingPrivate, setIsEditingPrivate] = useState(false);
+  const [savingPrivate, setSavingPrivate] = useState(false);
+
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // === Загрузка клиента, питомцев, консультаций и аудита ===
+  // === Загрузка клиента, питомцев, консультаций и персональных данных ===
   useEffect(() => {
     let ignore = false;
 
@@ -93,7 +99,7 @@ export default function ClientDetailPage() {
         setOwner(null);
         setPets([]);
         setAppointments([]);
-        setAudit([]);
+        setPrivateData(null);
         setLoading(false);
         setLoadError("Некорректный идентификатор клиента.");
         return;
@@ -104,7 +110,7 @@ export default function ClientDetailPage() {
         setOwner(null);
         setPets([]);
         setAppointments([]);
-        setAudit([]);
+        setPrivateData(null);
         setLoading(false);
         setLoadError("Supabase недоступен на клиенте.");
         return;
@@ -132,7 +138,7 @@ export default function ClientDetailPage() {
         .is("deleted_at", null)
         .order("name", { ascending: true });
 
-      // консультации этого клиента
+      // консультации
       const {
         data: apptData,
         error: apptError,
@@ -144,17 +150,17 @@ export default function ClientDetailPage() {
         .eq("owner_id", ownerKey)
         .order("starts_at", { ascending: false });
 
-      // история изменений по клиенту
+      // персональные данные
       const {
-        data: auditData,
-        error: auditError,
+        data: privData,
+        error: privError,
       } = await client
-        .from("audit_log")
-        .select("*")
-        .eq("entity_type", "owner")
-        .eq("entity_id", ownerKey.toString())
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .from("owner_private_data")
+        .select(
+          "passport_series, passport_number, passport_issued_by, passport_issued_at, registration_address, actual_address, legal_notes"
+        )
+        .eq("owner_id", ownerKey)
+        .maybeSingle();
 
       if (!ignore) {
         if (ownerError) {
@@ -183,11 +189,11 @@ export default function ClientDetailPage() {
           setAppointments((apptData as Appointment[]) || []);
         }
 
-        if (auditError) {
-          console.error(auditError);
-          setAudit([]);
+        if (privError) {
+          console.error(privError);
+          setPrivateData(null);
         } else {
-          setAudit((auditData as AuditRow[]) || []);
+          setPrivateData((privData as OwnerPrivateData) ?? null);
         }
 
         setLoading(false);
@@ -201,7 +207,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // === Сохранение изменений клиента ===
+  // === Сохранение изменений клиента (ФИО/город) ===
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -357,6 +363,60 @@ export default function ClientDetailPage() {
     setAddingPet(false);
   };
 
+  // === Сохранение персональных данных ===
+  const handlePrivateSave = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!owner) return;
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    setSavingPrivate(true);
+    setActionError(null);
+
+    const payload = {
+      passport_series: privateData?.passport_series || null,
+      passport_number: privateData?.passport_number || null,
+      passport_issued_by: privateData?.passport_issued_by || null,
+      passport_issued_at: privateData?.passport_issued_at || null,
+      registration_address: privateData?.registration_address || null,
+      actual_address: privateData?.actual_address || null,
+      legal_notes: privateData?.legal_notes || null,
+    };
+
+    let error = null;
+
+    // если запись уже есть — обновляем, если нет — создаём
+    if (privateData) {
+      const { error: updError } = await client
+        .from("owner_private_data")
+        .update(payload)
+        .eq("owner_id", owner.user_id);
+      error = updError;
+    } else {
+      const { error: insError } = await client
+        .from("owner_private_data")
+        .insert({
+          owner_id: owner.user_id,
+          ...payload,
+        });
+      error = insError;
+    }
+
+    if (error) {
+      console.error(error);
+      setActionError("Не удалось сохранить персональные данные клиента.");
+      setSavingPrivate(false);
+      return;
+    }
+
+    setSavingPrivate(false);
+    setIsEditingPrivate(false);
+  };
+
   // === Красивый вывод контактов ===
   const renderContacts = (extra: any) => {
     if (!extra) {
@@ -439,40 +499,15 @@ export default function ClientDetailPage() {
     });
   };
 
-  // === Человеческое имя действия лога и краткое описание ===
-  const getAuditActionLabel = (action: string) => {
-    const a = action.toLowerCase();
-    if (a === "create") return "Создание";
-    if (a === "update") return "Изменение";
-    if (a === "delete") return "Удаление";
-    return action;
-  };
-
-  const renderAuditSummary = (row: AuditRow) => {
-    const before = row.payload_before || {};
-    const after = row.payload_after || {};
-
-    const changes: string[] = [];
-
-    if (before.full_name !== after.full_name) {
-      changes.push(
-        `ФИО: "${before.full_name || "—"}" → "${after.full_name || "—"}"`
-      );
-    }
-    if (before.city !== after.city) {
-      changes.push(
-        `Город: "${before.city || "—"}" → "${after.city || "—"}"`
-      );
-    }
-
-    if (changes.length === 0) {
-      if (row.action === "create") return "Создан профиль клиента";
-      if (row.action === "delete") return "Клиент помечен как удалённый";
-      return "Изменение записи клиента";
-    }
-
-    return changes.join("; ");
-  };
+  // Статус персональных данных (заполнены / нет)
+  const privateStatus =
+    privateData &&
+    (privateData.passport_series ||
+      privateData.passport_number ||
+      privateData.registration_address ||
+      privateData.actual_address)
+      ? "заполнены"
+      : "не заполнены";
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -490,7 +525,8 @@ export default function ClientDetailPage() {
               Клиент
             </h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента, его питомцы и история консультаций.
+              Карточка клиента, его питомцы, персональные данные и история
+              консультаций.
             </p>
           </div>
           <RegistrarHeader />
@@ -694,6 +730,225 @@ export default function ClientDetailPage() {
                       className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
                       {savingOwner ? "Сохраняю…" : "Сохранить изменения"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+
+            {/* Персональные данные */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">
+                    Персональные данные (паспорт и адреса)
+                  </h2>
+                  <p className="text-[11px] text-gray-500">
+                    Этот блок заполняет регистратор. Клиент не видит эти
+                    данные. Используется только при необходимости.
+                  </p>
+                </div>
+                <div className="flex flex-col items-end text-[11px] text-gray-500">
+                  <span>Статус: {privateStatus}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingPrivate((v) => !v);
+                      setActionError(null);
+                    }}
+                    className="mt-1 rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                  >
+                    {isEditingPrivate ? "Отмена" : "Редактировать"}
+                  </button>
+                </div>
+              </div>
+
+              {!isEditingPrivate ? (
+                <div className="space-y-2 text-xs text-gray-700">
+                  <div>
+                    <span className="font-semibold">Паспорт: </span>
+                    {privateData?.passport_series ||
+                    privateData?.passport_number
+                      ? `${privateData.passport_series || ""} ${
+                          privateData.passport_number || ""
+                        }`.trim()
+                      : "не указан"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Кем выдан: </span>
+                    {privateData?.passport_issued_by || "не указано"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Дата выдачи: </span>
+                    {privateData?.passport_issued_at
+                      ? new Date(
+                          privateData.passport_issued_at
+                        ).toLocaleDateString("ru-RU")
+                      : "не указана"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Адрес регистрации: </span>
+                    {privateData?.registration_address || "не указан"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">
+                      Фактический адрес:{" "}
+                    </span>
+                    {privateData?.actual_address || "не указан"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">
+                      Служебные пометки:{" "}
+                    </span>
+                    {privateData?.legal_notes || "нет"}
+                  </div>
+                </div>
+              ) : (
+                <form
+                  onSubmit={handlePrivateSave}
+                  className="space-y-2 text-xs"
+                >
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Серия паспорта
+                      </label>
+                      <input
+                        type="text"
+                        value={privateData?.passport_series || ""}
+                        onChange={(e) =>
+                          setPrivateData((prev) => ({
+                            ...(prev || {}),
+                            passport_series: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Номер паспорта
+                      </label>
+                      <input
+                        type="text"
+                        value={privateData?.passport_number || ""}
+                        onChange={(e) =>
+                          setPrivateData((prev) => ({
+                            ...(prev || {}),
+                            passport_number: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Кем выдан
+                    </label>
+                    <input
+                      type="text"
+                      value={privateData?.passport_issued_by || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          passport_issued_by: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Дата выдачи
+                    </label>
+                    <input
+                      type="date"
+                      value={
+                        privateData?.passport_issued_at
+                          ? privateData.passport_issued_at.substring(0, 10)
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          passport_issued_at: e.target.value || null,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Адрес регистрации
+                    </label>
+                    <textarea
+                      value={privateData?.registration_address || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          registration_address: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Фактический адрес
+                    </label>
+                    <textarea
+                      value={privateData?.actual_address || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          actual_address: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Служебные пометки
+                    </label>
+                    <textarea
+                      value={privateData?.legal_notes || ""}
+                      onChange={(e) =>
+                        setPrivateData((prev) => ({
+                          ...(prev || {}),
+                          legal_notes: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="pt-1 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingPrivate(false);
+                        setActionError(null);
+                      }}
+                      className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingPrivate}
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {savingPrivate ? "Сохраняю…" : "Сохранить"}
                     </button>
                   </div>
                 </form>
@@ -917,63 +1172,6 @@ export default function ClientDetailPage() {
                 <p className="text-[10px] text-gray-400">
                   Показаны последние {appointments.length} консультаций этого
                   клиента.
-                </p>
-              )}
-            </section>
-
-            {/* История изменений клиента (audit_log) */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <h2 className="text-base font-semibold">
-                История изменений профиля клиента
-              </h2>
-
-              {audit.length === 0 && (
-                <p className="text-xs text-gray-400">
-                  Изменений профиля клиента пока не зафиксировано. Журнал
-                  начнёт наполняться при изменении данных клиента.
-                </p>
-              )}
-
-              {audit.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-xs">
-                    <thead>
-                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                        <th className="px-2 py-2">Дата / время</th>
-                        <th className="px-2 py-2">Действие</th>
-                        <th className="px-2 py-2">Описание</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {audit.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="border-b last:border-0 hover:bg-gray-50"
-                        >
-                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                            {new Date(row.created_at).toLocaleString(
-                              "ru-RU"
-                            )}
-                          </td>
-                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                            {getAuditActionLabel(row.action)}
-                          </td>
-                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                            {renderAuditSummary(row)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {audit.length > 0 && (
-                <p className="text-[10px] text-gray-400">
-                  Журнал изменений строится автоматически по таблице audit_log.
-                  Здесь показаны только изменения профиля клиента. Отдельный
-                  журнал по питомцам и консультациям можно будет добавить
-                  аналогично.
                 </p>
               )}
             </section>
