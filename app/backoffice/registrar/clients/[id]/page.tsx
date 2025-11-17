@@ -43,15 +43,30 @@ export default function ClientDetailPage() {
         return;
       }
 
+      const client = supabase;
+      if (!client) {
+        // supabase не инициализировался на клиенте
+        setOwner(null);
+        setPets([]);
+        setLoading(false);
+        return;
+      }
+
       // загружаем клиента
-      const { data: ownerData, error: ownerError } = await supabase
+      const {
+        data: ownerData,
+        error: ownerError,
+      } = await client
         .from("owner_profiles")
         .select("*")
         .eq("user_id", ownerId)
         .maybeSingle();
 
       // загружаем питомцев
-      const { data: petsData, error: petsError } = await supabase
+      const {
+        data: petsData,
+        error: petsError,
+      } = await client
         .from("pets")
         .select("*")
         .eq("owner_id", ownerId)
@@ -127,9 +142,7 @@ export default function ClientDetailPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <div>
-                    <div className="text-[11px] text-gray-500 mb-1">
-                      ФИО
-                    </div>
+                    <div className="text-[11px] text-gray-500 mb-1">ФИО</div>
                     <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                       {owner.full_name || "Без имени"}
                     </div>
@@ -156,9 +169,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                       {owner.created_at
-                        ? new Date(owner.created_at).toLocaleString(
-                            "ru-RU"
-                          )
+                        ? new Date(owner.created_at).toLocaleString("ru-RU")
                         : "—"}
                     </div>
                   </div>
@@ -185,7 +196,7 @@ export default function ClientDetailPage() {
 
             {/* Питомцы клиента */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify_between">
                 <h2 className="text-base font-semibold">Питомцы</h2>
                 <button
                   type="button"
