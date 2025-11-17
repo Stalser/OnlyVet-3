@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 
 interface RegistrarClientsMiniProps {
@@ -15,8 +16,8 @@ export function RegistrarClientsMini({ owners }: RegistrarClientsMiniProps) {
             Краткая картотека клиентов
           </h2>
           <p className="text-[11px] text-gray-500">
-            Быстрый доступ к последним клиентам. Полный список доступен в
-            разделе &quot;Картотека клиентов&quot;.
+            Последние клиенты. Полный список доступен в разделе
+            &quot;Картотека клиентов&quot;.
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -37,16 +38,14 @@ export function RegistrarClientsMini({ owners }: RegistrarClientsMiniProps) {
 
       {total === 0 && (
         <p className="text-xs text-gray-400">
-          Клиентов пока нет. Они появятся после добавления через картотеку или
-          автоматического создания при новых консультациях.
+          Клиентов пока нет. Они появятся после добавления через картотеку
+          или автоматического создания при новых консультациях.
         </p>
       )}
 
       {total > 0 && (
         <div className="mt-2 space-y-1">
-          <p className="text-[11px] text-gray-500">
-            Последние клиенты:
-          </p>
+          <p className="text-[11px] text-gray-500">Последние клиенты:</p>
           <ul className="space-y-1">
             {owners.slice(0, 5).map((o: any) => {
               const id = o.id ?? o.user_id;
