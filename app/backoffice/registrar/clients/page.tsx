@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
-import type { OwnerSummary } from "@/lib/clients";
-
-type OwnerSummary = any;
+import { getOwnersSummary, type OwnerSummary } from "@/lib/clients";
 
 interface ClientsListPageProps {
   searchParams?: {
@@ -23,29 +21,22 @@ export default async function ClientsListPage({
     | "withPets"
     | "withoutPets";
 
-  const withPetsCount = (owner: any): number =>
-    owner.petsCount ?? owner.totalPets ?? owner.petCount ?? 0;
+  const withPetsCount = (owner: OwnerSummary): number => owner.petsCount ?? 0;
 
   // Текстовый поиск
   const afterTextFilter = q
-    ? owners.filter((owner: any) => {
-        const name =
-          owner.fullName ??
-          owner.full_name ??
-          owner.name ??
-          "";
+    ? owners.filter((owner) => {
+        const name = owner.fullName ?? "";
         const city = owner.city ?? "";
-        const contactText =
-          owner.contactSummary ??
-          owner.contactText ??
-          "";
-        const haystack = `${name} ${city} ${contactText}`.toLowerCase();
+        const haystack = `${name} ${city} ${owner.email || ""} ${
+          owner.phone || ""
+        }`.toLowerCase();
         return haystack.includes(q);
       })
     : owners;
 
   // Фильтр по наличию питомцев
-  const filteredOwners = afterTextFilter.filter((owner: any) => {
+  const filteredOwners = afterTextFilter.filter((owner) => {
     const pc = withPetsCount(owner);
     if (filter === "withPets") return pc > 0;
     if (filter === "withoutPets") return pc === 0;
@@ -53,7 +44,7 @@ export default async function ClientsListPage({
   });
 
   const total = filteredOwners.length;
-  const withPetsNum = filteredOwners.filter((o: any) => withPetsCount(o) > 0)
+  const withPetsNum = filteredOwners.filter((o) => withPetsCount(o) > 0)
     .length;
   const withoutPetsNum = total - withPetsNum;
 
@@ -217,7 +208,7 @@ export default async function ClientsListPage({
 
         {/* Список клиентов */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify_between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Клиенты</h2>
             <span className="text-[11px] text-gray-500">
               Нажмите &quot;Открыть&quot; для просмотра карточки клиента и
@@ -245,32 +236,32 @@ export default async function ClientsListPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOwners.map((owner: any) => {
-                    const id = owner.id ?? owner.user_id;
-                    const name =
-                      owner.fullName ??
-                      owner.full_name ??
-                      owner.name ??
-                      "Без имени";
+                  {filteredOwners.map((owner) => {
+                    const name = owner.fullName ?? "Без имени";
                     const city = owner.city ?? "—";
                     const petsCount = withPetsCount(owner);
-                    const lastActivity =
-                      owner.lastVisitLabel ??
-                      owner.lastActivityLabel ??
-                      owner.createdLabel ??
-                      "—";
 
                     return (
                       <tr
-                        key={id}
+                        key={owner.ownerId}
                         className="border-b last:border-0 hover:bg-gray-50"
                       >
+                        {/* КЛИЕНТ + статус персональных данных */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-800">
-                          {name}
+                          <div>{name}</div>
+                          <div className="mt-0.5 text-[10px] text-gray-500">
+                            {owner.hasPrivateData
+                              ? "Персональные данные: есть"
+                              : "Персональные данные: нет"}
+                          </div>
                         </td>
+
+                        {/* ГОРОД */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {city || "—"}
                         </td>
+
+                        {/* ПИТОМЦЫ */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {petsCount > 0 ? (
                             <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
@@ -287,22 +278,22 @@ export default async function ClientsListPage({
                             </span>
                           )}
                         </td>
+
+                        {/* ПОСЛЕДНЯЯ АКТИВНОСТЬ */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
-                          {lastActivity}
+                          {owner.appointmentsCount > 0
+                            ? `Консультаций: ${owner.appointmentsCount}`
+                            : "Консультаций нет"}
                         </td>
+
+                        {/* ДЕЙСТВИЯ */}
                         <td className="px-2 py-2 align-top text-right">
-                          {id ? (
-                            <Link
-                              href={`/backoffice/registrar/clients/${id}`}
-                              className="text-[11px] font-medium text-emerald-700 hover:underline"
-                            >
-                              Открыть →
-                            </Link>
-                          ) : (
-                            <span className="text-[10px] text-gray-400">
-                              Нет id
-                            </span>
-                          )}
+                          <Link
+                            href={`/backoffice/registrar/clients/${owner.ownerId}`}
+                            className="text-[11px] font-medium text-emerald-700 hover:underline"
+                          >
+                            Открыть →
+                          </Link>
                         </td>
                       </tr>
                     );
