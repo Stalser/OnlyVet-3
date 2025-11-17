@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
@@ -23,7 +24,6 @@ export default async function ClientsListPage({
     | "withPets"
     | "withoutPets";
 
-  // 1. Текстовый фильтр
   const afterTextFilter = q
     ? owners.filter((owner: any) => {
         const name =
@@ -36,13 +36,11 @@ export default async function ClientsListPage({
           owner.contactSummary ??
           owner.contactText ??
           "";
-
         const haystack = `${name} ${city} ${contactText}`.toLowerCase();
         return haystack.includes(q);
       })
     : owners;
 
-  // 2. Фильтр по наличию питомцев
   const withPetsCount = (owner: any): number =>
     owner.petsCount ??
     owner.totalPets ??
@@ -53,7 +51,7 @@ export default async function ClientsListPage({
     const pc = withPetsCount(owner);
     if (filter === "withPets") return pc > 0;
     if (filter === "withoutPets") return pc === 0;
-    return true; // all
+    return true;
   });
 
   const total = filteredOwners.length;
@@ -110,7 +108,6 @@ export default async function ClientsListPage({
               className="flex-1 min-w-[180px] rounded-xl border px-3 py-1.5 text-xs"
               placeholder="Например: Иванов, Москва, +7 900..."
             />
-            {/* сохраняем filter при поиске */}
             {filter && filter !== "all" && (
               <input type="hidden" name="filter" value={filter} />
             )}
@@ -122,11 +119,11 @@ export default async function ClientsListPage({
             </button>
             {q && (
               <Link
-                href={`/backoffice/registrar/clients${
+                href={
                   filter && filter !== "all"
-                    ? `?filter=${filter}`
-                    : ""
-                }`}
+                    ? `/backoffice/registrar/clients?filter=${filter}`
+                    : "/backoffice/registrar/clients"
+                }
                 className="text-[11px] text-gray-500 hover:underline"
               >
                 Сбросить строку поиска
@@ -149,7 +146,9 @@ export default async function ClientsListPage({
               </div>
               <div className="grid gap-2 md:grid-cols-3 text-xs">
                 <div className="rounded-xl border bg-gray-50 px-3 py-2">
-                  <div className="text-[11px] text-gray-500">Клиентов</div>
+                  <div className="text-[11px] text-gray-500">
+                    Клиентов
+                  </div>
                   <div className="mt-1 text-xl font-semibold text-gray-900">
                     {total}
                   </div>
@@ -172,14 +171,12 @@ export default async function ClientsListPage({
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/backoffice/registrar/clients/new"
-                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
-              >
-                Добавить клиента
-              </Link>
-            </div>
+            <Link
+              href="/backoffice/registrar/clients/new"
+              className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+            >
+              Добавить клиента
+            </Link>
           </div>
 
           {/* Чипы-фильтры */}
@@ -270,20 +267,15 @@ export default async function ClientsListPage({
                         key={id}
                         className="border-b last:border-0 hover:bg-gray-50"
                       >
-                        {/* Клиент */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-800">
                           {name}
                         </td>
-
-                        {/* Город */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {city || "—"}
                         </td>
-
-                        {/* Питомцы */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {petsCount > 0 ? (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
+                            <span className="inline-flex items-center rounded_full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
                               {petsCount}{" "}
                               {petsCount === 1
                                 ? "питомец"
@@ -297,13 +289,9 @@ export default async function ClientsListPage({
                             </span>
                           )}
                         </td>
-
-                        {/* Последняя активность */}
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {lastActivity}
                         </td>
-
-                        {/* Действия */}
                         <td className="px-2 py-2 align-top text-right">
                           {id ? (
                             <Link
