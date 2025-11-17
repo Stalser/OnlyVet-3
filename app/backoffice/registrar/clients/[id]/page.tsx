@@ -21,6 +21,15 @@ type Pet = {
   species: string | null;
 };
 
+type Appointment = {
+  id: string;
+  starts_at: string | null;
+  status: string | null;
+  pet_name: string | null;
+  species: string | null;
+  service_code: string | null;
+};
+
 const SPECIES_OPTIONS = [
   "Собака",
   "Кошка",
@@ -37,6 +46,7 @@ export default function ClientDetailPage() {
 
   const [owner, setOwner] = useState<Owner | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -56,6 +66,7 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // ===== Загрузка клиента, питомцев и консультаций =====
   useEffect(() => {
     let ignore = false;
 
@@ -68,6 +79,7 @@ export default function ClientDetailPage() {
       if (Number.isNaN(ownerId)) {
         setOwner(null);
         setPets([]);
+        setAppointments([]);
         setLoading(false);
         setLoadError("Некорректный идентификатор клиента.");
         return;
@@ -77,12 +89,13 @@ export default function ClientDetailPage() {
       if (!client) {
         setOwner(null);
         setPets([]);
+        setAppointments([]);
         setLoading(false);
         setLoadError("Supabase недоступен на клиенте.");
         return;
       }
 
-      // загружаем клиента
+      // клиент
       const {
         data: ownerData,
         error: ownerError,
@@ -92,7 +105,7 @@ export default function ClientDetailPage() {
         .eq("user_id", ownerId)
         .maybeSingle();
 
-      // загружаем питомцев
+      // питомцы
       const {
         data: petsData,
         error: petsError,
@@ -101,6 +114,17 @@ export default function ClientDetailPage() {
         .select("*")
         .eq("owner_id", ownerId)
         .order("name", { ascending: true });
+
+      // консультации этого клиента
+      const {
+        data: apptData,
+        error: apptError,
+      } = await client
+        .from("appointments")
+        .select("id, starts_at, status, pet_name, species, service_code")
+        .eq("owner_id", ownerId)
+        .order("starts_at", { ascending: false })
+        .limit(20);
 
       if (!ignore) {
         if (ownerError) {
@@ -122,6 +146,13 @@ export default function ClientDetailPage() {
           setPets((petsData as Pet[]) || []);
         }
 
+        if (apptError) {
+          console.error(apptError);
+          setAppointments([]);
+        } else {
+          setAppointments((apptData as Appointment[]) || []);
+        }
+
         setLoading(false);
       }
     }
@@ -133,7 +164,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // Сохранение изменений владельца
+  // ===== Сохранение изменений клиента =====
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -176,7 +207,7 @@ export default function ClientDetailPage() {
     setIsEditingOwner(false);
   };
 
-  // Удаление питомца
+  // ===== Удаление питомца =====
   const handleDeletePet = async (petId: string) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
@@ -199,7 +230,7 @@ export default function ClientDetailPage() {
     setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
-  // Удаление клиента и всех питомцев
+  // ===== Удаление клиента целиком =====
   const handleDeleteOwner = async () => {
     if (
       !owner ||
@@ -246,7 +277,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // Добавление нового питомца
+  // ===== Добавление нового питомца =====
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -298,7 +329,7 @@ export default function ClientDetailPage() {
     setAddingPet(false);
   };
 
-  // Красивое форматирование extra_contacts
+  // ===== Красивый вывод контактов клиента =====
   const renderContacts = (extra: any) => {
     if (!extra) {
       return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
@@ -319,7 +350,8 @@ export default function ClientDetailPage() {
     if (parsed) {
       const email = parsed.email ?? parsed.mail ?? null;
       const phone = parsed.phone ?? parsed.tel ?? null;
-      const telegram = parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? null;
+      const telegram =
+        parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? null;
 
       const hasKnown =
         (email && String(email).trim()) ||
@@ -347,25 +379,36 @@ export default function ClientDetailPage() {
             </div>
           )}
           {!hasKnown && (
-            <div className="text-gray-500">
-              Контакты указаны, но структура не распознана. Сырые данные:
-            </div>
-          )}
-          {!hasKnown && (
-            <pre className="mt-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
-              {JSON.stringify(parsed, null, 2)}
-            </pre>
+            <>
+              <div className="text-gray-500">
+                Контакты указаны, но структура не распознана. Сырые данные:
+              </div>
+              <pre className="mt-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+                {JSON.stringify(parsed, null, 2)}
+              </pre>
+            </>
           )}
         </div>
       );
     }
 
-    // если это вообще не JSON и не объект — просто покажем как есть
     return (
       <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
         {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
       </pre>
     );
+  };
+
+  // ===== Вспомогательная функция для формата даты консультации =====
+  const formatApptDate = (starts_at: string | null) => {
+    if (!starts_at) return "—";
+    const d = new Date(starts_at);
+    return d.toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -413,7 +456,7 @@ export default function ClientDetailPage() {
 
         {!loading && !loadError && !owner && (
           <section className="rounded-2xl border bg-white p-4">
-            <p className="text-sm text-gray-500">
+            <p className="text_sm text-gray-500">
               Клиент с идентификатором{" "}
               <span className="font-mono">{idParam}</span> не найден.
             </p>
@@ -424,7 +467,7 @@ export default function ClientDetailPage() {
           <>
             {/* Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify_between gap-3">
                 <h2 className="text-base font-semibold">
                   Основная информация
                 </h2>
@@ -456,7 +499,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         ФИО
                       </div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.full_name || "Без имени"}
                       </div>
                     </div>
@@ -464,7 +507,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         Город
                       </div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.city || "Не указан"}
                       </div>
                     </div>
@@ -472,7 +515,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         ID клиента (user_id)
                       </div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800">
+                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-xs font-mono text-gray-800">
                         {owner.user_id}
                       </div>
                     </div>
@@ -480,7 +523,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         Дата создания профиля
                       </div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
+                      <div className="rounded-xl border bg_gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
                           ? new Date(owner.created_at).toLocaleString(
                               "ru-RU"
@@ -490,8 +533,7 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
-                  {/* Контакты — красиво */}
-                  <div className="space-y-2">
+                  <div className="space-y=2">
                     <div className="text-[11px] text-gray-500 mb-1">
                       Контакты
                     </div>
@@ -560,8 +602,8 @@ export default function ClientDetailPage() {
                       {renderContacts(owner.extra_contacts)}
                     </div>
                     <p className="text-[10px] text-gray-400">
-                      Редактирование контактов будет добавлено позже. Сейчас
-                      можно менять только ФИО и город.
+                      Редактирование контактов добавим позже. Сейчас можно
+                      менять только ФИО и город.
                     </p>
                   </div>
 
@@ -596,10 +638,9 @@ export default function ClientDetailPage() {
                 <h2 className="text-base font-semibold">Питомцы</h2>
               </div>
 
-              {/* Список питомцев */}
               {pets.length === 0 && (
                 <p className="text-xs text-gray-400">
-                  У этого клиента пока нет ни одного питомца в базе.
+                  У этого клиента пока нет ни одного питомца.
                 </p>
               )}
 
@@ -716,7 +757,7 @@ export default function ClientDetailPage() {
                     <button
                       type="submit"
                       disabled={addingPet}
-                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text_white hover:bg-emerald-700 disabled:opacity-60"
                     >
                       {addingPet
                         ? "Добавляем питомца…"
@@ -725,6 +766,85 @@ export default function ClientDetailPage() {
                   </div>
                 </form>
               </div>
+            </section>
+
+            {/* История консультаций клиента */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">
+                  История консультаций клиента
+                </h2>
+                <Link
+                  href="/backoffice/registrar/consultations"
+                  className="text-[11px] text-emerald-700 hover:underline"
+                >
+                  Все консультации →
+                </Link>
+              </div>
+
+              {appointments.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  У этого клиента пока нет ни одной консультации в системе.
+                </p>
+              )}
+
+              {appointments.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                        <th className="px-2 py-2">Дата / время</th>
+                        <th className="px-2 py-2">Питомец</th>
+                        <th className="px-2 py-2">Услуга (код)</th>
+                        <th className="px-2 py-2">Статус</th>
+                        <th className="px-2 py-2 text-right">Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {appointments.map((a) => (
+                        <tr
+                          key={a.id}
+                          className="border-b last:border-0 hover:bg-gray-50"
+                        >
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {formatApptDate(a.starts_at)}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.pet_name || "Без имени"}
+                            {a.species && (
+                              <span className="text-[10px] text-gray-500">
+                                {" "}
+                                ({a.species})
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.service_code || "—"}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.status || a.status?.toString() || "—"}
+                          </td>
+                          <td className="px-2 py-2 align-top text-right">
+                            <Link
+                              href={`/backoffice/registrar/consultations/${a.id}`}
+                              className="text-[11px] font-medium text-emerald-700 hover:underline"
+                            >
+                              Открыть →
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {appointments.length > 0 && (
+                <p className="text-[10px] text-gray-400">
+                  Показаны последние {appointments.length} консультаций этого
+                  клиента.
+                </p>
+              )}
             </section>
           </>
         )}
