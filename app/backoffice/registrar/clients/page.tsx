@@ -275,7 +275,7 @@ export default async function ClientsListPage({
                         </td>
                         <td className="px-2 py-2 align-top text-[11px] text-gray-600">
                           {petsCount > 0 ? (
-                            <span className="inline-flex items-center rounded_full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
                               {petsCount}{" "}
                               {petsCount === 1
                                 ? "питомец"
