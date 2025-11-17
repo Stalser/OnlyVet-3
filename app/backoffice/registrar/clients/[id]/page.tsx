@@ -13,12 +13,14 @@ type Owner = {
   city: string | null;
   extra_contacts: any;
   created_at: string | null;
+  deleted_at?: string | null;
 };
 
 type Pet = {
   id: string;
   name: string | null;
   species: string | null;
+  deleted_at?: string | null;
 };
 
 type Appointment = {
@@ -50,13 +52,13 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Редактирование владельца
+  // редактирование владельца
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
-  // Добавление питомца
+  // добавление питомца
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] =
     useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
@@ -66,6 +68,7 @@ export default function ClientDetailPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // === Загрузка клиента, питомцев и консультаций ===
   useEffect(() => {
     let ignore = false;
 
@@ -74,8 +77,8 @@ export default function ClientDetailPage() {
       setLoadError(null);
       setActionError(null);
 
-      const ownerId = parseInt(idParam, 10);
-      if (Number.isNaN(ownerId)) {
+      const ownerKey = parseInt(idParam, 10);
+      if (Number.isNaN(ownerKey)) {
         setOwner(null);
         setPets([]);
         setAppointments([]);
@@ -94,24 +97,39 @@ export default function ClientDetailPage() {
         return;
       }
 
-      const { data: ownerData, error: ownerError } = await client
+      // клиент (только не удалённый)
+      const {
+        data: ownerData,
+        error: ownerError,
+      } = await client
         .from("owner_profiles")
         .select("*")
-        .eq("user_id", ownerId)
+        .eq("user_id", ownerKey)
+        .is("deleted_at", null)
         .maybeSingle();
 
-      const { data: petsData, error: petsError } = await client
+      // питомцы (только не удалённые)
+      const {
+        data: petsData,
+        error: petsError,
+      } = await client
         .from("pets")
         .select("*")
-        .eq("owner_id", ownerId)
+        .eq("owner_id", ownerKey)
+        .is("deleted_at", null)
         .order("name", { ascending: true });
 
-      const { data: apptData, error: apptError } = await client
+      // консультации клиента
+      const {
+        data: apptData,
+        error: apptError,
+      } = await client
         .from("appointments")
-        .select("id, starts_at, status, pet_name, species, service_code")
-        .eq("owner_id", ownerId)
-        .order("starts_at", { ascending: false })
-        .limit(20);
+        .select(
+          "id, starts_at, status, pet_name, species, service_code"
+        )
+        .eq("owner_id", ownerKey)
+        .order("starts_at", { ascending: false });
 
       if (!ignore) {
         if (ownerError) {
@@ -151,7 +169,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // сохранение клиента
+  // === Сохранение изменений клиента ===
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -194,7 +212,7 @@ export default function ClientDetailPage() {
     setIsEditingOwner(false);
   };
 
-  // удаление питомца
+  // === Soft-delete питомца ===
   const handleDeletePet = async (petId: string) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
@@ -206,7 +224,10 @@ export default function ClientDetailPage() {
 
     setActionError(null);
 
-    const { error } = await client.from("pets").delete().eq("id", petId);
+    const { error } = await client
+      .from("pets")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", petId);
 
     if (error) {
       console.error(error);
@@ -217,12 +238,12 @@ export default function ClientDetailPage() {
     setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
-  // удаление клиента
+  // === Soft-delete клиента ===
   const handleDeleteOwner = async () => {
     if (
       !owner ||
       !confirm(
-        "Удалить этого клиента и всех его питомцев из картотеки? Это действие нельзя отменить."
+        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже."
       )
     ) {
       return;
@@ -237,26 +258,14 @@ export default function ClientDetailPage() {
     setActionError(null);
     setLoading(true);
 
-    const { error: petsError } = await client
-      .from("pets")
-      .delete()
-      .eq("owner_id", owner.user_id);
-
-    if (petsError) {
-      console.error(petsError);
-      setActionError("Не удалось удалить питомцев клиента.");
-      setLoading(false);
-      return;
-    }
-
     const { error: ownerError } = await client
       .from("owner_profiles")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("user_id", owner.user_id);
 
     if (ownerError) {
       console.error(ownerError);
-      setActionError("Не удалось удалить клиента.");
+      setActionError("Не удалось пометить клиента как удалённого.");
       setLoading(false);
       return;
     }
@@ -264,7 +273,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // добавление питомца
+  // === Добавление питомца ===
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -316,7 +325,7 @@ export default function ClientDetailPage() {
     setAddingPet(false);
   };
 
-  // красивый вывод контактов
+  // === Красивый вывод контактов ===
   const renderContacts = (extra: any) => {
     if (!extra) {
       return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
@@ -392,6 +401,7 @@ export default function ClientDetailPage() {
     return d.toLocaleString("ru-RU", {
       day: "2-digit",
       month: "2-digit",
+      year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -413,14 +423,13 @@ export default function ClientDetailPage() {
               Клиент
             </h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента, его питомцы и история консультаций. Питомцы
-              всегда привязаны к этому клиенту.
+              Карточка клиента, его питомцы и история консультаций.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Ошибки */}
+        {/* Состояния */}
         {loadError && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-red-700">{loadError}</p>
@@ -443,7 +452,8 @@ export default function ClientDetailPage() {
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
               Клиент с идентификатором{" "}
-              <span className="font-mono">{idParam}</span> не найден.
+              <span className="font-mono">{idParam}</span> не найден
+              или был удалён.
             </p>
           </section>
         )}
@@ -457,12 +467,12 @@ export default function ClientDetailPage() {
                   Основная информация
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Кнопка: создать консультацию для клиента */}
+                  {/* Создать консультацию для клиента */}
                   <Link
                     href={`/backoffice/registrar?ownerId=${owner.user_id}`}
                     className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
                   >
-                    Создать консультацию для клиента
+                    Создать консультацию
                   </Link>
                   <button
                     type="button"
@@ -576,7 +586,7 @@ export default function ClientDetailPage() {
                       <div className="text-[11px] text-gray-500 mb-1">
                         Дата создания профиля
                       </div>
-                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text_gray-800">
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
                           ? new Date(owner.created_at).toLocaleString(
                               "ru-RU"
@@ -624,7 +634,7 @@ export default function ClientDetailPage() {
               )}
             </section>
 
-            {/* Питомцы клиента */}
+            {/* Питомцы */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Питомцы</h2>
@@ -663,7 +673,6 @@ export default function ClientDetailPage() {
                             {p.id}
                           </td>
                           <td className="px-2 py-2 align-top text-right space-y-1">
-                            {/* Записать на консультацию конкретно этого питомца */}
                             <Link
                               href={`/backoffice/registrar?ownerId=${owner.user_id}&petId=${p.id}`}
                               className="block text-[10px] font-medium text-emerald-700 hover:underline"
@@ -767,7 +776,7 @@ export default function ClientDetailPage() {
               </div>
             </section>
 
-            {/* История консультаций клиента */}
+            {/* История консультаций */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">
