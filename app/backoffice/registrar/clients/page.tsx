@@ -3,10 +3,35 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getOwnersSummary } from "@/lib/clients";
 
-type OwnerSummary = any; // берём как есть, чтобы не зависеть от точных полей
+type OwnerSummary = any;
 
-export default async function ClientsListPage() {
+interface ClientsListPageProps {
+  searchParams?: {
+    q?: string;
+  };
+}
+
+export default async function ClientsListPage({ searchParams }: ClientsListPageProps) {
   const owners: OwnerSummary[] = await getOwnersSummary();
+  const q = (searchParams?.q || "").trim().toLowerCase();
+
+  const filteredOwners = q
+    ? owners.filter((owner: any) => {
+        const name =
+          owner.fullName ??
+          owner.full_name ??
+          owner.name ??
+          "";
+        const city = owner.city ?? "";
+        const contactText =
+          owner.contactSummary ??
+          owner.contactText ??
+          "";
+
+        const haystack = `${name} ${city} ${contactText}`.toLowerCase();
+        return haystack.includes(q);
+      })
+    : owners;
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -24,36 +49,72 @@ export default async function ClientsListPage() {
               Картотека клиентов
             </h1>
             <p className="text-sm text-gray-500">
-              Список владельцев, зарегистрированных в системе. Позже здесь
-              появятся возможности редактирования и удаления клиентов.
+              Список владельцев, зарегистрированных в системе. Фильтр по
+              имени, городу или контактам.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
+        {/* Фильтр / поиск */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">Поиск по картотеке</h2>
+            <span className="text-[11px] text-gray-500">
+              Найти клиента по ФИО, городу или контактам
+            </span>
+          </div>
+          <form className="flex flex-wrap items-center gap-2" method="get">
+            <input
+              type="text"
+              name="q"
+              defaultValue={q}
+              className="flex-1 min-w-[180px] rounded-xl border px-3 py-1.5 text-xs"
+              placeholder="Например: Иванов, Москва, +7 900..."
+            />
+            <button
+              type="submit"
+              className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+            >
+              Искать
+            </button>
+            {q && (
+              <Link
+                href="/backoffice/registrar/clients"
+                className="text-[11px] text-gray-500 hover:underline"
+              >
+                Сбросить фильтр
+              </Link>
+            )}
+          </form>
+          {q && (
+            <p className="text-[10px] text-gray-400">
+              Результаты по запросу: <span className="font-mono">{q}</span>
+            </p>
+          )}
+        </section>
+
         {/* Список клиентов */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Клиенты</h2>
-            {/* Кнопка добавления клиента (позже реализуем) */}
-            <button
-              type="button"
-              className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-500 cursor-not-allowed"
-              disabled
+            {/* Теперь это живая кнопка */}
+            <Link
+              href="/backoffice/registrar/clients/new"
+              className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
             >
-              Добавить клиента (скоро)
-            </button>
+              Добавить клиента
+            </Link>
           </div>
 
-          {owners.length === 0 && (
+          {filteredOwners.length === 0 && (
             <p className="text-xs text-gray-400">
-              Клиентов пока нет в картотеке. Они появятся, когда вы начнёте
-              заполнять таблицу owner_profiles или реализуем
-              авто-добавление из консультаций.
+              Клиентов по выбранному фильтру не найдено. Попробуйте изменить
+              условия поиска или добавить нового клиента.
             </p>
           )}
 
-          {owners.length > 0 && (
+          {filteredOwners.length > 0 && (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs">
                 <thead>
@@ -66,8 +127,8 @@ export default async function ClientsListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {owners.map((owner: any) => {
-                    const id = owner.id ?? owner.user_id; // подстрахуемся
+                  {filteredOwners.map((owner: any) => {
+                    const id = owner.id ?? owner.user_id;
                     const name =
                       owner.fullName ??
                       owner.full_name ??
@@ -105,7 +166,7 @@ export default async function ClientsListPage() {
                         <td className="px-2 py-2 align-top text-right">
                           {id ? (
                             <Link
-                              href={`/backoffice/clients/${id}`}
+                              href={`/backoffice/registrar/clients/${id}`}
                               className="text-[11px] font-medium text-emerald-700 hover:underline"
                             >
                               Открыть →
