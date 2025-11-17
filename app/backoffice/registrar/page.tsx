@@ -6,6 +6,11 @@ import { getRecentRegistrarAppointments } from "@/lib/registrar";
 import { getOwnersSummary } from "@/lib/clients";
 import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
 
+// ВАЖНО: делаем страницу динамической, чтобы она всегда брала свежие данные из БД
+export const dynamic = "force-dynamic";
+// или можно использовать:
+// export const revalidate = 0;
+
 export default async function RegistrarDashboardPage() {
   const [appointments, owners] = await Promise.all([
     getRecentRegistrarAppointments(50),
