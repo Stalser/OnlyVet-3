@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RoleGuard } from "@/components/auth/RoleGuard";
@@ -41,8 +41,7 @@ export default function NewClientPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const client = supabase;
-    if (!client) {
+    if (!supabase) {
       setErrorMessage("Supabase недоступен на клиенте.");
       return;
     }
@@ -55,36 +54,37 @@ export default function NewClientPage() {
     setSaving(true);
     setErrorMessage(null);
 
-    // собираем extra_contacts в JSON
+    // extra_contacts собираем в JSON
     const extraContacts: Record<string, string> = {};
     if (email.trim()) extraContacts.email = email.trim();
     if (phone.trim()) extraContacts.phone = phone.trim();
     if (telegram.trim()) extraContacts.telegram = telegram.trim();
 
-    // создаём клиента
-    const { data: ownerInsert, error: ownerError } = await client
+    // 1. Создаём клиента
+    const { data: ownerInsert, error: ownerError } = await supabase
       .from("owner_profiles")
       .insert({
         full_name: fullName.trim(),
         city: city.trim() || null,
         extra_contacts:
-          Object.keys(extraContacts).length > 0
-            ? extraContacts
-            : null,
+          Object.keys(extraContacts).length > 0 ? extraContacts : null,
       })
       .select("user_id")
       .single();
 
     if (ownerError || !ownerInsert) {
       console.error(ownerError);
-      setErrorMessage("Не удалось создать клиента.");
+      setErrorMessage(
+        "Не удалось создать клиента: " +
+          (ownerError?.message || "ошибка базы данных")
+      );
       setSaving(false);
       return;
     }
 
     const ownerId = ownerInsert.user_id as number;
 
-    // если введён питомец — создаём его
+    // 2. Если указан питомец — создаём питомца
     if (petName.trim()) {
       const speciesText =
         petSpecies === "Другое"
@@ -94,7 +94,7 @@ export default function NewClientPage() {
         ? `${speciesText}, ${petBreed.trim()}`
         : speciesText;
 
-      const { error: petError } = await client.from("pets").insert({
+      const { error: petError } = await supabase.from("pets").insert({
         owner_id: ownerId,
         name: petName.trim(),
         species: fullSpecies,
@@ -102,11 +102,12 @@ export default function NewClientPage() {
 
       if (petError) {
         console.error(petError);
-        // не падаем, просто показываем предупреждение
         setErrorMessage(
-          "Клиент создан, но не удалось сохранить питомца. Проверьте таблицу pets."
+          "Клиент создан, но не удалось сохранить питомца: " +
+            (petError.message || "")
         );
         setSaving(false);
+        // Всё равно переходим в карточку клиента — питомца можно добавить там
         router.push(`/backoffice/registrar/clients/${ownerId}`);
         return;
       }
@@ -150,7 +151,7 @@ export default function NewClientPage() {
             onSubmit={handleSubmit}
             className="space-y-4"
           >
-            {/* Клиент */}
+            {/* Данные клиента */}
             <div className="space-y-3">
               <h2 className="text-sm font-semibold text-gray-800">
                 Данные клиента
@@ -167,6 +168,7 @@ export default function NewClientPage() {
                   placeholder="Иванов Иван Иванович"
                 />
               </div>
+
               <div>
                 <label className="mb-1 block text-[11px] text-gray-500">
                   Город
@@ -180,7 +182,6 @@ export default function NewClientPage() {
                 />
               </div>
 
-              {/* Контакты */}
               <div className="grid gap-2 md:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-[11px] text-gray-500">
@@ -227,8 +228,8 @@ export default function NewClientPage() {
                 Питомец (необязательно)
               </h2>
               <p className="text-[11px] text-gray-500">
-                Можно сразу добавить первого питомца этого клиента. Поля
-                ниже не обязательны.
+                Можно сразу добавить первого питомца этого клиента. Поля ниже
+                не обязательны.
               </p>
 
               <div>
@@ -253,8 +254,7 @@ export default function NewClientPage() {
                     value={petSpecies}
                     onChange={(e) =>
                       setPetSpecies(
-                        e.target
-                          .value as (typeof SPECIES_OPTIONS)[number]
+                        e.target.value as (typeof SPECIES_OPTIONS)[number]
                       )
                     }
                     className="w-full rounded-xl border px-3 py-1.5 text-xs"
