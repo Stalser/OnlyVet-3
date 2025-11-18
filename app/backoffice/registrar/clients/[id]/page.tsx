@@ -67,13 +67,15 @@ export default function ClientDetailPage() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(null);
+  const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(
+    null
+  );
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Редактирование профиля
+  // Профиль клиента
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
@@ -97,7 +99,7 @@ export default function ClientDetailPage() {
   const [newPetNotes, setNewPetNotes] = useState("");
   const [addingPet, setAddingPet] = useState(false);
 
-  // Редактирование существующего питомца
+  // Редактирование питомца
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [savingPetEdit, setSavingPetEdit] = useState(false);
 
@@ -105,7 +107,7 @@ export default function ClientDetailPage() {
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // ===== Вспомогательные функции =====
+  // === Вспомогательные ===
 
   const parseContacts = (extra: any): {
     email: string;
@@ -202,17 +204,17 @@ export default function ClientDetailPage() {
       ? "заполнены"
       : "не заполнены";
 
+  const formatPetBirthDate = (d: string | null) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("ru-RU");
+  };
+
   const formatPetWeight = (w: number | null) => {
     if (w == null) return "—";
     return `${w.toFixed(1)} кг`;
   };
 
-  const formatPetBirthDate = (date: string | null) => {
-    if (!date) return "—";
-    return new Date(date).toLocaleDateString("ru-RU");
-  };
-
-  // ===== Загрузка данных клиента =====
+  // === Загрузка данных клиента ===
 
   useEffect(() => {
     let ignore = false;
@@ -240,7 +242,6 @@ export default function ClientDetailPage() {
           .maybeSingle();
 
         if (ownerError) throw ownerError;
-
         setOwner(ownerData ?? null);
 
         if (!ownerData) {
@@ -309,7 +310,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // ===== Обработчики профиля =====
+  // === Обработчики профиля ===
 
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -386,7 +387,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // ===== Обработчики питомцев =====
+  // === Обработчики питомцев ===
 
   const handleDeletePet = async (petId: number) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
@@ -414,7 +415,6 @@ export default function ClientDetailPage() {
     if (!owner) return;
 
     const client = supabase!;
-
     if (!newPetName.trim()) {
       setActionError("Укажите имя питомца.");
       return;
@@ -486,19 +486,6 @@ export default function ClientDetailPage() {
     setActionError(null);
   };
 
-  const handleEditPetField = (field: keyof Pet, value: any) => {
-    if (!editingPet) return;
-    setEditingPet({
-      ...editingPet,
-      [field]:
-        field === "weight_kg"
-          ? value
-            ? Number(value)
-            : null
-          : value,
-    });
-  };
-
   const handleSavePetEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingPet) return;
@@ -547,7 +534,7 @@ export default function ClientDetailPage() {
     setEditingPet(null);
   };
 
-  // ===== Персональные данные =====
+  // === Персональные данные ===
 
   const handlePrivateSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -599,67 +586,65 @@ export default function ClientDetailPage() {
     setIsEditingPrivate(false);
   };
 
-  // ===== Рендер =====
-
   const privateStatusLabel = privateStatus;
 
-  const renderPetTableRow = (pet: Pet) => {
-    return (
-      <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
-        <td className="px-2 py-2 text-[11px] text-gray-800">
-          {pet.name || "Без имени"}
-        </td>
-        <td className="px-2 py-2 text-[11px] text-gray-700">
-          {pet.species || "Не указан"}
-          {pet.breed && (
-            <span className="text-[10px] text-gray-500">
-              {" "}
-              ({pet.breed})
-            </span>
-          )}
-        </td>
-        <td className="px-2 py-2 text-[11px] text-gray-700">
-          {pet.sex || "—"}
-        </td>
-        <td className="px-2 py-2 text-[11px] text-gray-700">
-          {formatPetBirthDate(pet.birth_date)}
-        </td>
-        <td className="px-2 py-2 text-[11px] text-gray-700">
-          {formatPetWeight(pet.weight_kg)}
-        </td>
-        <td className="px-2 py-2 text-[11px] text-gray-700">
-          {pet.microchip_number || "—"}
-          {pet.notes && (
-            <div className="text-[10px] text-gray-500">
-              Заметки: {pet.notes}
-            </div>
-          )}
-        </td>
-        <td className="px-2 py-2 text-right text-[11px] space-y-1">
-          <Link
-            href={`/backoffice/registrar?ownerId=${pet.owner_id}&petId=${pet.id}`}
-            className="block w-full text-left text-emerald-700 hover:underline"
-          >
-            Записать на консультацию
-          </Link>
-          <button
-            type="button"
-            onClick={() => startEditPet(pet)}
-            className="block w-full text-left text-emerald-700 hover:underline"
-          >
-            Редактировать
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeletePet(pet.id)}
-            className="block w-full text-left text-red-600 hover:underline"
-          >
-            Удалить
-          </button>
-        </td>
-      </tr>
-    );
-  };
+  // === Рендер строки питомца ===
+
+  const renderPetRow = (pet: Pet) => (
+    <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
+      <td className="px-2 py-2 text-[11px] text-gray-800">
+        {pet.name || "Без имени"}
+      </td>
+      <td className="px-2 py-2 text-[11px] text-gray-700">
+        {pet.species || "Не указан"}
+        {pet.breed && (
+          <span className="text-[10px] text-gray-500">
+            {" "}
+            ({pet.breed})
+          </span>
+        )}
+      </td>
+      <td className="px-2 py-2 text-[11px] text-gray-700">
+        {pet.sex || "—"}
+      </td>
+      <td className="px-2 py-2 text-[11px] text-gray-700">
+        {formatPetBirthDate(pet.birth_date)}
+      </td>
+      <td className="px-2 py-2 text-[11px] text-gray-700">
+        {formatPetWeight(pet.weight_kg)}
+      </td>
+      <td className="px-2 py-2 text-[11px] text-gray-700">
+        {pet.microchip_number || "—"}
+        {pet.notes && (
+          <div className="text-[10px] text-gray-500">
+            Заметки: {pet.notes}
+          </div>
+        )}
+      </td>
+      <td className="px-2 py-2 text-right text-[11px] space-y-1">
+        <Link
+          href={`/backoffice/registrar?ownerId=${pet.owner_id}&petId=${pet.id}`}
+          className="block w-full text-left text-emerald-700 hover:underline"
+        >
+          Записать на консультацию
+        </Link>
+        <button
+          type="button"
+          onClick={() => startEditPet(pet)}
+          className="block w-full text-left text-emerald-700 hover:underline"
+        >
+          Редактировать
+        </button>
+        <button
+          type="button"
+          onClick={() => handleDeletePet(pet.id)}
+          className="block w-full text-left text-red-600 hover:underline"
+        >
+          Удалить
+        </button>
+      </td>
+    </tr>
+  );
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -856,7 +841,9 @@ export default function ClientDetailPage() {
                       <input
                         type="text"
                         value={ownerTelegram}
-                        onChange={(e) => setOwnerTelegram(e.target.value)}
+                        onChange={(e) =>
+                          setOwnerTelegram(e.target.value)
+                        }
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
                         placeholder="@username"
                       />
@@ -1141,7 +1128,7 @@ export default function ClientDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pets.map((p) => renderPetTableRow(p))}
+                      {pets.map((pet) => renderPetRow(pet))}
                     </tbody>
                   </table>
                 </div>
@@ -1330,12 +1317,12 @@ export default function ClientDetailPage() {
                 </div>
               )}
 
-              {/* Форма добавления питомца (под спойлером) */}
+              {/* Форма добавления питомца — под спойлером */}
               <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
                 <button
                   type="button"
                   onClick={() => setShowAddPetForm((v) => !v)}
-                  className="flex items-center justify-between w-full text-left text-xs font-semibold text-gray-700"
+                  className="flex w-full items-center justify-between text-left text-xs font-semibold text-gray-700"
                 >
                   <span>Добавить нового питомца</span>
                   <span className="text-[10px] text-gray-500">
@@ -1344,10 +1331,14 @@ export default function ClientDetailPage() {
                 </button>
 
                 {showAddPetForm && (
-                  <form onSubmit={handleAddPet} className="space-y-2 text-xs">
+                  <form
+                    onSubmit={handleAddPet}
+                    className="space-y-2 text-xs"
+                  >
                     <div>
                       <label className="mb-1 block text-[11px] text-gray-500">
-                        Имя питомца <span className="text-red-500">*</span>
+                        Имя питомца{" "}
+                        <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1447,7 +1438,9 @@ export default function ClientDetailPage() {
                           step="0.1"
                           min="0"
                           value={newPetWeight}
-                          onChange={(e) => setNewPetWeight(e.target.value)}
+                          onChange={(e) =>
+                            setNewPetWeight(e.target.value)
+                          }
                           className="w-full rounded-xl border px-3 py-1.5 text-xs"
                         />
                       </div>
