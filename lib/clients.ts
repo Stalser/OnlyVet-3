@@ -6,7 +6,7 @@ import { servicesPricing } from "./pricing";
 import type { RegistrarAppointmentRow } from "./registrar";
 
 export type OwnerSummary = {
-  ownerId: string;        // user_id в owner_profiles (bigint → string)
+  ownerId: string; // user_id в owner_profiles (bigint → string)
   fullName: string;
   city?: string;
   email?: string;
@@ -36,13 +36,29 @@ export type OwnerDetails = {
  * ожидаем что-то вроде { "phone": "...", "email": "...", "telegram": "..." }
  */
 function extractContacts(extra: any): { email?: string; phone?: string } {
-  if (!extra || typeof extra !== "object") return {};
-  const email = extra.email || extra.mail || undefined;
+  if (!extra) return {};
+  let parsed: any = null;
+
+  if (typeof extra === "object" && !Array.isArray(extra)) {
+    parsed = extra;
+  } else if (typeof extra === "string") {
+    try {
+      parsed = JSON.parse(extra);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return {};
+  }
+
+  const email = parsed.email ?? parsed.mail ?? undefined;
   const phone =
-    extra.phone ||
-    extra.phone_main ||
-    extra.whatsapp ||
-    extra.telegram_phone ||
+    parsed.phone ??
+    parsed.phone_main ??
+    parsed.whatsapp ??
+    parsed.telegram_phone ??
     undefined;
 
   return { email, phone };
@@ -50,8 +66,8 @@ function extractContacts(extra: any): { email?: string; phone?: string } {
 
 /**
  * Суммарная информация по клиентам.
- * Учитывает soft-delete для owner_profiles и pets.
- * hasPrivateData = есть ли строка в owner_private_data для этого клиента.
+ * Учитывает soft-delete для owner_profiles.
+ * petsCount считается по таблице pets по owner_id.
  */
 export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   if (!supabase) return [];
@@ -73,56 +89,73 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
     return [];
   }
 
-  // 2. Не удалённые питомцы (для подсчёта petsCount)
-  const { data: pets, error: petsError } = await supabase
-    .from("pets")
-    .select("owner_id")
-    .in("owner_id", ownerIds)
-    .is("deleted_at", null);
+  // 2. Питомцы: считаем количество по owner_id
+  // стараемся не падать, даже если у pets нет deleted_at
+  let petsCountMap = new Map<string, number>();
+  try {
+    const { data: pets, error: petsError } = await supabase
+      .from("pets")
+      .select("owner_id, deleted_at")
+      .in("owner_id", ownerIds);
 
-  if (petsError) {
-    console.error("getOwnersSummary petsError", petsError);
+    if (petsError) {
+      console.error("getOwnersSummary petsError", petsError);
+    } else {
+      (pets ?? []).forEach((p: any) => {
+        if (p.owner_id == null) return;
+        // если есть deleted_at — считаем только записи без deleted_at
+        if ("deleted_at" in p && p.deleted_at) return;
+        const key = String(p.owner_id);
+        petsCountMap.set(key, (petsCountMap.get(key) ?? 0) + 1);
+      });
+    }
+  } catch (e) {
+    console.error("getOwnersSummary pets block error", e);
+    petsCountMap = new Map<string, number>();
   }
 
   // 3. Консультации по owner_id (appointmentsCount)
-  const { data: appts, error: apptsError } = await supabase
-    .from("appointments")
-    .select("id, owner_id")
-    .in("owner_id", ownerIds);
+  let apptCountMap = new Map<string, number>();
+  try {
+    const { data: appts, error: apptsError } = await supabase
+      .from("appointments")
+      .select("id, owner_id")
+      .in("owner_id", ownerIds);
 
-  if (apptsError) {
-    console.error("getOwnersSummary apptsError", apptsError);
+    if (apptsError) {
+      console.error("getOwnersSummary apptsError", apptsError);
+    } else {
+      (appts ?? []).forEach((a: any) => {
+        if (a.owner_id == null) return;
+        const key = String(a.owner_id);
+        apptCountMap.set(key, (apptCountMap.get(key) ?? 0) + 1);
+      });
+    }
+  } catch (e) {
+    console.error("getOwnersSummary appts block error", e);
+    apptCountMap = new Map<string, number>();
   }
 
   // 4. Персональные данные (owner_private_data)
-  const { data: priv, error: privError } = await supabase
-    .from("owner_private_data")
-    .select("owner_id")
-    .in("owner_id", ownerIds);
+  let privateSet = new Set<string>();
+  try {
+    const { data: priv, error: privError } = await supabase
+      .from("owner_private_data")
+      .select("owner_id")
+      .in("owner_id", ownerIds);
 
-  if (privError) {
-    console.error("getOwnersSummary privError", privError);
+    if (privError) {
+      console.error("getOwnersSummary privError", privError);
+    } else {
+      (priv ?? []).forEach((r: any) => {
+        if (r.owner_id == null) return;
+        privateSet.add(String(r.owner_id));
+      });
+    }
+  } catch (e) {
+    console.error("getOwnersSummary priv block error", e);
+    privateSet = new Set<string>();
   }
-
-  const petsCountMap = new Map<string, number>();
-  (pets ?? []).forEach((p: any) => {
-    if (p.owner_id == null) return;
-    const key = String(p.owner_id);
-    petsCountMap.set(key, (petsCountMap.get(key) ?? 0) + 1);
-  });
-
-  const apptCountMap = new Map<string, number>();
-  (appts ?? []).forEach((a: any) => {
-    if (a.owner_id == null) return;
-    const key = String(a.owner_id);
-    apptCountMap.set(key, (apptCountMap.get(key) ?? 0) + 1);
-  });
-
-  const privateSet = new Set<string>();
-  (priv ?? []).forEach((r: any) => {
-    if (r.owner_id == null) return;
-    privateSet.add(String(r.owner_id));
-  });
 
   // 5. Собираем итог
   return owners.map((o: any) => {
@@ -248,7 +281,6 @@ export async function getOwnerWithPets(
     .from("pets")
     .select("*")
     .eq("owner_id", ownerKey)
-    .is("deleted_at", null)
     .order("name", { ascending: true });
 
   if (petsError) {
