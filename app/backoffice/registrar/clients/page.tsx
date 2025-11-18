@@ -7,20 +7,14 @@ import { getOwnersSummary } from "@/lib/clients";
 // Всегда рендерим динамически, чтобы searchParams применялись сразу
 export const dynamic = "force-dynamic";
 
-type FilterValue = "all" | "with" | "without";
-type SortField = "id" | "name" | "city" | "pets" | "priv";
-type SortOrder = "asc" | "desc";
-
 type PageProps = {
   searchParams?: {
     q?: string;
-    pets?: FilterValue;
-    priv?: FilterValue;
+    pets?: "all" | "with" | "without";
+    priv?: "all" | "with" | "without";
     page?: string;
     id?: string;
     city?: string;
-    sort?: string;
-    order?: string;
   };
 };
 
@@ -33,24 +27,13 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   const qRaw = (searchParams?.q ?? "").trim();
   const q = qRaw === "" ? "" : qRaw;
 
-  // Фильтры
-  const petsFilter: FilterValue = (searchParams?.pets ?? "all") as FilterValue;
-  const privFilter: FilterValue = (searchParams?.priv ?? "all") as FilterValue;
+  const petsFilter = (searchParams?.pets ?? "all") as "all" | "with" | "without";
+  const privFilter = (searchParams?.priv ?? "all") as "all" | "with" | "without";
 
   // Фильтр по ID и городу (по колонкам)
   const idFilter = (searchParams?.id ?? "").trim();
   const cityRaw = (searchParams?.city ?? "").trim();
   const cityFilter = cityRaw.toLowerCase();
-
-  // Сортировка
-  const sortFieldParam = (searchParams?.sort ?? "id") as SortField;
-  const allowedSort: SortField[] = ["id", "name", "city", "pets", "priv"];
-  const sortField: SortField = allowedSort.includes(sortFieldParam)
-    ? sortFieldParam
-    : "id";
-
-  const sortOrder: SortOrder =
-    searchParams?.order === "desc" ? "desc" : "asc";
 
   let page = Number.parseInt(searchParams?.page ?? "1", 10);
   if (!Number.isFinite(page) || page < 1) page = 1;
@@ -77,14 +60,14 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   // Фильтр по ID
   if (idFilter) {
     filtered = filtered.filter((o) =>
-      String(o.ownerId ?? "").includes(idFilter),
+      String(o.ownerId ?? "").includes(idFilter)
     );
   }
 
   // Фильтр по городу
   if (cityFilter) {
     filtered = filtered.filter((o) =>
-      (o.city ?? "").toLowerCase().includes(cityFilter),
+      (o.city ?? "").toLowerCase().includes(cityFilter)
     );
   }
 
@@ -102,35 +85,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     filtered = filtered.filter((o) => !o.hasPrivateData);
   }
 
-  // --- Сортировка ---
-  filtered = [...filtered].sort((a, b) => {
-    let cmp = 0;
-    switch (sortField) {
-      case "id":
-        cmp = Number(a.ownerId) - Number(b.ownerId);
-        break;
-      case "name":
-        cmp = (a.fullName ?? "").localeCompare(b.fullName ?? "", "ru");
-        break;
-      case "city":
-        cmp = (a.city ?? "").localeCompare(b.city ?? "", "ru");
-        break;
-      case "pets":
-        cmp = a.petsCount - b.petsCount;
-        break;
-      case "priv":
-        cmp =
-          Number(a.hasPrivateData ? 1 : 0) -
-          Number(b.hasPrivateData ? 1 : 0);
-        break;
-    }
-    // вторичная сортировка по ID, чтобы порядок был стабильный
-    if (cmp === 0) {
-      cmp = Number(a.ownerId) - Number(b.ownerId);
-    }
-    return sortOrder === "asc" ? cmp : -cmp;
-  });
-
   const totalFiltered = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
   if (page > totalPages) page = totalPages;
@@ -144,13 +98,11 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   // helper сборки query
   const buildQuery = (params: {
     q?: string;
-    pets?: FilterValue;
-    priv?: FilterValue;
+    pets?: string;
+    priv?: string;
     page?: number;
     id?: string;
     city?: string;
-    sort?: SortField;
-    order?: SortOrder;
   }) => {
     const sp = new URLSearchParams();
     if (params.q && params.q.trim() !== "") sp.set("q", params.q.trim());
@@ -158,8 +110,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     if (params.priv && params.priv !== "all") sp.set("priv", params.priv);
     if (params.id && params.id.trim() !== "") sp.set("id", params.id.trim());
     if (params.city && params.city.trim() !== "") sp.set("city", params.city.trim());
-    if (params.sort && params.sort !== "id") sp.set("sort", params.sort);
-    if (params.order === "desc") sp.set("order", params.order);
     if (params.page && params.page > 1) sp.set("page", String(params.page));
     const s = sp.toString();
     return s ? `?${s}` : "";
@@ -177,31 +127,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
       page: pageNum,
       id: idFilter,
       city: cityRaw,
-      sort: sortField,
-      order: sortOrder,
     });
-
-  // helper для ссылки сортировки по заголовку
-  const sortLink = (field: SortField) => {
-    const nextOrder: SortOrder =
-      sortField === field && sortOrder === "asc" ? "desc" : "asc";
-    return (
-      basePath +
-      buildQuery({
-        q,
-        pets: petsFilter,
-        priv: privFilter,
-        page: 1,
-        id: idFilter,
-        city: cityRaw,
-        sort: field,
-        order: nextOrder,
-      })
-    );
-  };
-
-  const sortIndicator = (field: SortField) =>
-    sortField === field ? (sortOrder === "asc" ? " ↑" : " ↓") : "";
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -226,43 +152,39 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
           <RegistrarHeader />
         </header>
 
-        {/* Сводка + глобальные фильтры */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          {/* Компактная сводка в одну строку */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Сводка</h2>
-            <div className="flex flex-wrap gap-2 text-xs text-gray-600">
-              <SummaryChip label="Клиентов" value={total} />
-              <SummaryChip label="С питомцами" value={withPets} />
-              <SummaryChip label="Без питомцев" value={withoutPets} />
-              <SummaryChip label="С персональными данными" value={withPrivate} />
-              <SummaryChip
-                label="Без персональных данных"
-                value={withoutPrivate}
-              />
-            </div>
+        {/* Сводка */}
+        <section className="rounded-2xl border bg-white p-4 space-y-4">
+          <h2 className="text-base font-semibold">Сводка</h2>
+
+          {/* 5 карточек в одну строку на десктопе */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+            <SummaryCard label="Клиентов" value={total} />
+            <SummaryCard label="С питомцами" value={withPets} />
+            <SummaryCard label="Без питомцев" value={withoutPets} />
+            <SummaryCard label="С персональными данными" value={withPrivate} />
+            <SummaryCard label="Без персональных данных" value={withoutPrivate} />
           </div>
 
           {/* Глобальные фильтры + поиск */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-1">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             {/* Фильтр по питомцам */}
             <div className="space-y-1">
               <div className="text-[11px] text-gray-500">Питомцы</div>
               <div className="flex gap-2 flex-wrap">
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1, id: idFilter, city: cityRaw, sort: sortField, order: sortOrder })}
+                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1, id: idFilter, city: cityRaw })}
                   active={petsFilter === "all"}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1, id: idFilter, city: cityRaw, sort: sortField, order: sortOrder })}
+                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1, id: idFilter, city: cityRaw })}
                   active={petsFilter === "with"}
                 >
                   С питомцами
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1, id: idFilter, city: cityRaw, sort: sortField, order: sortOrder })}
+                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1, id: idFilter, city: cityRaw })}
                   active={petsFilter === "without"}
                 >
                   Без питомцев
@@ -272,22 +194,24 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
 
             {/* Фильтр по персональным данным */}
             <div className="space-y-1">
-              <div className="text-[11px] text-gray-500">Персональные данные</div>
+              <div className="text-[11px] text-gray-500">
+                Персональные данные
+              </div>
               <div className="flex gap-2 flex-wrap">
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1, id: idFilter, city: cityRaw, sort: sortField, order: sortOrder })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1, id: idFilter, city: cityRaw })}
                   active={privFilter === "all"}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1, id: idFilter, city: cityRaw, sort: sortField, order: sortOrder })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1, id: idFilter, city: cityRaw })}
                   active={privFilter === "with"}
                 >
                   С данными
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1, id: idFilter, city: cityRaw, sort: sortField, order: sortOrder })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1, id: idFilter, city: cityRaw })}
                   active={privFilter === "without"}
                 >
                   Без данных
@@ -295,7 +219,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </div>
             </div>
 
-            {/* Глобальный поиск */}
+            {/* Поиск */}
             <div className="w-full md:max-w-xs space-y-1">
               <div className="text-[11px] text-gray-500">Поиск</div>
               <form action={basePath} method="GET" className="flex gap-2">
@@ -304,7 +228,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                   type="text"
                   name="q"
                   defaultValue={q}
-                  className "flex-1 rounded-xl border px-3 py-1.5 text-xs"
+                  className="flex-1 rounded-xl border px-3 py-1.5 text-xs"
                   placeholder="Имя, город, телефон или email…"
                 />
                 {/* сохраняем остальные фильтры */}
@@ -312,8 +236,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 <input type="hidden" name="priv" value={privFilter} />
                 <input type="hidden" name="id" value={idFilter} />
                 <input type="hidden" name="city" value={cityRaw} />
-                <input type="hidden" name="sort" value={sortField} />
-                <input type="hidden" name="order" value={sortOrder} />
                 <button
                   type="submit"
                   className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700"
@@ -323,7 +245,8 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </form>
               {q && (
                 <p className="text-[10px] text-gray-500">
-                  Поиск по запросу: <b>{q}</b> ·{" "}
+                  Поиск по запросу: <b>{q}</b>
+                  {" · "}
                   <Link href={resetUrl} className="text-emerald-700 hover:underline">
                     сбросить строку поиска
                   </Link>
@@ -333,7 +256,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
           </div>
         </section>
 
-        {/* Блок с клиентами */}
+        {/* Таблица клиентов */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
@@ -363,7 +286,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           </div>
 
-          {/* Фильтр по колонкам (ID, Клиент, Город, Питомцы, Перс. данные) */}
+          {/* Фильтр по колонкам */}
           <form
             action={basePath}
             method="GET"
@@ -376,8 +299,8 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 type="text"
                 name="id"
                 defaultValue={idFilter}
-                className="w-full rounded-xl border px-2 py-1"
-                placeholder="например, 5"
+                className="w-full rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-xs"
+                placeholder="напр. 5"
               />
             </div>
 
@@ -388,7 +311,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 type="text"
                 name="q"
                 defaultValue={q}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-full rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-xs"
                 placeholder="ФИО / e-mail / телефон"
               />
             </div>
@@ -400,7 +323,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 type="text"
                 name="city"
                 defaultValue={cityRaw}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-full rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-xs"
                 placeholder="Москва"
               />
             </div>
@@ -411,7 +334,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <select
                 name="pets"
                 defaultValue={petsFilter}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-full rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-xs"
               >
                 <option value="all">Все</option>
                 <option value="with">Есть</option>
@@ -425,7 +348,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <select
                 name="priv"
                 defaultValue={privFilter}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-full rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-xs"
               >
                 <option value="all">Все</option>
                 <option value="with">Есть</option>
@@ -433,13 +356,10 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </select>
             </div>
 
-            {/* При любой отправке формы перекидываем на первую страницу и сохраняем сортировку */}
+            {/* При любой отправке формы → страница 1 */}
             <input type="hidden" name="page" value="1" />
-            <input type="hidden" name="sort" value={sortField} />
-            <input type="hidden" name="order" value={sortOrder} />
           </form>
 
-          {/* Таблица клиентов */}
           {visibleOwners.length === 0 ? (
             <p className="text-xs text-gray-400 pt-2">
               Клиенты не найдены по выбранным условиям.
@@ -449,51 +369,11 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <table className="min-w-full text-xs">
                 <thead>
                   <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                    <th className="px-2 py-2">
-                      <Link
-                        href={sortLink("id")}
-                        className="inline-flex items-center gap-1 hover:underline"
-                      >
-                        <span>ID</span>
-                        <span>{sortIndicator("id")}</span>
-                      </Link>
-                    </th>
-                    <th className="px-2 py-2">
-                      <Link
-                        href={sortLink("name")}
-                        className="inline-flex items-center gap-1 hover:underline"
-                      >
-                        <span>Клиент</span>
-                        <span>{sortIndicator("name")}</span>
-                      </Link>
-                    </th>
-                    <th className="px-2 py-2">
-                      <Link
-                        href={sortLink("city")}
-                        className="inline-flex items-center gap-1 hover:underline"
-                      >
-                        <span>Город</span>
-                        <span>{sortIndicator("city")}</span>
-                      </Link>
-                    </th>
-                    <th className="px-2 py-2">
-                      <Link
-                        href={sortLink("pets")}
-                        className="inline-flex items-center gap-1 hover:underline"
-                      >
-                        <span>Питомцы</span>
-                        <span>{sortIndicator("pets")}</span>
-                      </Link>
-                    </th>
-                    <th className="px-2 py-2">
-                      <Link
-                        href={sortLink("priv")}
-                        className="inline-flex items-center gap-1 hover:underline"
-                      >
-                        <span>Персональные данные</span>
-                        <span>{sortIndicator("priv")}</span>
-                      </Link>
-                    </th>
+                    <th className="px-2 py-2">ID</th>
+                    <th className="px-2 py-2">Клиент</th>
+                    <th className="px-2 py-2">Город</th>
+                    <th className="px-2 py-2">Питомцы</th>
+                    <th className="px-2 py-2">Персональные данные</th>
                     <th className="px-2 py-2 text-right">Действия</th>
                   </tr>
                 </thead>
@@ -508,8 +388,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                         page,
                         id: idFilter,
                         city: cityRaw,
-                        sort: sortField,
-                        order: sortOrder,
                       });
 
                     return (
@@ -608,17 +486,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   );
 }
 
-/** Чип для сводки */
-function SummaryChip({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1">
-      <span className="text-[11px] text-gray-500">{label}</span>
-      <span className="text-sm font-semibold text-gray-900">{value}</span>
-    </div>
-  );
-}
-
-/** Карточка в сводке (используется, если решишь вернуть сетку) */
+/** Карточка в сводке */
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border bg-gray-50 p-3">
