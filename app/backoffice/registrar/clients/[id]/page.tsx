@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { supabase } from "@/lib/supabaseClient";
+import { ClientDocumentsSection } from "@/components/registrar/ClientDocumentsSection";
 
 type Owner = {
   user_id: number;
@@ -107,7 +108,8 @@ export default function ClientDetailPage() {
   // персональные данные
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
-    // ===== helpers =====
+
+  // ===== helpers =====
 
   const parseContacts = (extra: any): {
     email: string;
@@ -680,7 +682,8 @@ export default function ClientDetailPage() {
       </td>
     </tr>
   );
-    if (loading) {
+
+  if (loading) {
     return (
       <RoleGuard allowed={["registrar", "admin"]}>
         <main className="mx-auto max-w-6xl px-4 py-6">
@@ -1112,6 +1115,17 @@ export default function ClientDetailPage() {
           )}
         </section>
 
+        {/* ДОКУМЕНТЫ КЛИЕНТА */}
+        <section className="rounded-2xl border bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">Документы клиента</h2>
+            <p className="text-[11px] text-gray-500">
+              Здесь можно хранить договоры, согласия, сканы документов и другие файлы, связанные с владельцем.
+            </p>
+          </div>
+          <ClientDocumentsSection ownerId={owner.user_id} />
+        </section>
+
         {/* ПИТОМЦЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex items-center justify-between">
@@ -1142,7 +1156,8 @@ export default function ClientDetailPage() {
               </table>
             </div>
           )}
-                    {/* РЕДАКТИРОВАНИЕ ПИТОМЦА */}
+
+          {/* РЕДАКТИРОВАНИЕ ПИТОМЦА */}
           {editingPet && (
             <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
               <h3 className="text-xs font-semibold text-gray-700">
