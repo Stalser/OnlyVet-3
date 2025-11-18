@@ -38,12 +38,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   if (q) {
     const qLower = q.toLowerCase();
     filtered = filtered.filter((o) => {
-      const fields = [
-        o.fullName ?? "",
-        o.city ?? "",
-        o.email ?? "",
-        o.phone ?? "",
-      ];
+      const fields = [o.fullName ?? "", o.city ?? "", o.email ?? "", o.phone ?? ""];
       return fields.some((f) => f.toLowerCase().includes(qLower));
     });
   }
@@ -86,7 +81,8 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     return s ? `?${s}` : "";
   };
 
-  const fullUrl = basePath; // сброс всего: первая страница без поиска, с текущими фильтрами можно тоже учесть
+  // кнопки
+  const resetUrl = basePath; // полностью сбросить всё в дефолт (q пустой, фильтры all, page=1)
   const pageUrl = (pageNum: number) =>
     basePath +
     buildQuery({
@@ -138,33 +134,19 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="flex gap-2">
                 <FilterLink
                   active={petsFilter === "all"}
-                  href={
-                    basePath +
-                    buildQuery({ q, pets: "all", priv: privFilter, page: 1 })
-                  }
+                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1 })}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
                   active={petsFilter === "with"}
-                  href={
-                    basePath +
-                    buildQuery({ q, pets: "with", priv: privFilter, page: 1 })
-                  }
+                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1 })}
                 >
                   С питомцами
                 </FilterLink>
                 <FilterLink
                   active={petsFilter === "without"}
-                  href={
-                    basePath +
-                    buildQuery({
-                      q,
-                      pets: "without",
-                      priv: privFilter,
-                      page: 1,
-                    })
-                  }
+                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1 })}
                 >
                   Без питомцев
                 </FilterLink>
@@ -179,33 +161,19 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="flex gap-2">
                 <FilterLink
                   active={privFilter === "all"}
-                  href={
-                    basePath +
-                    buildQuery({ q, pets: petsFilter, priv: "all", page: 1 })
-                  }
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1 })}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
                   active={privFilter === "with"}
-                  href={
-                    basePath +
-                    buildQuery({ q, pets: petsFilter, priv: "with", page: 1 })
-                  }
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1 })}
                 >
                   С данными
                 </FilterLink>
                 <FilterLink
                   active={privFilter === "without"}
-                  href={
-                    basePath +
-                    buildQuery({
-                      q,
-                      pets: petsFilter,
-                      priv: "without",
-                      page: 1,
-                    })
-                  }
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1 })}
                 >
                   Без данных
                 </FilterLink>
@@ -238,13 +206,10 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                   Поиск по запросу: <b>{q}</b>
                   {" · "}
                   <Link
-                    href={
-                      basePath +
-                      buildQuery({ pets: petsFilter, priv: privFilter, page: 1 })
-                    }
+                    href={basePath + buildQuery({ pets: petsFilter, priv: privFilter, page: 1 })}
                     className="text-emerald-700 hover:underline"
                   >
-                    сбросить
+                    сбросить строку поиска
                   </Link>
                 </p>
               )}
@@ -262,17 +227,17 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 {totalFiltered === 0 ? 0 : startIndex + 1}
                 –
                 {endIndex} из {totalFiltered} клиентов. Страница {page} из{" "}
-                {totalPages}.
+                {Math.max(totalPages, 1)}.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
-              {/* Полная картотека — сброс на первую страницу без поиска */}
+              {/* Сброс фильтров — возвращаем дефолтное состояние */}
               <Link
-                href={fullUrl}
+                href={resetUrl}
                 className="rounded-xl px-4 py-2 text-xs font-medium border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
               >
-                Полная картотека
+                Сбросить фильтры
               </Link>
 
               <Link
@@ -286,7 +251,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
 
           {visibleOwners.length === 0 ? (
             <p className="text-xs text-gray-400">
-              Клиенты не найдены по выбранным фильтрам.
+              Клиенты не найдены по выбранным условиям.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -304,7 +269,12 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                   {visibleOwners.map((o) => {
                     const href =
                       `/backoffice/registrar/clients/${o.ownerId}` +
-                      buildQuery({ q, pets: petsFilter, priv: privFilter, page });
+                      buildQuery({
+                        q,
+                        pets: petsFilter,
+                        priv: privFilter,
+                        page,
+                      });
                     return (
                       <tr
                         key={o.ownerId}
@@ -364,32 +334,39 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           )}
 
-          {/* Пагинация */}
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center pt-3 text-xs">
-              <div className="text-gray-500">
-                Страница {page} из {totalPages}
-              </div>
-              <div className="flex gap-2">
-                {page > 1 && (
-                  <Link
-                    href={pageUrl(page - 1)}
-                    className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
-                  >
-                    ← Назад
-                  </Link>
-                )}
-                {page < totalPages && (
-                  <Link
-                    href={pageUrl(page + 1)}
-                    className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
-                  >
-                    Вперёд →
-                  </Link>
-                )}
-              </div>
+          {/* Пагинация — ВСЕГДА отображаем блок */}
+          <div className="flex justify-between items-center pt-3 text-xs text-gray-600">
+            <div>
+              Страница {page} из {Math.max(totalPages, 1)}
             </div>
-          )}
+            <div className="flex gap-2">
+              {page > 1 ? (
+                <Link
+                  href={pageUrl(page - 1)}
+                  className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
+                >
+                  ← Назад
+                </Link>
+              ) : (
+                <span className="rounded-xl border px-3 py-1.5 text-gray-400 cursor-default">
+                  ← Назад
+                </span>
+              )}
+
+              {page < totalPages ? (
+                <Link
+                  href={pageUrl(page + 1)}
+                  className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
+                >
+                  Вперёд →
+                </Link>
+              ) : (
+                <span className="rounded-xl border px-3 py-1.5 text-gray-400 cursor-default">
+                  Вперёд →
+                </span>
+              )}
+            </div>
+          </div>
         </section>
       </main>
     </RoleGuard>
