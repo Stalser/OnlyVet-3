@@ -75,7 +75,7 @@ export default function ClientDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Профиль клиента
+  // профиль
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
@@ -84,7 +84,7 @@ export default function ClientDetailPage() {
   const [ownerTelegram, setOwnerTelegram] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
-  // Новый питомец (форма под спойлером)
+  // новый питомец
   const [showAddPetForm, setShowAddPetForm] = useState(false);
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] =
@@ -99,15 +99,15 @@ export default function ClientDetailPage() {
   const [newPetNotes, setNewPetNotes] = useState("");
   const [addingPet, setAddingPet] = useState(false);
 
-  // Редактирование существующего питомца
+  // редактирование питомца
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [savingPetEdit, setSavingPetEdit] = useState(false);
 
-  // Персональные данные
+  // персональные данные
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // ===== Вспомогательные функции =====
+  // ===== helpers =====
 
   const parseContacts = (extra: any): {
     email: string;
@@ -117,7 +117,6 @@ export default function ClientDetailPage() {
     if (!extra) return { email: "", phone: "", telegram: "" };
 
     let parsed: any = null;
-
     if (typeof extra === "object" && !Array.isArray(extra)) {
       parsed = extra;
     } else if (typeof extra === "string") {
@@ -151,7 +150,6 @@ export default function ClientDetailPage() {
 
   const renderContacts = (extra: any) => {
     const { email, phone, telegram } = parseContacts(extra);
-
     if (!email && !phone && !telegram) {
       return (
         <div className="text-xs text-gray-500">
@@ -159,7 +157,6 @@ export default function ClientDetailPage() {
         </div>
       );
     }
-
     return (
       <div className="space-y-1 text-xs text-gray-800">
         {email && (
@@ -211,7 +208,7 @@ export default function ClientDetailPage() {
   const formatPetWeight = (w: number | null) =>
     w != null ? `${w.toFixed(1)} кг` : "—";
 
-  // ===== Загрузка клиента =====
+  // ===== загрузка клиента =====
 
   useEffect(() => {
     let ignore = false;
@@ -231,7 +228,6 @@ export default function ClientDetailPage() {
       const client = supabase!;
 
       try {
-        // Клиент
         const { data: ownerData, error: ownerError } = await client
           .from("owner_profiles")
           .select("*")
@@ -253,13 +249,11 @@ export default function ClientDetailPage() {
 
         setOwnerFullName(ownerData.full_name ?? "");
         setOwnerCity(ownerData.city ?? "");
-
         const contacts = parseContacts(ownerData.extra_contacts);
         setOwnerEmail(contacts.email);
         setOwnerPhone(contacts.phone);
         setOwnerTelegram(contacts.telegram);
 
-        // Питомцы
         const { data: petsData, error: petsError } = await client
           .from("pets")
           .select(
@@ -272,7 +266,6 @@ export default function ClientDetailPage() {
         if (petsError) throw petsError;
         setPets((petsData as Pet[]) || []);
 
-        // Консультации
         const { data: apptData, error: apptError } = await client
           .from("appointments")
           .select(
@@ -284,7 +277,6 @@ export default function ClientDetailPage() {
         if (apptError) throw apptError;
         setAppointments((apptData as Appointment[]) || []);
 
-        // Персональные данные
         const { data: privData, error: privError } = await client
           .from("owner_private_data")
           .select(
@@ -309,12 +301,11 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // ===== Обработчики профиля =====
+  // ===== обработчики профиля =====
 
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
-
     const client = supabase!;
 
     if (!ownerFullName.trim()) {
@@ -389,11 +380,10 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // ===== Обработчики питомцев =====
+  // ===== обработчики питомцев =====
 
   const handleDeletePet = async (petId: number) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
-
     const client = supabase!;
 
     setActionError(null);
@@ -415,7 +405,6 @@ export default function ClientDetailPage() {
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
-
     const client = supabase!;
 
     if (!newPetName.trim()) {
@@ -538,7 +527,7 @@ export default function ClientDetailPage() {
     setEditingPet(null);
   };
 
-  // ===== Обработчики персональных данных =====
+  // ===== обработчик персональных данных =====
 
   const handlePrivateSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -549,7 +538,7 @@ export default function ClientDetailPage() {
     setSavingPrivate(true);
     setActionError(null);
 
-    const payload = {
+    const payload: OwnerPrivateData = {
       passport_series: privateData?.passport_series || null,
       passport_number: privateData?.passport_number || null,
       passport_issued_by: privateData?.passport_issued_by || null,
@@ -586,24 +575,24 @@ export default function ClientDetailPage() {
       return;
     }
 
+    // ключевой момент: обновляем локальное состояние, чтобы UI сразу увидел изменения
+    setPrivateData(payload);
+
     setSavingPrivate(false);
     setIsEditingPrivate(false);
   };
 
   const privateStatusLabel = privateStatus;
 
-  // ===== Рендер строки питомца =====
+  // ===== рендер строки питомца =====
 
   const renderPetRow = (pet: Pet) => (
     <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
-      {/* Имя → профиль питомца */}
       <td className="px-2 py-2 text-[11px] text-emerald-700 hover:underline">
         <Link href={`/backoffice/registrar/pets/${pet.id}`}>
           {pet.name || "Без имени"}
         </Link>
       </td>
-
-      {/* Вид / порода */}
       <td className="px-2 py-2 text-[11px] text-gray-700">
         {pet.species || "Не указан"}
         {pet.breed && (
@@ -613,23 +602,15 @@ export default function ClientDetailPage() {
           </span>
         )}
       </td>
-
-      {/* Пол */}
       <td className="px-2 py-2 text-[11px] text-gray-700">
         {pet.sex || "—"}
       </td>
-
-      {/* Дата рождения */}
       <td className="px-2 py-2 text-[11px] text-gray-700">
         {formatPetBirthDate(pet.birth_date)}
       </td>
-
-      {/* Вес */}
       <td className="px-2 py-2 text-[11px] text-gray-700">
         {formatPetWeight(pet.weight_kg)}
       </td>
-
-      {/* Чип / заметки */}
       <td className="px-2 py-2 text-[11px] text-gray-700">
         {pet.microchip_number || "—"}
         {pet.notes && (
@@ -638,8 +619,6 @@ export default function ClientDetailPage() {
           </div>
         )}
       </td>
-
-      {/* Действия */}
       <td className="px-2 py-2 text-right text-[11px] space-y-1">
         <Link
           href={`/backoffice/registrar/pets/${pet.id}`}
@@ -671,7 +650,7 @@ export default function ClientDetailPage() {
     </tr>
   );
 
-  // ===== Рендер компонента =====
+  // ===== рендер компонента =====
 
   if (loading) {
     return (
@@ -755,17 +734,13 @@ export default function ClientDetailPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div>
-                  <div className="text-[11px] text-gray-500 mb-1">
-                    ФИО
-                  </div>
+                  <div className="text-[11px] text-gray-500 mb-1">ФИО</div>
                   <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                     {owner.full_name || "Без имени"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-gray-500 mb-1">
-                    Город
-                  </div>
+                  <div className="text-[11px] text-gray-500 mb-1">Город</div>
                   <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                     {owner.city || "Не указан"}
                   </div>
@@ -1150,7 +1125,7 @@ export default function ClientDetailPage() {
             </div>
           )}
 
-          {/* Форма редактирования питомца */}
+          {/* Редактирование питомца */}
           {editingPet && (
             <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
               <h3 className="text-xs font-semibold text-gray-700">
@@ -1353,8 +1328,7 @@ export default function ClientDetailPage() {
               >
                 <div>
                   <label className="mb-1 block text-[11px] text-gray-500">
-                    Имя питомца{" "}
-                    <span className="text-red-500">*</span>
+                    Имя питомца <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1528,7 +1502,7 @@ export default function ClientDetailPage() {
                   {appointments.map((a) => (
                     <tr
                       key={a.id}
-                      className="border-b last:border-0 hover:bg-gray-50"
+                      className="border-б last:border-0 hover:bg-gray-50"
                     >
                       <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                         {formatApptDate(a.starts_at)}
