@@ -5,19 +5,18 @@ import { getPetDetails } from "@/lib/pets";
 
 interface PageProps {
   params: {
-    id: string; // pets.id (uuid)
+    id: string; // pets.id
   };
 }
 
-export default async function RegistrarPetDetailsPage({
-  params,
-}: PageProps) {
+export default async function RegistrarPetDetailsPage({ params }: PageProps) {
   const { pet, owner, appointments } = await getPetDetails(params.id);
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-5xl px-4 py-6 space-y-6">
-        <header className="flex items-center justify_between">
+        {/* Шапка */}
+        <header className="flex items-center justify-between">
           <div>
             <Link
               href="/backoffice/registrar/clients"
@@ -35,6 +34,7 @@ export default async function RegistrarPetDetailsPage({
           <RegistrarHeader />
         </header>
 
+        {/* Если питомец не найден */}
         {!pet && (
           <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
@@ -44,43 +44,97 @@ export default async function RegistrarPetDetailsPage({
           </section>
         )}
 
+        {/* Если питомец найден */}
         {pet && (
           <>
-            {/* Блок: питомец + владелец */}
-            <section className="rounded-2xl border bg-white p-4 space-y-2">
-              <h2 className="text-base font-semibold">Питомец</h2>
-              <div className="text-sm space-y-1">
-                <div className="font-medium">
-                  {pet.name || "Без имени"}
+            {/* Питомец + владелец */}
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Фото (заглушка) */}
+                <div className="flex-shrink-0">
+                  <div className="h-32 w-32 rounded-xl bg-gray-200 flex items-center justify-center text-[11px] text-gray-600">
+                    Фото
+                  </div>
                 </div>
-                {pet.species && (
-                  <div className="text-xs text-gray-700">
-                    Вид: {pet.species}
+
+                {/* Основные данные питомца */}
+                <div className="flex-1 space-y-2 text-sm">
+                  <div>
+                    <div className="text-[11px] text-gray-500 mb-1">Имя</div>
+                    <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm font-medium text-gray-900">
+                      {pet.name || "Без имени"}
+                    </div>
                   </div>
-                )}
-                {pet.breed && (
-                  <div className="text-xs text-gray-700">
-                    Порода: {pet.breed}
+
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Вид / порода
+                      </div>
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                        {pet.species || "Не указан"}
+                        {pet.breed && (
+                          <span className="text-[11px] text-gray-500">
+                            {" "}
+                            ({pet.breed})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Пол
+                      </div>
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                        {pet.sex || "Не указан"}
+                      </div>
+                    </div>
                   </div>
-                )}
-                {pet.sex && (
-                  <div className="text-xs text-gray-700">
-                    Пол: {pet.sex}
+
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Дата рождения
+                      </div>
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                        {pet.birth_date
+                          ? new Date(pet.birth_date).toLocaleDateString("ru-RU")
+                          : "Не указана"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Вес
+                      </div>
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                        {pet.weight_kg != null
+                          ? `${pet.weight_kg} кг`
+                          : "Не указан"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500 mb-1">
+                        Номер чипа
+                      </div>
+                      <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                        {pet.microchip_number || "Нет"}
+                      </div>
+                    </div>
                   </div>
-                )}
-                {pet.birth_date && (
-                  <div className="text-xs text-gray-700">
-                    Дата рождения: {pet.birth_date}
+
+                  <div>
+                    <div className="text-[11px] text-gray-500 mb-1">
+                      Заметки
+                    </div>
+                    <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800 whitespace-pre-line">
+                      {pet.notes || "нет"}
+                    </div>
                   </div>
-                )}
-                {pet.notes && (
-                  <div className="text-xs text-gray-600">
-                    Примечания: {pet.notes}
-                  </div>
-                )}
+                </div>
               </div>
 
-              <div className="mt-4">
+              {/* Блок владельца */}
+              <div className="mt-4 pt-4 border-t">
                 <h3 className="text-xs font-semibold uppercase text-gray-500">
                   Владелец
                 </h3>
@@ -109,18 +163,24 @@ export default async function RegistrarPetDetailsPage({
               </div>
             </section>
 
-            {/* История консультаций по питомцу */}
+            {/* История консультаций по этому питомцу */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <h2 className="text-base font-semibold">
-                История консультаций
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">
+                  История консультаций
+                </h2>
+                <Link
+                  href={`/backoffice/registrar?ownerId=${pet.owner_id}&petId=${pet.id}`}
+                  className="rounded-xl border border-emerald-600 px-3 py-1 text-[11px] text-emerald-700 hover:bg-emerald-50"
+                >
+                  Создать консультацию
+                </Link>
+              </div>
 
               {appointments.length === 0 && (
                 <p className="text-xs text-gray-400">
-                  Пока нет консультаций, привязанных к этому питомцу. Это
-                  возможно, если консультации создавались до появления поля{" "}
-                  <code className="rounded bg-gray-50 px-1">pet_id</code> в
-                  таблице appointments.
+                  Пока нет консультаций, привязанных к этому питомцу. Возможно,
+                  консультации создавались до появления явного поля pet_id.
                 </p>
               )}
 
@@ -133,13 +193,11 @@ export default async function RegistrarPetDetailsPage({
                         <th className="px-2 py-2">Врач</th>
                         <th className="px-2 py-2">Услуга</th>
                         <th className="px-2 py-2">Статус</th>
-                        <th className="px-2 py-2 text-right">
-                          Действия
-                        </th>
+                        <th className="px-2 py-2 text-right">Действия</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {appointments.map((a) => (
+                      {appointments.map((a: any) => (
                         <tr
                           key={a.id}
                           className="border-b last:border-0 hover:bg-gray-50"
@@ -152,13 +210,11 @@ export default async function RegistrarPetDetailsPage({
                               </div>
                             )}
                           </td>
-                          <td className="px-2 py-2 align-top">
-                            <div className="text-[11px]">
-                              {a.doctorName || "Не назначен"}
-                            </div>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.doctorName || "Не назначен"}
                           </td>
                           <td className="px-2 py-2 align-top">
-                            <div className="text-[11px]">
+                            <div className="text-[11px] text-gray-800">
                               {a.serviceName}
                             </div>
                             {a.serviceCode && (
@@ -177,7 +233,7 @@ export default async function RegistrarPetDetailsPage({
                               href={`/backoffice/registrar/consultations/${a.id}`}
                               className="text-[11px] font-medium text-emerald-700 hover:underline"
                             >
-                              Открыть
+                              Открыть →
                             </Link>
                           </td>
                         </tr>
@@ -186,6 +242,15 @@ export default async function RegistrarPetDetailsPage({
                   </table>
                 </div>
               )}
+            </section>
+
+            {/* Документы питомца (заглушка, будем делать позже) */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <h2 className="text-base font-semibold">Документы питомца</h2>
+              <p className="text-xs text-gray-400">
+                В будущем здесь будут: выписки, заключения, анализа, файлы и другие
+                документы, связанные с этим животным.
+              </p>
             </section>
           </>
         )}
