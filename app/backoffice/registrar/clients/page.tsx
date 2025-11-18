@@ -4,7 +4,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getOwnersSummary } from "@/lib/clients";
 
-// чтобы не кэшировался результат и страница всегда учитывала query-параметры
+// Всегда рендерим динамически, чтобы searchParams применялись сразу
 export const dynamic = "force-dynamic";
 
 type PageProps = {
@@ -23,28 +23,32 @@ const PAGE_SIZE = 50;
 export default async function RegistrarClientsPage({ searchParams }: PageProps) {
   const owners = await getOwnersSummary();
 
+  // Глобальный поиск
   const qRaw = (searchParams?.q ?? "").trim();
   const q = qRaw === "" ? "" : qRaw;
 
   const petsFilter = (searchParams?.pets ?? "all") as "all" | "with" | "without";
   const privFilter = (searchParams?.priv ?? "all") as "all" | "with" | "without";
 
+  // Фильтр по ID и городу (по колонкам)
   const idFilter = (searchParams?.id ?? "").trim();
-  const cityFilter = (searchParams?.city ?? "").trim().toLowerCase();
+  const cityRaw = (searchParams?.city ?? "").trim();
+  const cityFilter = cityRaw.toLowerCase();
 
   let page = Number.parseInt(searchParams?.page ?? "1", 10);
   if (!Number.isFinite(page) || page < 1) page = 1;
 
-  // --- сводка ---
+  // --- Сводка ---
   const total = owners.length;
   const withPets = owners.filter((o) => o.petsCount > 0).length;
   const withoutPets = total - withPets;
   const withPrivate = owners.filter((o) => o.hasPrivateData).length;
+  const withoutPrivate = total - withPrivate;
 
-  // --- фильтрация ---
+  // --- Фильтрация ---
   let filtered = owners;
 
-  // глобальный поиск
+  // Глобальный поиск
   if (q) {
     const qLower = q.toLowerCase();
     filtered = filtered.filter((o) => {
@@ -53,28 +57,28 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     });
   }
 
-  // фильтр по ID
+  // Фильтр по ID
   if (idFilter) {
     filtered = filtered.filter((o) =>
       String(o.ownerId ?? "").includes(idFilter)
     );
   }
 
-  // фильтр по городу
+  // Фильтр по городу
   if (cityFilter) {
     filtered = filtered.filter((o) =>
       (o.city ?? "").toLowerCase().includes(cityFilter)
     );
   }
 
-  // фильтр по питомцам
+  // Фильтр по питомцам
   if (petsFilter === "with") {
     filtered = filtered.filter((o) => o.petsCount > 0);
   } else if (petsFilter === "without") {
     filtered = filtered.filter((o) => o.petsCount === 0);
   }
 
-  // фильтр по персональным данным
+  // Фильтр по персональным данным
   if (privFilter === "with") {
     filtered = filtered.filter((o) => o.hasPrivateData);
   } else if (privFilter === "without") {
@@ -101,17 +105,17 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     city?: string;
   }) => {
     const sp = new URLSearchParams();
-    if (params.q && params.q.trim() !== "") sp.еt("q", params.q.trim());
-    if (params.pets && params.pets !== "all") sp.еt("pets", params.pets);
-    if (params.priv && params.priv !== "all") sp.еt("priv", params.priv);
-    if (params.id && params.id.trim() !== "") sp.еt("id", params.id.trim());
-    if (params.city && params.city.trim() !== "") sp.еt("city", params.city.trim());
-    if (params.page && params.page > 1) sp.еt("page", String(params.page));
+    if (params.q && params.q.trim() !== "") sp.set("q", params.q.trim());
+    if (params.pets && params.pets !== "all") sp.set("pets", params.pets);
+    if (params.priv && params.priv !== "all") sp.set("priv", params.priv);
+    if (params.id && params.id.trim() !== "") sp.set("id", params.id.trim());
+    if (params.city && params.city.trim() !== "") sp.set("city", params.city.trim());
+    if (params.page && params.page > 1) sp.set("page", String(params.page));
     const s = sp.toString();
     return s ? `?${s}` : "";
   };
 
-  // полный сброс всего: /backoffice/registrar/clients без query
+  // Полный reset: /backoffice/registrar/clients без query
   const resetUrl = basePath;
 
   const pageUrl = (pageNum: number) =>
@@ -122,7 +126,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
       priv: privFilter,
       page: pageNum,
       id: idFilter,
-      city: cityFilter,
+      city: cityRaw,
     });
 
   return (
@@ -157,6 +161,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             <SummaryCard label="С питомцами" value={withPets} />
             <SummaryCard label="Без питомцев" value={withoutPets} />
             <SummaryCard label="С персональными данными" value={withPrivate} />
+            <SummaryCard label="Без персональных данных" value={withoutPrivate} />
           </div>
 
           {/* Глобальные фильтры + поиск */}
@@ -164,21 +169,21 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             {/* Фильтр по питомцам */}
             <div className="space-y-1">
               <div className="text-[11px] text-gray-500">Питомцы</div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1, id: idFilter, city: cityFilter })}
+                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1, id: idFilter, city: cityRaw })}
                   active={petsFilter === "all"}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1, id: idFilter, city: cityFilter })}
+                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1, id: idFilter, city: cityRaw })}
                   active={petsFilter === "with"}
                 >
                   С питомцами
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1, id: idFilter, city: cityFilter })}
+                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1, id: idFilter, city: cityRaw })}
                   active={petsFilter === "without"}
                 >
                   Без питомцев
@@ -191,21 +196,21 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="text-[11px] text-gray-500">
                 Персональные данные
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1, id: idFilter, city: cityFilter })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1, id: idFilter, city: cityRaw })}
                   active={privFilter === "all"}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1, id: idFilter, city: cityFilter })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1, id: idFilter, city: cityRaw })}
                   active={privFilter === "with"}
                 >
                   С данными
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1, id: idFilter, city: cityFilter })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1, id: idFilter, city: cityRaw })}
                   active={privFilter === "without"}
                 >
                   Без данных
@@ -218,7 +223,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="text-[11px] text-gray-500">Поиск</div>
               <form action={basePath} method="GET" className="flex gap-2">
                 <input
-                  key={q} // важно для визуального сброса
+                  key={q}
                   type="text"
                   name="q"
                   defaultValue={q}
@@ -229,7 +234,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 <input type="hidden" name="pets" value={petsFilter} />
                 <input type="hidden" name="priv" value={privFilter} />
                 <input type="hidden" name="id" value={idFilter} />
-                <input type="hidden" name="city" value={cityFilter} />
+                <input type="hidden" name="city" value={cityRaw} />
                 <button
                   type="submit"
                   className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700"
@@ -281,7 +286,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           </div>
 
-          {/* Фильтры по колонкам */}
+          {/* Фильтр по колонкам */}
           <form
             action={basePath}
             method="GET"
@@ -299,7 +304,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               />
             </div>
 
-            {/* Клиент — можно использовать тулбар сверху (поэтому здесь ничего) */}
+            {/* Клиент */}
             <div>
               <label className="block text-gray-500 mb-1">Клиент</label>
               <input
@@ -317,7 +322,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <input
                 type="text"
                 name="city"
-                defaultValue={cityFilter}
+                defaultValue={cityRaw}
                 className="w-full rounded-xl border px-2 py-1"
                 placeholder="Москва"
               />
@@ -333,13 +338,13 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               >
                 <option value="all">Все</option>
                 <option value="with">Есть</option>
-                <option value="without">Нет</option>
+                <option value="without">Нет питомцев</option>
               </select>
             </div>
 
             {/* Персональные данные */}
             <div>
-              <label className="block text-gray-500 mb-1">Данные</label>
+              <label className="block text-gray-500 mb-1">Перс. данные</label>
               <select
                 name="priv"
                 defaultValue={privFilter}
@@ -351,7 +356,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </select>
             </div>
 
-            {/* скрытые поля для сброса на первую страницу */}
+            {/* При любой отправке формы перекидываем на первую страницу */}
             <input type="hidden" name="page" value="1" />
           </form>
 
@@ -382,7 +387,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                         priv: privFilter,
                         page,
                         id: idFilter,
-                        city: cityFilter,
+                        city: cityRaw,
                       });
                     return (
                       <tr
@@ -480,7 +485,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   );
 }
 
-/** карточка сводки */
+/** Карточка в сводке */
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border bg-gray-50 p-3">
@@ -490,7 +495,7 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** склонение "питомец" → "питомцев/питомца" */
+/** Склонение "питомец" → "питомцев/питомца" */
 function plural(n: number) {
   const mod10 = n % 10;
   const mod100 = n % 100;
