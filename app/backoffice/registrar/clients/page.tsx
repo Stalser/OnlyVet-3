@@ -5,31 +5,48 @@ import { getOwnersSummary } from "@/lib/clients";
 
 type PageProps = {
   searchParams?: {
+    q?: string;
     pets?: "all" | "with" | "without";
-    priv?: "all" | "without" | "with";
-    mode?: "dashboard" | "all";
+    priv?: "all" | "with" | "without";
+    page?: string;
   };
 };
+
+const PAGE_SIZE = 50;
 
 export default async function RegistrarClientsPage({ searchParams }: PageProps) {
   const owners = await getOwnersSummary();
 
+  const qRaw = (searchParams?.q ?? "").trim();
+  const q = qRaw === "" ? "" : qRaw;
+
   const petsFilter = (searchParams?.pets ?? "all") as "all" | "with" | "without";
   const privFilter = (searchParams?.priv ?? "all") as "all" | "with" | "without";
-  const mode = (searchParams?.mode === "all" ? "all" : "dashboard") as
-    | "all"
-    | "dashboard";
 
-  // --- агрегаты ---
+  let page = Number.parseInt(searchParams?.page ?? "1", 10);
+  if (!Number.isFinite(page) || page < 1) page = 1;
 
+  // --- сводка ---
   const total = owners.length;
   const withPets = owners.filter((o) => o.petsCount > 0).length;
   const withoutPets = total - withPets;
   const withPrivate = owners.filter((o) => o.hasPrivateData).length;
 
   // --- фильтрация ---
-
   let filtered = owners;
+
+  if (q) {
+    const qLower = q.toLowerCase();
+    filtered = filtered.filter((o) => {
+      const fields = [
+        o.fullName ?? "",
+        o.city ?? "",
+        o.email ?? "",
+        o.phone ?? "",
+      ];
+      return fields.some((f) => f.toLowerCase().includes(qLower));
+    });
+  }
 
   if (petsFilter === "with") {
     filtered = filtered.filter((o) => o.petsCount > 0);
@@ -43,16 +60,46 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     filtered = filtered.filter((o) => !o.hasPrivateData);
   }
 
-  const visibleOwners = mode === "all" ? filtered : filtered.slice(0, 10);
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+  if (page > totalPages) page = totalPages;
 
-  const fullUrl = `/backoffice/registrar/clients?pets=${petsFilter}&priv=${privFilter}&mode=all`;
-  const dashboardUrl = `/backoffice/registrar/clients?pets=${petsFilter}&priv=${privFilter}&mode=dashboard`;
-  const showCollapseButton = filtered.length > 10 && mode === "all";
+  const startIndex = (page - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalFiltered);
+  const visibleOwners = filtered.slice(startIndex, endIndex);
+
+  const basePath = "/backoffice/registrar/clients";
+
+  // helper для query string
+  const buildQuery = (params: {
+    q?: string;
+    pets?: string;
+    priv?: string;
+    page?: number;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params.q && params.q.trim() !== "") sp.set("q", params.q.trim());
+    if (params.pets && params.pets !== "all") sp.set("pets", params.pets);
+    if (params.priv && params.priv !== "all") sp.set("priv", params.priv);
+    if (params.page && params.page > 1) sp.set("page", String(params.page));
+    const s = sp.toString();
+    return s ? `?${s}` : "";
+  };
+
+  const fullUrl = basePath; // сброс всего: первая страница без поиска, с текущими фильтрами можно тоже учесть
+  const pageUrl = (pageNum: number) =>
+    basePath +
+    buildQuery({
+      q,
+      pets: petsFilter,
+      priv: privFilter,
+      page: pageNum,
+    });
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-        {/* ШАПКА */}
+        {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
             <Link
@@ -65,68 +112,59 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               Картотека клиентов
             </h1>
             <p className="text-sm text-gray-500">
-              Фильтрация по питомцам и персональным данным. Полная или
-              краткая картотека.
+              Полный список клиентов с фильтрацией по питомцам, персональным
+              данным и поиском. Пагинация по 50 записей на страницу.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* СВОДКА */}
+        {/* Сводка */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <h2 className="text-base font-semibold">Сводка</h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="rounded-xl border bg-gray-50 p-3">
-              <div className="text-[11px] uppercase text-gray-500">
-                Клиентов
-              </div>
-              <div className="mt-1 text-xl font-semibold">{total}</div>
-            </div>
-
-            <div className="rounded-xl border bg-gray-50 p-3">
-              <div className="text-[11px] uppercase text-gray-500">
-                С питомцами
-              </div>
-              <div className="mt-1 text-xl font-semibold">{withPets}</div>
-            </div>
-
-          <div className="rounded-xl border bg-gray-50 p-3">
-              <div className="text-[11px] uppercase text-gray-500">
-                Без питомцев
-              </div>
-              <div className="mt-1 text-xl font-semibold">{withoutPets}</div>
-            </div>
-
-            <div className="rounded-xl border bg-gray-50 p-3">
-              <div className="text-[11px] uppercase text-gray-500">
-                С персональными данными
-              </div>
-              <div className="mt1 text-xl font-semibold">{withPrivate}</div>
-            </div>
+            <SummaryCard label="Клиентов" value={total} />
+            <SummaryCard label="С питомцами" value={withPets} />
+            <SummaryCard label="Без питомцев" value={withoutPets} />
+            <SummaryCard label="С персональными данными" value={withPrivate} />
           </div>
 
-          {/* ФИЛЬТРЫ */}
-          <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+          {/* Фильтры + поиск */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             {/* Фильтр по питомцам */}
             <div className="space-y-1">
               <div className="text-[11px] text-gray-500">Питомцы</div>
               <div className="flex gap-2">
                 <FilterLink
                   active={petsFilter === "all"}
-                  href={`/backoffice/registrar/clients?pets=all&priv=${privFilter}&mode=${mode}`}
+                  href={
+                    basePath +
+                    buildQuery({ q, pets: "all", priv: privFilter, page: 1 })
+                  }
                 >
                   Все
                 </FilterLink>
                 <FilterLink
                   active={petsFilter === "with"}
-                  href={`/backoffice/registrar/clients?pets=with&priv=${privFilter}&mode=${mode}`}
+                  href={
+                    basePath +
+                    buildQuery({ q, pets: "with", priv: privFilter, page: 1 })
+                  }
                 >
                   С питомцами
                 </FilterLink>
                 <FilterLink
                   active={petsFilter === "without"}
-                  href={`/backoffice/registrar/clients?pets=without&priv=${privFilter}&mode=${mode}`}
+                  href={
+                    basePath +
+                    buildQuery({
+                      q,
+                      pets: "without",
+                      priv: privFilter,
+                      page: 1,
+                    })
+                  }
                 >
                   Без питомцев
                 </FilterLink>
@@ -141,62 +179,101 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="flex gap-2">
                 <FilterLink
                   active={privFilter === "all"}
-                  href={`/backoffice/registrar/clients?pets=${petsFilter}&priv=all&mode=${mode}`}
+                  href={
+                    basePath +
+                    buildQuery({ q, pets: petsFilter, priv: "all", page: 1 })
+                  }
                 >
                   Все
                 </FilterLink>
                 <FilterLink
                   active={privFilter === "with"}
-                  href={`/backoffice/registrar/clients?pets=${petsFilter}&priv=with&mode=${mode}`}
+                  href={
+                    basePath +
+                    buildQuery({ q, pets: petsFilter, priv: "with", page: 1 })
+                  }
                 >
                   С данными
                 </FilterLink>
                 <FilterLink
                   active={privFilter === "without"}
-                  href={`/backoffice/registrar/clients?pets=${petsFilter}&priv=without&mode=${mode}`}
+                  href={
+                    basePath +
+                    buildQuery({
+                      q,
+                      pets: petsFilter,
+                      priv: "without",
+                      page: 1,
+                    })
+                  }
                 >
                   Без данных
                 </FilterLink>
               </div>
             </div>
+
+            {/* Поиск */}
+            <div className="w-full md:max-w-xs space-y-1">
+              <div className="text-[11px] text-gray-500">Поиск</div>
+              <form action={basePath} method="GET" className="flex gap-2">
+                <input
+                  type="text"
+                  name="q"
+                  defaultValue={q}
+                  className="flex-1 rounded-xl border px-3 py-1.5 text-xs"
+                  placeholder="Имя, город, телефон или email…"
+                />
+                {/* сохраняем текущие фильтры при поиске */}
+                <input type="hidden" name="pets" value={petsFilter} />
+                <input type="hidden" name="priv" value={privFilter} />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700"
+                >
+                  Найти
+                </button>
+              </form>
+              {q && (
+                <p className="text-[10px] text-gray-500">
+                  Поиск по запросу: <b>{q}</b>
+                  {" · "}
+                  <Link
+                    href={
+                      basePath +
+                      buildQuery({ pets: petsFilter, priv: privFilter, page: 1 })
+                    }
+                    className="text-emerald-700 hover:underline"
+                  >
+                    сбросить
+                  </Link>
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
-        {/* КЛИЕНТЫ */}
+        {/* Таблица клиентов */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">Клиенты</h2>
-              {mode === "all" ? (
-                <p className="text-[11px] text-gray-500">
-                  Показаны все {filtered.length} клиентов по текущему фильтру.
-                </p>
-              ) : (
-                <p className="text-[11px] text-gray-500">
-                  Показаны последние {visibleOwners.length} из{" "}
-                  {filtered.length} клиентов по текущему фильтру.
-                </p>
-              )}
+              <p className="text-[11px] text-gray-500">
+                Показаны{" "}
+                {totalFiltered === 0 ? 0 : startIndex + 1}
+                –
+                {endIndex} из {totalFiltered} клиентов. Страница {page} из{" "}
+                {totalPages}.
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
-              {/* Полная картотека — всегда */}
+              {/* Полная картотека — сброс на первую страницу без поиска */}
               <Link
                 href={fullUrl}
                 className="rounded-xl px-4 py-2 text-xs font-medium border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
               >
                 Полная картотека
               </Link>
-
-              {/* Свернуть до 10 клиентов — только если есть смысл */}
-              {showCollapseButton && (
-                <Link
-                  href={dashboardUrl}
-                  className="rounded-xl px-4 py-2 text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-                >
-                  Свернуть до 10 клиентов
-                </Link>
-              )}
 
               <Link
                 href="/backoffice/registrar/clients/new"
@@ -207,13 +284,11 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           </div>
 
-          {visibleOwners.length === 0 && (
+          {visibleOwners.length === 0 ? (
             <p className="text-xs text-gray-400">
               Клиенты не найдены по выбранным фильтрам.
             </p>
-          )}
-
-          {visibleOwners.length > 0 && (
+          ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs">
                 <thead>
@@ -227,7 +302,9 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                 </thead>
                 <tbody>
                   {visibleOwners.map((o) => {
-                    const href = `/backoffice/registrar/clients/${o.ownerId}?from=${mode}&pets=${petsFilter}&priv=${privFilter}&mode=${mode}`;
+                    const href =
+                      `/backoffice/registrar/clients/${o.ownerId}` +
+                      buildQuery({ q, pets: petsFilter, priv: privFilter, page });
                     return (
                       <tr
                         key={o.ownerId}
@@ -286,13 +363,50 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </table>
             </div>
           )}
+
+          {/* Пагинация */}
+          {totalPages > 1 && (
+            <div className="flex justify-between items-center pt-3 text-xs">
+              <div className="text-gray-500">
+                Страница {page} из {totalPages}
+              </div>
+              <div className="flex gap-2">
+                {page > 1 && (
+                  <Link
+                    href={pageUrl(page - 1)}
+                    className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
+                  >
+                    ← Назад
+                  </Link>
+                )}
+                {page < totalPages && (
+                  <Link
+                    href={pageUrl(page + 1)}
+                    className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
+                  >
+                    Вперёд →
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </RoleGuard>
   );
 }
 
-/** Склонение "питомец" → "питомцев/питомца" */
+/** маленькая карточка сводки */
+function SummaryCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border bg-gray-50 p-3">
+      <div className="text-[11px] uppercase text-gray-500">{label}</div>
+      <div className="mt-1 text-xl font-semibold">{value}</div>
+    </div>
+  );
+}
+
+/** склонение "питомец" → "питомцев/питомца" */
 function plural(n: number) {
   const mod10 = n % 10;
   const mod100 = n % 100;
