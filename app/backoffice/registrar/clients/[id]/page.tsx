@@ -1115,17 +1115,33 @@ export default function ClientDetailPage() {
           )}
         </section>
 
-        {/* ДОКУМЕНТЫ КЛИЕНТА */}
-        <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Документы клиента</h2>
-            <p className="text-[11px] text-gray-500">
-              Здесь можно хранить договоры, согласия, сканы документов и другие файлы, связанные с владельцем.
-            </p>
-          </div>
-          <ClientDocumentsSection ownerId={owner.user_id} />
-        </section>
+                {/* ДОКУМЕНТЫ КЛИЕНТА (СПОЙЛЕР) */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <button
+            type="button"
+            onClick={() => {
+              // локальное состояние можно вынести наверх компонента, см. ниже
+              setShowClientDocs((v) => !v);
+            }}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <div>
+              <h2 className="text-base font-semibold">Документы клиента</h2>
+              <p className="text-[11px] text-gray-500">
+                Договора, акты, согласия и другие файлы, прикреплённые к владельцу.
+              </p>
+            </div>
+            <span className="text-[11px] text-gray-500">
+              {showClientDocs ? "Свернуть ▲" : "Развернуть ▼"}
+            </span>
+          </button>
 
+          {showClientDocs && (
+            <div className="pt-3">
+              <ClientDocumentsSection ownerId={owner.user_id} />
+            </div>
+          )}
+        </section>
         {/* ПИТОМЦЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex items-center justify-between">
