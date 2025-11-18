@@ -59,6 +59,12 @@ export function ClientDocumentsSection({ ownerId }: Props) {
       return;
     }
 
+    const client = supabase;
+    if (!client) {
+      setErrorText("Supabase недоступен на клиенте.");
+      return;
+    }
+
     setSaving(true);
     setErrorText(null);
 
@@ -70,7 +76,7 @@ export function ClientDocumentsSection({ ownerId }: Props) {
       notes: notes.trim() || null,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("owner_documents")
       .insert(payload)
       .select("*")
@@ -94,9 +100,15 @@ export function ClientDocumentsSection({ ownerId }: Props) {
   async function handleDelete(id: number) {
     if (!confirm("Удалить этот документ?")) return;
 
+    const client = supabase;
+    if (!client) {
+      setErrorText("Supabase недоступен на клиенте.");
+      return;
+    }
+
     setErrorText(null);
 
-    const { error } = await supabase
+    const { error } = await client
       .from("owner_documents")
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", id);
