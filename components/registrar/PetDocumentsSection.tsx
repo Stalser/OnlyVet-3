@@ -32,7 +32,8 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
   const [expanded, setExpanded] = useState(true);
 
   // добавление
-  const [newType, setNewType] = useState<string>("Заключение врача / консультация");
+  const [newType, setNewType] =
+    useState<string>("Заключение врача / консультация");
   const [newTitle, setNewTitle] = useState("");
   const [newFileUrl, setNewFileUrl] = useState("");
   const [newNotes, setNewNotes] = useState("");
@@ -323,8 +324,8 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
         <div>
           <h2 className="text-base font-semibold">Документы питомца</h2>
           <p className="text-[11px] text-gray-500">
-            Медицинские документы по этому животному: заключения, анализы,
-            УЗИ, выписки, операции и т.д.
+            Медицинские документы по этому животному: заключения, анализы, УЗИ,
+            выписки, операции и т.д.
           </p>
         </div>
         <span className="text-[11px] text-gray-500">
@@ -476,7 +477,7 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
                                 <button
                                   type="button"
                                   onClick={cancelEdit}
-                                  className="block w_full rounded-xl border px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50"
+                                  className="block w-full rounded-xl border px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50"
                                 >
                                   Отмена
                                 </button>
