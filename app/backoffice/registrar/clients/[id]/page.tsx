@@ -17,15 +17,14 @@ type Owner = {
 };
 
 type Pet = {
-  id: number;
+  id: string;
   name: string | null;
   species: string | null;
-  breed: string | null;
-  sex: string | null;
-  birth_date: string | null;
-  weight_kg: number | null;
-  microchip_number: string | null;
-  notes: string | null;
+  breed?: string | null;
+  sex?: string | null;
+  birth_date?: string | null;
+  weight_kg?: number | null;
+  microchip_number?: string | null;
 };
 
 type Appointment = {
@@ -47,16 +46,18 @@ type OwnerPrivateData = {
   legal_notes?: string | null;
 };
 
-const SPECIES_OPTIONS = [
-  "Собака",
-  "Кошка",
-  "Грызун",
-  "Птица",
-  "Рептилия",
-  "Другое",
-] as const;
+type AuditRow = {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  payload_before: any;
+  payload_after: any;
+  created_at: string;
+};
 
-const SEX_OPTIONS = ["Не указан", "Самец", "Самка"] as const;
+const SPECIES_OPTIONS = ["Собака", "Кошка", "Грызун", "Птица", "Рептилия", "Другое"] as const;
+const SEX_OPTIONS = ["Самец", "Самка"] as const;
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -67,53 +68,443 @@ export default function ClientDetailPage() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(null);
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
 
-  // Редактирование профиля
+  // Редактирование клиента
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
-  const [ownerEmail, setOwnerEmail] = useState("");
-  const [ownerPhone, setOwnerPhone] = useState("");
-  const [ownerTelegram, setOwnerTelegram] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
-  // Питомцы — добавление
+  // Новый питомец
   const [newPetName, setNewPetName] = useState("");
-  const [newPetSpecies, setNewPetSpecies] =
-    useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
+  const [newPetSpecies, setNewPetSpecies] = useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
   const [newPetSpeciesOther, setNewPetSpeciesOther] = useState("");
   const [newPetBreed, setNewPetBreed] = useState("");
-  const [newPetSex, setNewPetSex] =
-    useState<(typeof SEX_OPTIONS)[number]>("Не указан");
+  const [newPetSex, setNewPetSex] = useState<(typeof SEX_OPTIONS)[number]>("Самец");
   const [newPetBirthDate, setNewPetBirthDate] = useState("");
   const [newPetWeight, setNewPetWeight] = useState("");
   const [newPetChip, setNewPetChip] = useState("");
-  const [newPetNotes, setNewPetNotes] = useState("");
   const [addingPet, setAddingPet] = useState(false);
 
-  // Питомцы — редактирование
-  const [editingPetId, setEditingPetId] = useState<number | null>(null);
-  const [editingPet, setEditingPet] = useState<Partial<Pet> | null>(null);
-  const [savingPet, setSavingPet] = useState(false);
+  // Редактирование существующего питомца
+  const [editingPetId, setEditingPetId] = useState<string | null>(null);
 
   // Персональные данные
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // ==== Вспомогательные функции ====
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const parseContacts = (extra: any): {
-    email: string;
-    phone: string;
-    telegram: string;
-  } => {
-    if (!extra) return { email: "", phone: "", telegram: "" };
+  // === ЗАГРУЗКА ВСЕХ ДАННЫХ ===
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      setActionError(null);
+
+      const ownerKey = parseInt(idParam, 10);
+      if (Number.isNaN(ownerKey)) {
+        setLoadError("Некорректный ID клиента");
+        setLoading(false);
+        return;
+      }
+
+      const client = supabase;
+
+      // Клиент
+      const { data: ownerData } = await client
+        .from("owner_profiles")
+        .select("*")
+        .eq("user_id", ownerKey)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      setOwner(ownerData ?? null);
+      if (ownerData) {
+        setOwnerFullName(ownerData.full_name ?? "");
+        setOwnerCity(ownerData.city ?? "");
+      }
+
+      // Питомцы
+      const { data: petsData } = await client
+        .from("pets")
+        .select("*")
+        .eq("owner_id", ownerKey)
+        .is("deleted_at", null)
+        .order("name", { ascending: true });
+
+      setPets(petsData ?? []);
+
+      const petIds = (petsData || []).map((p: any) => p.id?.toString());
+
+      // Персональные данные
+      const { data: privData } = await client
+        .from("owner_private_data")
+        .select("*")
+        .eq("owner_id", ownerKey)
+        .maybeSingle();
+
+      setPrivateData(privData ?? null);
+
+      // История owner + pet
+      const { data: auditRaw } = await client
+        .from("audit_log")
+        .select("*")
+        .in("entity_type", ["owner", "pet"])
+        .order("created_at", { ascending: false });
+
+      const history = (auditRaw || []).filter((row: AuditRow) => {
+        if (row.entity_type === "owner") return row.entity_id === ownerKey.toString();
+        if (row.entity_type === "pet") {
+          const before = row.payload_before || {};
+          const after = row.payload_after || {};
+          return (
+            petIds.includes(row.entity_id) ||
+            before.owner_id === ownerKey ||
+            after.owner_id === ownerKey
+          );
+        }
+        return false;
+      });
+
+      setAuditRows(history.slice(0, 10));
+      setLoading(false);
+    }
+
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [idParam]);
+    // === СОХРАНЕНИЕ КЛИЕНТА (ФИО / ГОРОД) ===
+  const handleOwnerSave = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!owner) return;
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    if (!ownerFullName.trim()) {
+      setActionError("ФИО клиента не может быть пустым.");
+      return;
+    }
+
+    setActionError(null);
+    setLoading(true);
+
+    const { error } = await client
+      .from("owner_profiles")
+      .update({
+        full_name: ownerFullName.trim(),
+        city: ownerCity.trim() || null,
+      })
+      .eq("user_id", owner.user_id);
+
+    if (error) {
+      console.error("handleOwnerSave error", error);
+      setActionError("Не удалось сохранить профиль клиента.");
+      setLoading(false);
+      return;
+    }
+
+    setOwner({
+      ...owner,
+      full_name: ownerFullName.trim(),
+      city: ownerCity.trim() || null,
+    });
+
+    setLoading(false);
+    setIsEditingOwner(false);
+  };
+
+  // === УДАЛЕНИЕ КЛИЕНТА (soft-delete) ===
+  const handleDeleteOwner = async () => {
+    if (
+      !owner ||
+      !confirm(
+        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже."
+      )
+    ) {
+      return;
+    }
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    setActionError(null);
+    setLoading(true);
+
+    const { error } = await client
+      .from("owner_profiles")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("user_id", owner.user_id);
+
+    if (error) {
+      console.error("handleDeleteOwner error", error);
+      setActionError("Не удалось пометить клиента как удалённого.");
+      setLoading(false);
+      return;
+    }
+
+    router.push("/backoffice/registrar/clients");
+  };
+
+  // === УДАЛЕНИЕ ПИТОМЦА ===
+  const handleDeletePet = async (petId: number) => {
+    if (!confirm("Удалить этого питомца из картотеки?")) return;
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    setActionError(null);
+
+    const { error } = await client.from("pets").delete().eq("id", petId);
+
+    if (error) {
+      console.error("handleDeletePet error", error);
+      setActionError(
+        "Не удалось удалить питомца: " + (error.message || "")
+      );
+      return;
+    }
+
+    setPets((prev) => prev.filter((p) => p.id !== petId));
+  };
+
+  // === ДОБАВЛЕНИЕ НОВОГО ПИТОМЦА ===
+  const handleAddPet = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!owner) return;
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    if (!newPetName.trim()) {
+      setActionError("Укажите имя питомца.");
+      return;
+    }
+
+    setAddingPet(true);
+    setActionError(null);
+
+    const baseSpecies =
+      newPetSpecies === "Другое"
+        ? newPetSpeciesOther.trim() || "Другое"
+        : newPetSpecies;
+    const species = baseSpecies;
+    const breed = newPetBreed.trim() || null;
+    const sex = newPetSex || null;
+    const birth_date = newPetBirthDate || null;
+    const weight_kg = newPetWeight ? Number(newPetWeight) : null;
+    const microchip_number = newPetChip.trim() || null;
+
+    const { data, error } = await client
+      .from("pets")
+      .insert({
+        owner_id: owner.user_id,
+        name: newPetName.trim(),
+        species,
+        breed,
+        sex,
+        birth_date,
+        weight_kg,
+        microchip_number,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      console.error("handleAddPet error", error);
+      setActionError(
+        "Не удалось добавить питомца: " +
+          (error?.message || "ошибка базы данных")
+      );
+      setAddingPet(false);
+      return;
+    }
+
+    setPets((prev) => [...prev, data as Pet]);
+    setNewPetName("");
+    setNewPetSpecies("Кошка");
+    setNewPetSpeciesOther("");
+    setNewPetBreed("");
+    setNewPetSex("Самец");
+    setNewPetBirthDate("");
+    setNewPetWeight("");
+    setNewPetChip("");
+    setAddingPet(false);
+  };
+
+  // === НАЧАТЬ РЕДАКТИРОВАНИЕ ПИТОМЦА ===
+  const startEditPet = (pet: Pet) => {
+    setEditingPetId(String(pet.id));
+    setActionError(null);
+  };
+
+  const cancelEditPet = () => {
+    setEditingPetId(null);
+    setActionError(null);
+  };
+
+  // === СОХРАНЕНИЕ ПИТОМЦА (inline в таблице) ===
+  const handlePetFieldChange = (
+    petId: number,
+    field: keyof Pet,
+    value: any
+  ) => {
+    setPets((prev) =>
+      prev.map((p) =>
+        p.id === petId
+          ? {
+              ...p,
+              [field]:
+                field === "weight_kg"
+                  ? value
+                    ? Number(value)
+                    : null
+                  : value,
+            }
+          : p
+      )
+    );
+  };
+
+  const handlePetSave = async (pet: Pet) => {
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    if (!pet.name || !pet.name.trim()) {
+      setActionError("Имя питомца не может быть пустым.");
+      return;
+    }
+
+    setActionError(null);
+    setLoading(true);
+
+    const species = pet.species?.trim() || null;
+    const breed = pet.breed?.trim() || null;
+    const sex = pet.sex?.trim() || null;
+    const birth_date = pet.birth_date || null;
+    const weight_kg =
+      pet.weight_kg !== null && pet.weight_kg !== undefined
+        ? Number(pet.weight_kg)
+        : null;
+    const microchip_number = pet.microchip_number?.trim() || null;
+
+    const { error } = await client
+      .from("pets")
+      .update({
+        name: pet.name.trim(),
+        species,
+        breed,
+        sex,
+        birth_date,
+        weight_kg,
+        microchip_number,
+      })
+      .eq("id", pet.id);
+
+    if (error) {
+      console.error("handlePetSave error", error);
+      setActionError(
+        "Не удалось сохранить изменения питомца: " +
+          (error.message || "")
+      );
+      setLoading(false);
+      return;
+    }
+
+    setEditingPetId(null);
+    setLoading(false);
+  };
+
+  // === СОХРАНЕНИЕ ПЕРСОНАЛЬНЫХ ДАННЫХ ===
+  const handlePrivateSave = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!owner) return;
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    setSavingPrivate(true);
+    setActionError(null);
+
+    const payload = {
+      passport_series: privateData?.passport_series || null,
+      passport_number: privateData?.passport_number || null,
+      passport_issued_by: privateData?.passport_issued_by || null,
+      passport_issued_at: privateData?.passport_issued_at || null,
+      registration_address: privateData?.registration_address || null,
+      actual_address: privateData?.actual_address || null,
+      legal_notes: privateData?.legal_notes || null,
+    };
+
+    let error = null;
+
+    if (privateData) {
+      const { error: updError } = await client
+        .from("owner_private_data")
+        .update(payload)
+        .eq("owner_id", owner.user_id);
+      error = updError;
+    } else {
+      const { error: insError } = await client
+        .from("owner_private_data")
+        .insert({
+          owner_id: owner.user_id,
+          ...payload,
+        });
+      error = insError;
+    }
+
+    if (error) {
+      console.error("handlePrivateSave error", error);
+      setActionError(
+        "Не удалось сохранить персональные данные клиента."
+      );
+      setSavingPrivate(false);
+      return;
+    }
+
+    setSavingPrivate(false);
+    setIsEditingPrivate(false);
+  };
+
+  // === ВСПОМОГАТЕЛЬНЫЕ РЕНДЕРЫ ===
+
+  const renderContacts = (extra: any) => {
+    if (!extra) {
+      return (
+        <div className="text-xs text-gray-500">
+          Контакты не указаны.
+        </div>
+      );
+    }
+
     let parsed: any = null;
-
     if (typeof extra === "object" && !Array.isArray(extra)) {
       parsed = extra;
     } else if (typeof extra === "string") {
@@ -125,34 +516,35 @@ export default function ClientDetailPage() {
     }
 
     if (!parsed || typeof parsed !== "object") {
-      return { email: "", phone: "", telegram: "" };
+      return (
+        <pre className="rounded bg-gray-50 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+          {typeof extra === "string"
+            ? extra
+            : JSON.stringify(extra, null, 2)}
+        </pre>
+      );
     }
 
-    const email = parsed.email ?? parsed.mail ?? "";
+    const email = parsed.email ?? parsed.mail ?? null;
     const phone =
       parsed.phone ??
       parsed.phone_main ??
       parsed.whatsapp ??
       parsed.telegram_phone ??
-      "";
+      null;
     const telegram =
-      parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? "";
+      parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? null;
 
-    return {
-      email: String(email || ""),
-      phone: String(phone || ""),
-      telegram: String(telegram || ""),
-    };
-  };
+    const hasKnown =
+      (email && String(email).trim()) ||
+      (phone && String(phone).trim()) ||
+      (telegram && String(telegram).trim());
 
-  const renderContacts = (extra: any) => {
-    const { email, phone, telegram } = parseContacts(extra);
-
-    if (!email && !phone && !telegram) {
+    if (!hasKnown) {
       return (
-        <div className="text-xs text-gray-500">
-          Контакты не указаны.
-        </div>
+        <pre className="rounded bg-gray-50 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
+          {JSON.stringify(parsed, null, 2)}
+        </pre>
       );
     }
 
@@ -161,19 +553,19 @@ export default function ClientDetailPage() {
         {email && (
           <div>
             <span className="font-semibold">E-mail: </span>
-            <span>{email}</span>
+            <span>{String(email)}</span>
           </div>
         )}
         {phone && (
           <div>
             <span className="font-semibold">Телефон: </span>
-            <span>{phone}</span>
+            <span>{String(phone)}</span>
           </div>
         )}
         {telegram && (
           <div>
             <span className="font-semibold">Telegram: </span>
-            <span>{telegram}</span>
+            <span>{String(telegram)}</span>
           </div>
         )}
       </div>
@@ -201,608 +593,227 @@ export default function ClientDetailPage() {
       ? "заполнены"
       : "не заполнены";
 
-  const formatPetSex = (sex: string | null) => {
-    if (!sex) return "Не указан";
-    return sex;
+  const renderAuditAction = (row: AuditRow) => {
+    const a = row.action.toLowerCase();
+    if (row.entity_type === "owner") {
+      if (a === "create") return "Создание профиля";
+      if (a === "update") return "Изменение профиля";
+      if (a === "delete") return "Удаление профиля";
+      return row.action;
+    }
+    if (row.entity_type === "pet") {
+      if (a === "create") return "Создание питомца";
+      if (a === "update") return "Изменение питомца";
+      if (a === "delete") return "Удаление питомца";
+    }
+    return row.action;
   };
 
-  const formatPetBirthDate = (date: string | null) => {
-    if (!date) return "не указана";
-    return new Date(date).toLocaleDateString("ru-RU");
-  };
+  const renderAuditSummary = (row: AuditRow) => {
+    const before = row.payload_before || {};
+    const after = row.payload_after || {};
 
-  const formatPetWeight = (w: number | null) => {
-    if (!w && w !== 0) return "не указан";
-    return `${w.toFixed(1)} кг`;
-  };
-
-  // ==== Загрузка данных клиента ====
-
-  useEffect(() => {
-    let ignore = false;
-
-    async function load() {
-      setLoading(true);
-      setLoadError(null);
-      setActionError(null);
-
-      const ownerKey = parseInt(idParam, 10);
-      if (Number.isNaN(ownerKey)) {
-        setLoadError("Некорректный ID клиента.");
-        setLoading(false);
-        return;
+    if (row.entity_type === "owner") {
+      const changes: string[] = [];
+      if (before.full_name !== after.full_name) {
+        changes.push(
+          `ФИО: "${before.full_name || "—"}" → "${
+            after.full_name || "—"
+          }"`
+        );
       }
-
-      const client = supabase;
-      if (!client) {
-        setLoadError("Supabase недоступен на клиенте.");
-        setLoading(false);
-        return;
+      if (before.city !== after.city) {
+        changes.push(
+          `Город: "${before.city || "—"}" → "${after.city || "—"}"`
+        );
       }
-
-      try {
-        // Клиент
-        const { data: ownerData, error: ownerError } = await client
-          .from("owner_profiles")
-          .select("*")
-          .eq("user_id", ownerKey)
-          .is("deleted_at", null)
-          .maybeSingle();
-
-        if (ownerError) throw ownerError;
-        setOwner(ownerData ?? null);
-
-        if (!ownerData) {
-          setPets([]);
-          setAppointments([]);
-          setPrivateData(null);
-          setLoading(false);
-          return;
-        }
-
-        setOwnerFullName(ownerData.full_name ?? "");
-        setOwnerCity(ownerData.city ?? "");
-
-        const contacts = parseContacts(ownerData.extra_contacts);
-        setOwnerEmail(contacts.email);
-        setOwnerPhone(contacts.phone);
-        setOwnerTelegram(contacts.telegram);
-
-        // Питомцы
-        const { data: petsData, error: petsError } = await client
-          .from("pets")
-          .select(
-            "id, owner_id, name, species, breed, sex, birth_date, weight_kg, microchip_number, notes"
-          )
-          .eq("owner_id", ownerKey)
-          .order("name", { ascending: true });
-
-        if (petsError) throw petsError;
-        setPets((petsData as Pet[]) || []);
-
-        // Консультации
-        const { data: apptData, error: apptError } = await client
-          .from("appointments")
-          .select(
-            "id, starts_at, status, pet_name, species, service_code"
-          )
-          .eq("owner_id", ownerKey)
-          .order("starts_at", { ascending: false });
-
-        if (apptError) throw apptError;
-        setAppointments((apptData as Appointment[]) || []);
-
-        // Персональные данные
-        const { data: privData, error: privError } = await client
-          .from("owner_private_data")
-          .select(
-            "passport_series, passport_number, passport_issued_by, passport_issued_at, registration_address, actual_address, legal_notes"
-          )
-          .eq("owner_id", ownerKey)
-          .maybeSingle();
-
-        if (privError) throw privError;
-        setPrivateData((privData as OwnerPrivateData) ?? null);
-      } catch (err) {
-        console.error("load client error", err);
-        setLoadError("Ошибка загрузки данных клиента.");
-      } finally {
-        if (!ignore) setLoading(false);
+      if (changes.length === 0) {
+        if (row.action === "create") return "Создан профиль клиента";
+        if (row.action === "delete") return "Клиент помечен как удалённый";
+        return "Изменение записи клиента";
       }
+      return changes.join("; ");
     }
 
-    load();
-    return () => {
-      ignore = true;
-    };
-  }, [idParam]);
-
-  // ==== Обработчики ====
-
-  const handleOwnerSave = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!owner) return;
-
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
+    if (row.entity_type === "pet") {
+      const beforeName = before.name || "";
+      const afterName = after.name || "";
+      if (row.action === "create") {
+        return `Создан питомец "${afterName || "без имени"}"`;
+      }
+      if (row.action === "delete") {
+        return `Удалён питомец "${beforeName || "без имени"}"`;
+      }
+      return `Изменены данные питомца "${afterName || beforeName || "без имени"}"`;
     }
 
-    if (!ownerFullName.trim()) {
-      setActionError("ФИО клиента не может быть пустым.");
-      return;
-    }
-
-    setSavingOwner(true);
-    setActionError(null);
-
-    const extraContacts = {
-      email: ownerEmail.trim() || null,
-      phone: ownerPhone.trim() || null,
-      telegram: ownerTelegram.trim() || null,
-    };
-
-    const { error } = await client
-      .from("owner_profiles")
-      .update({
-        full_name: ownerFullName.trim(),
-        city: ownerCity.trim() || null,
-        extra_contacts: extraContacts,
-      })
-      .eq("user_id", owner.user_id);
-
-    if (error) {
-      console.error(error);
-      setActionError("Не удалось сохранить изменения клиента.");
-      setSavingOwner(false);
-      return;
-    }
-
-    setOwner({
-      ...owner,
-      full_name: ownerFullName.trim(),
-      city: ownerCity.trim() || null,
-      extra_contacts: extraContacts,
-    });
-    setSavingOwner(false);
-    setIsEditingOwner(false);
+    return "Изменение данных";
   };
-
-  const handleDeleteOwner = async () => {
-    if (
-      !owner ||
-      !confirm(
-        "Удалить этого клиента из картотеки? Его профиль будет скрыт, но данные можно будет восстановить позже."
-      )
-    ) {
-      return;
-    }
-
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
-
-    setActionError(null);
-    setLoading(true);
-
-    const { error } = await client
-      .from("owner_profiles")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("user_id", owner.user_id);
-
-    if (error) {
-      console.error(error);
-      setActionError("Не удалось пометить клиента как удалённого.");
-      setLoading(false);
-      return;
-    }
-
-    router.push("/backoffice/registrar/clients");
-  };
-
-  const handleDeletePet = async (petId: number) => {
-    if (!confirm("Удалить этого питомца из картотеки?")) return;
-
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
-
-    setActionError(null);
-
-    const { error } = await client.from("pets").delete().eq("id", petId);
-
-    if (error) {
-      console.error(error);
-      setActionError(
-        "Не удалось удалить питомца: " + (error.message || "")
-      );
-      return;
-    }
-
-    setPets((prev) => prev.filter((p) => p.id !== petId));
-  };
-
-  const handleAddPet = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!owner) return;
-
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
-
-    if (!newPetName.trim()) {
-      setActionError("Укажите имя питомца.");
-      return;
-    }
-
-    setAddingPet(true);
-    setActionError(null);
-
-    const speciesBase =
-      newPetSpecies === "Другое"
-        ? newPetSpeciesOther.trim() || "Другое"
-        : newPetSpecies;
-    const species = speciesBase;
-    const breed = newPetBreed.trim() || null;
-    const sex = newPetSex === "Не указан" ? null : newPetSex;
-    const birth_date = newPetBirthDate || null;
-    const weight_kg = newPetWeight ? Number(newPetWeight) : null;
-    const microchip_number = newPetChip.trim() || null;
-    const notes = newPetNotes.trim() || null;
-
-    const { data, error } = await client
-      .from("pets")
-      .insert({
-        owner_id: owner.user_id,
-        name: newPetName.trim(),
-        species,
-        breed,
-        sex,
-        birth_date,
-        weight_kg,
-        microchip_number,
-        notes,
-      })
-      .select("*")
-      .single();
-
-    if (error || !data) {
-      console.error("add pet error", error);
-      setActionError(
-        "Не удалось добавить питомца: " +
-          (error?.message || "ошибка базы данных")
-      );
-      setAddingPet(false);
-      return;
-    }
-
-    setPets((prev) => [...prev, data as Pet]);
-    setNewPetName("");
-    setNewPetSpecies("Кошка");
-    setNewPetSpeciesOther("");
-    setNewPetBreed("");
-    setNewPetSex("Не указан");
-    setNewPetBirthDate("");
-    setNewPetWeight("");
-    setNewPetChip("");
-    setNewPetNotes("");
-    setAddingPet(false);
-  };
-
-  // Редактирование питомца
-  const startEditPet = (pet: Pet) => {
-    setEditingPetId(pet.id);
-    setEditingPet({
-      ...pet,
-      birth_date: pet.birth_date
-        ? pet.birth_date.substring(0, 10)
-        : "",
-      weight_kg: pet.weight_kg,
-    });
-    setActionError(null);
-  };
-
-  const cancelEditPet = () => {
-    setEditingPetId(null);
-    setEditingPet(null);
-  };
-
-  const saveEditPet = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!editingPetId || !editingPet) return;
-
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
-
-    if (!editingPet.name || !editingPet.name.trim()) {
-      setActionError("Имя питомца не может быть пустым.");
-      return;
-    }
-
-    setSavingPet(true);
-    setActionError(null);
-
-    const species = editingPet.species?.trim() || null;
-    const breed = editingPet.breed?.trim() || null;
-    const sex =
-      editingPet.sex && editingPet.sex !== "Не указан"
-        ? editingPet.sex
-        : null;
-    const birth_date = editingPet.birth_date || null;
-    const weight_kg =
-      editingPet.weight_kg !== null &&
-      editingPet.weight_kg !== undefined &&
-      !Number.isNaN(Number(editingPet.weight_kg))
-        ? Number(editingPet.weight_kg)
-        : null;
-    const microchip_number =
-      editingPet.microchip_number?.trim() || null;
-    const notes = editingPet.notes?.trim() || null;
-
-    const { error } = await client
-      .from("pets")
-      .update({
-        name: editingPet.name.trim(),
-        species,
-        breed,
-        sex,
-        birth_date,
-        weight_kg,
-        microchip_number,
-        notes,
-      })
-      .eq("id", editingPetId);
-
-    if (error) {
-      console.error("saveEditPet error", error);
-      setActionError(
-        "Не удалось сохранить изменения питомца: " +
-          (error.message || "")
-      );
-      setSavingPet(false);
-      return;
-    }
-
-    setPets((prev) =>
-      prev.map((p) =>
-        p.id === editingPetId
-          ? {
-              ...p,
-              name: editingPet.name!.trim(),
-              species,
-              breed,
-              sex,
-              birth_date,
-              weight_kg,
-              microchip_number,
-              notes,
-            }
-          : p
-      )
-    );
-
-    setSavingPet(false);
-    setEditingPetId(null);
-    setEditingPet(null);
-  };
-
-  // === Рендер ===
-
-  const privateStatusLabel =
-    privateStatus === "заполнены"
-      ? "заполнены"
-      : "не заполнены";
 
   const renderPetRow = (pet: Pet) => {
-    if (editingPetId === pet.id && editingPet) {
+    const isEditing = editingPetId === String(pet.id);
+
+    if (!isEditing) {
       return (
-        <tr key={pet.id} className="border-b last:border-0 bg-gray-50">
-          <td className="px-2 py-2 align-top text-[11px]">
-            <input
-              type="text"
-              value={editingPet.name ?? ""}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  name: e.target.value,
-                }))
-              }
-              className="w-full rounded border px-2 py-1 text-[11px]"
-            />
+        <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
+          <td className="px-2 py-2 text-[11px] text-gray-800">
+            {pet.name || "Без имени"}
           </td>
-          <td className="px-2 py-2 align-top text-[11px]">
-            <input
-              type="text"
-              value={editingPet.species ?? ""}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  species: e.target.value,
-                }))
-              }
-              className="mb-1 w-full rounded border px-2 py-1 text-[11px]"
-              placeholder="Вид (например: Кошка)"
-            />
-            <input
-              type="text"
-              value={editingPet.breed ?? ""}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  breed: e.target.value,
-                }))
-              }
-              className="w-full rounded border px-2 py-1 text-[11px]"
-              placeholder="Порода / описание"
-            />
+          <td className="px-2 py-2 text-[11px] text-gray-700">
+            {pet.species || "Не указан"}
+            {pet.breed && (
+              <span className="text-[10px] text-gray-500">
+                {" "}
+                ({pet.breed})
+              </span>
+            )}
           </td>
-          <td className="px-2 py-2 align-top text-[11px]">
-            <select
-              value={editingPet.sex ?? "Не указан"}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  sex: e.target.value,
-                }))
-              }
-              className="w-full rounded border px-2 py-1 text-[11px]"
-            >
-              {SEX_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          <td className="px-2 py-2 text-[11px] text-gray-700">
+            {pet.sex || "—"}
           </td>
-          <td className="px-2 py-2 align-top text-[11px]">
-            <input
-              type="date"
-              value={editingPet.birth_date ?? ""}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  birth_date: e.target.value,
-                }))
-              }
-              className="w-full rounded border px-2 py-1 text-[11px]"
-            />
+          <td className="px-2 py-2 text-[11px] text-gray-700">
+            {pet.birth_date
+              ? new Date(pet.birth_date).toLocaleDateString("ru-RU")
+              : "—"}
           </td>
-          <td className="px-2 py-2 align-top text-[11px]">
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={
-                editingPet.weight_kg !== null &&
-                editingPet.weight_kg !== undefined
-                  ? String(editingPet.weight_kg)
-                  : ""
-              }
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  weight_kg: e.target.value
-                    ? Number(e.target.value)
-                    : null,
-                }))
-              }
-              className="w-full rounded border px-2 py-1 text-[11px]"
-              placeholder="Вес, кг"
-            />
+          <td className="px-2 py-2 text-[11px] text-gray-700">
+            {pet.weight_kg != null ? `${pet.weight_kg.toFixed(1)} кг` : "—"}
           </td>
-          <td className="px-2 py-2 align-top text-[11px]">
-            <input
-              type="text"
-              value={editingPet.microchip_number ?? ""}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  microchip_number: e.target.value,
-                }))
-              }
-              className="mb-1 w-full rounded border px-2 py-1 text-[11px]"
-              placeholder="Номер чипа"
-            />
-            <textarea
-              value={editingPet.notes ?? ""}
-              onChange={(e) =>
-                setEditingPet((prev) => ({
-                  ...(prev || {}),
-                  notes: e.target.value,
-                }))
-              }
-              className="w-full rounded border px-2 py-1 text-[11px]"
-              rows={2}
-              placeholder="Заметки"
-            />
+          <td className="px-2 py-2 text-[11px] text-gray-700">
+            {pet.microchip_number && (
+              <div>
+                <span className="font-semibold">Чип: </span>
+                {pet.microchip_number}
+              </div>
+            )}
           </td>
-          <td className="px-2 py-2 align-top text-right text-[11px] space-y-1">
+          <td className="px-2 py-2 text-right text-[11px] space-y-1">
             <button
               type="button"
-              onClick={cancelEditPet}
-              className="block w-full rounded border px-2 py-1 text-[10px]"
+              onClick={() => startEditPet(pet)}
+              className="block w-full text-left text-emerald-700 hover:underline"
             >
-              Отмена
+              Редактировать
             </button>
             <button
               type="button"
-              onClick={saveEditPet}
-              disabled={savingPet}
-              className="block w-full rounded bg-emerald-600 px-2 py-1 text-[10px] font-medium text-white disabled:opacity-60"
+              onClick={() => handleDeletePet(pet.id)}
+              className="block w-full text-left text-red-600 hover:underline"
             >
-              {savingPet ? "Сохраняю…" : "Сохранить"}
+              Удалить
             </button>
           </td>
         </tr>
       );
     }
 
-    // режим просмотра
+    // Режим редактирования
     return (
-      <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
-        <td className="px-2 py-2 align-top text-[11px] text-gray-800">
-          {pet.name || "Без имени"}
+      <tr key={pet.id} className="border-b last:border-0 bg-gray-50">
+        <td className="px-2 py-2 text-[11px]">
+          <input
+            type="text"
+            value={pet.name ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(pet.id, "name", e.target.value)
+            }
+            className="w-full rounded border px-2 py-1 text-[11px]"
+          />
         </td>
-        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-          {pet.species || "Не указан"}
-          {pet.breed && (
-            <span className="text-[10px] text-gray-500">
-              {" "}
-              ({pet.breed})
-            </span>
-          )}
+        <td className="px-2 py-2 text-[11px]">
+          <input
+            type="text"
+            value={pet.species ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(pet.id, "species", e.target.value)
+            }
+            className="mb-1 w-full rounded border px-2 py-1 text-[11px]"
+            placeholder="Вид"
+          />
+          <input
+            type="text"
+            value={pet.breed ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(pet.id, "breed", e.target.value)
+            }
+            className="w-full rounded border px-2 py-1 text-[11px]"
+            placeholder="Порода / описание"
+          />
         </td>
-        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-          {formatPetSex(pet.sex)}
+        <td className="px-2 py-2 text-[11px]">
+          <select
+            value={pet.sex ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(pet.id, "sex", e.target.value)
+            }
+            className="w-full rounded border px-2 py-1 text-[11px]"
+          >
+            <option value="">Не указан</option>
+            {SEX_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
         </td>
-        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-          {formatPetBirthDate(pet.birth_date)}
+        <td className="px-2 py-2 text-[11px]">
+          <input
+            type="date"
+            value={pet.birth_date ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(pet.id, "birth_date", e.target.value)
+            }
+            className="w-full rounded border px-2 py-1 text-[11px]"
+          />
         </td>
-        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-          {formatPetWeight(pet.weight_kg)}
+        <td className="px-2 py-2 text-[11px]">
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            value={pet.weight_kg ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(pet.id, "weight_kg", e.target.value)
+            }
+            className="w-full rounded border px-2 py-1 text-[11px]"
+            placeholder="Вес, кг"
+          />
         </td>
-        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-          {pet.microchip_number && (
-            <div>
-              <span className="font-semibold">Чип: </span>
-              {pet.microchip_number}
-            </div>
-          )}
-          {pet.notes && (
-            <div className="text-[10px] text-gray-500">Заметки: {pet.notes}</div>
-          )}
+        <td className="px-2 py-2 text-[11px]">
+          <input
+            type="text"
+            value={pet.microchip_number ?? ""}
+            onChange={(e) =>
+              handlePetFieldChange(
+                pet.id,
+                "microchip_number",
+                e.target.value
+              )
+            }
+            className="w-full rounded border px-2 py-1 text-[11px]"
+            placeholder="Номер чипа"
+          />
         </td>
-        <td className="px-2 py-2 align-top text-right space-y-1 text-[11px]">
+        <td className="px-2 py-2 text-right text-[11px] space-y-1">
           <button
             type="button"
-            onClick={() => startEditPet(pet)}
-            className="block w-full text-[10px] font-medium text-emerald-700 hover:underline"
+            onClick={cancelEditPet}
+            className="block w-full rounded border px-2 py-1 text-[10px]"
           >
-            Редактировать
+            Отмена
           </button>
           <button
             type="button"
-            onClick={() => handleDeletePet(pet.id)}
-            className="block w-full text-[10px] font-medium text-red-600 hover:underline"
+            onClick={() => handlePetSave(pet)}
+            className="block w-full rounded bg-emerald-600 px-2 py-1 text-[10px] font-medium text-white"
           >
-            Удалить
+            Сохранить
           </button>
         </td>
       </tr>
     );
   };
-
-  return (
+    return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         {/* Шапка */}
@@ -814,9 +825,11 @@ export default function ClientDetailPage() {
             >
               ← К картотеке клиентов
             </Link>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight">Клиент</h1>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight">
+              Клиент
+            </h1>
             <p className="text-sm text-gray-500">
-              Карточка клиента, его питомцы и персональные данные.
+              Карточка клиента, его питомцы, персональные данные и история изменений.
             </p>
           </div>
           <RegistrarHeader />
@@ -855,9 +868,7 @@ export default function ClientDetailPage() {
             {/* Основная информация */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">
-                  Основная информация
-                </h2>
+                <h2 className="text-base font-semibold">Основная информация</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -908,9 +919,7 @@ export default function ClientDetailPage() {
                       </div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-800">
                         {owner.created_at
-                          ? new Date(owner.created_at).toLocaleString(
-                              "ru-RU"
-                            )
+                          ? new Date(owner.created_at).toLocaleString("ru-RU")
                           : "—"}
                       </div>
                     </div>
@@ -964,39 +973,10 @@ export default function ClientDetailPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">
-                        E-mail
-                      </label>
-                      <input
-                        type="email"
-                        value={ownerEmail}
-                        onChange={(e) => setOwnerEmail(e.target.value)}
-                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">
-                        Телефон
-                      </label>
-                      <input
-                        type="text"
-                        value={ownerPhone}
-                        onChange={(e) => setOwnerPhone(e.target.value)}
-                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">
-                        Telegram
-                      </label>
-                      <input
-                        type="text"
-                        value={ownerTelegram}
-                        onChange={(e) => setOwnerTelegram(e.target.value)}
-                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                        placeholder="@username"
-                      />
+                    <div className="text-[11px] text-gray-500 mb-1">Контакты</div>
+                    {/* Здесь можно вывести редактируемые контакты позже */}
+                    <div className="rounded-xl border bg-gray-50 px-3 py-2">
+                      {renderContacts(owner.extra_contacts)}
                     </div>
                   </div>
 
@@ -1005,14 +985,8 @@ export default function ClientDetailPage() {
                       type="button"
                       onClick={() => {
                         setIsEditingOwner(false);
-                        if (owner) {
-                          setOwnerFullName(owner.full_name ?? "");
-                          setOwnerCity(owner.city ?? "");
-                          const c = parseContacts(owner.extra_contacts);
-                          setOwnerEmail(c.email);
-                          setOwnerPhone(c.phone);
-                          setOwnerTelegram(c.telegram);
-                        }
+                        setOwnerFullName(owner.full_name ?? "");
+                        setOwnerCity(owner.city ?? "");
                         setActionError(null);
                       }}
                       className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
@@ -1040,11 +1014,10 @@ export default function ClientDetailPage() {
                   </h2>
                   <p className="text-[11px] text-gray-500">
                     Этот блок заполняет регистратор. Клиент не видит эти данные.
-                    Используется только при необходимости.
                   </p>
                 </div>
                 <div className="flex flex-col items-end text-[11px] text-gray-500">
-                  <span>Статус: {privateStatusLabel}</span>
+                  <span>Статус: {privateStatus}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -1101,10 +1074,7 @@ export default function ClientDetailPage() {
                   </div>
                 </div>
               ) : (
-                <form
-                  onSubmit={handlePrivateSave}
-                  className="space-y-2 text-xs"
-                >
+                <form onSubmit={handlePrivateSave} className="space-y-2 text-xs">
                   <div className="grid gap-2 md:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-[11px] text-gray-500">
@@ -1274,11 +1244,11 @@ export default function ClientDetailPage() {
                         <th className="px-2 py-2">Пол</th>
                         <th className="px-2 py-2">Дата рождения</th>
                         <th className="px-2 py-2">Вес</th>
-                        <th className="px-2 py-2">Чип / заметки</th>
+                        <th className="px-2 py-2">Чип</th>
                         <th className="px-2 py-2 text-right">Действия</th>
                       </tr>
                     </thead>
-                    <tbody>{pets.map(renderPetRow)}</tbody>
+                    <tbody>{pets.map((p) => renderPetRow(p))}</tbody>
                   </table>
                 </div>
               )}
@@ -1301,6 +1271,7 @@ export default function ClientDetailPage() {
                       placeholder="Например: Мурзик"
                     />
                   </div>
+
                   <div className="grid gap-2 md:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-[11px] text-gray-500">
@@ -1387,8 +1358,8 @@ export default function ClientDetailPage() {
                       </label>
                       <input
                         type="number"
-                        min="0"
                         step="0.1"
+                        min="0"
                         value={newPetWeight}
                         onChange={(e) => setNewPetWeight(e.target.value)}
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
@@ -1405,19 +1376,6 @@ export default function ClientDetailPage() {
                       value={newPetChip}
                       onChange={(e) => setNewPetChip(e.target.value)}
                       className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      Заметки
-                    </label>
-                    <textarea
-                      value={newPetNotes}
-                      onChange={(e) => setNewPetNotes(e.target.value)}
-                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      rows={2}
-                      placeholder="Например: особенности поведения, риски…"
                     />
                   </div>
 
@@ -1482,6 +1440,51 @@ export default function ClientDetailPage() {
                           </td>
                           <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                             {a.status || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {/* История изменений профиля и питомцев */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <h2 className="text-base font-semibold">
+                История изменений профиля клиента
+              </h2>
+
+              {auditRows.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  Изменения профиля и питомцев ещё не фиксировались.
+                </p>
+              )}
+
+              {auditRows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                        <th className="px-2 py-2">Дата / время</th>
+                        <th className="px-2 py-2">Действие</th>
+                        <th className="px-2 py-2">Описание</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditRows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b last:border-0 hover:bg-gray-50"
+                        >
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {new Date(row.created_at).toLocaleString("ru-RU")}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {renderAuditAction(row)}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {renderAuditSummary(row)}
                           </td>
                         </tr>
                       ))}
