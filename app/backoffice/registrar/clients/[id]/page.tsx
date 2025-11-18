@@ -17,9 +17,15 @@ type Owner = {
 };
 
 type Pet = {
-  id: string;
+  id: number;
   name: string | null;
   species: string | null;
+  breed: string | null;
+  sex: string | null;
+  birth_date: string | null;
+  weight_kg: number | null;
+  microchip_number: string | null;
+  notes: string | null;
 };
 
 type Appointment = {
@@ -41,16 +47,6 @@ type OwnerPrivateData = {
   legal_notes?: string | null;
 };
 
-type AuditRow = {
-  id: number;
-  entity_type: string;
-  entity_id: string;
-  action: string;
-  payload_before: any;
-  payload_after: any;
-  created_at: string;
-};
-
 const SPECIES_OPTIONS = [
   "Собака",
   "Кошка",
@@ -59,6 +55,8 @@ const SPECIES_OPTIONS = [
   "Рептилия",
   "Другое",
 ] as const;
+
+const SEX_OPTIONS = ["Не указан", "Самец", "Самка"] as const;
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -69,28 +67,157 @@ export default function ClientDetailPage() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [privateData, setPrivateData] = useState<OwnerPrivateData | null>(null);
-  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Редактирование профиля
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPhone, setOwnerPhone] = useState("");
+  const [ownerTelegram, setOwnerTelegram] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
+  // Питомцы — добавление
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] =
     useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
   const [newPetSpeciesOther, setNewPetSpeciesOther] = useState("");
   const [newPetBreed, setNewPetBreed] = useState("");
+  const [newPetSex, setNewPetSex] =
+    useState<(typeof SEX_OPTIONS)[number]>("Не указан");
+  const [newPetBirthDate, setNewPetBirthDate] = useState("");
+  const [newPetWeight, setNewPetWeight] = useState("");
+  const [newPetChip, setNewPetChip] = useState("");
+  const [newPetNotes, setNewPetNotes] = useState("");
   const [addingPet, setAddingPet] = useState(false);
 
+  // Питомцы — редактирование
+  const [editingPetId, setEditingPetId] = useState<number | null>(null);
+  const [editingPet, setEditingPet] = useState<Partial<Pet> | null>(null);
+  const [savingPet, setSavingPet] = useState(false);
+
+  // Персональные данные
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // === Загрузка всех данных по клиенту ===
+  // ==== Вспомогательные функции ====
+
+  const parseContacts = (extra: any): {
+    email: string;
+    phone: string;
+    telegram: string;
+  } => {
+    if (!extra) return { email: "", phone: "", telegram: "" };
+    let parsed: any = null;
+
+    if (typeof extra === "object" && !Array.isArray(extra)) {
+      parsed = extra;
+    } else if (typeof extra === "string") {
+      try {
+        parsed = JSON.parse(extra);
+      } catch {
+        parsed = null;
+      }
+    }
+
+    if (!parsed || typeof parsed !== "object") {
+      return { email: "", phone: "", telegram: "" };
+    }
+
+    const email = parsed.email ?? parsed.mail ?? "";
+    const phone =
+      parsed.phone ??
+      parsed.phone_main ??
+      parsed.whatsapp ??
+      parsed.telegram_phone ??
+      "";
+    const telegram =
+      parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? "";
+
+    return {
+      email: String(email || ""),
+      phone: String(phone || ""),
+      telegram: String(telegram || ""),
+    };
+  };
+
+  const renderContacts = (extra: any) => {
+    const { email, phone, telegram } = parseContacts(extra);
+
+    if (!email && !phone && !telegram) {
+      return (
+        <div className="text-xs text-gray-500">
+          Контакты не указаны.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-1 text-xs text-gray-800">
+        {email && (
+          <div>
+            <span className="font-semibold">E-mail: </span>
+            <span>{email}</span>
+          </div>
+        )}
+        {phone && (
+          <div>
+            <span className="font-semibold">Телефон: </span>
+            <span>{phone}</span>
+          </div>
+        )}
+        {telegram && (
+          <div>
+            <span className="font-semibold">Telegram: </span>
+            <span>{telegram}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const formatApptDate = (starts_at: string | null) => {
+    if (!starts_at) return "—";
+    const d = new Date(starts_at);
+    return d.toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const privateStatus =
+    privateData &&
+    (privateData.passport_series ||
+      privateData.passport_number ||
+      privateData.registration_address ||
+      privateData.actual_address)
+      ? "заполнены"
+      : "не заполнены";
+
+  const formatPetSex = (sex: string | null) => {
+    if (!sex) return "Не указан";
+    return sex;
+  };
+
+  const formatPetBirthDate = (date: string | null) => {
+    if (!date) return "не указана";
+    return new Date(date).toLocaleDateString("ru-RU");
+  };
+
+  const formatPetWeight = (w: number | null) => {
+    if (!w && w !== 0) return "не указан";
+    return `${w.toFixed(1)} кг`;
+  };
+
+  // ==== Загрузка данных клиента ====
+
   useEffect(() => {
     let ignore = false;
 
@@ -114,7 +241,7 @@ export default function ClientDetailPage() {
       }
 
       try {
-        // 1. Клиент
+        // Клиент
         const { data: ownerData, error: ownerError } = await client
           .from("owner_profiles")
           .select("*")
@@ -124,34 +251,36 @@ export default function ClientDetailPage() {
 
         if (ownerError) throw ownerError;
         setOwner(ownerData ?? null);
-        if (ownerData) {
-          setOwnerFullName(ownerData.full_name ?? "");
-          setOwnerCity(ownerData.city ?? "");
-        }
 
-        // Если клиента нет — дальше смысла нет
         if (!ownerData) {
           setPets([]);
           setAppointments([]);
           setPrivateData(null);
-          setAuditRows([]);
           setLoading(false);
           return;
         }
 
-        // 2. Питомцы
+        setOwnerFullName(ownerData.full_name ?? "");
+        setOwnerCity(ownerData.city ?? "");
+
+        const contacts = parseContacts(ownerData.extra_contacts);
+        setOwnerEmail(contacts.email);
+        setOwnerPhone(contacts.phone);
+        setOwnerTelegram(contacts.telegram);
+
+        // Питомцы
         const { data: petsData, error: petsError } = await client
           .from("pets")
-          .select("*")
+          .select(
+            "id, owner_id, name, species, breed, sex, birth_date, weight_kg, microchip_number, notes"
+          )
           .eq("owner_id", ownerKey)
           .order("name", { ascending: true });
 
         if (petsError) throw petsError;
-        const petsList = (petsData as Pet[]) || [];
-        setPets(petsList);
-        const petIds = petsList.map((p) => p.id?.toString());
+        setPets((petsData as Pet[]) || []);
 
-        // 3. Консультации
+        // Консультации
         const { data: apptData, error: apptError } = await client
           .from("appointments")
           .select(
@@ -163,50 +292,22 @@ export default function ClientDetailPage() {
         if (apptError) throw apptError;
         setAppointments((apptData as Appointment[]) || []);
 
-        // 4. Персональные данные
+        // Персональные данные
         const { data: privData, error: privError } = await client
           .from("owner_private_data")
-          .select("*")
+          .select(
+            "passport_series, passport_number, passport_issued_by, passport_issued_at, registration_address, actual_address, legal_notes"
+          )
           .eq("owner_id", ownerKey)
           .maybeSingle();
 
         if (privError) throw privError;
         setPrivateData((privData as OwnerPrivateData) ?? null);
-
-        // 5. История изменений (owner + pet)
-        const { data: auditRaw, error: auditError } = await client
-          .from("audit_log")
-          .select("*")
-          .in("entity_type", ["owner", "pet"])
-          .order("created_at", { ascending: false })
-          .limit(50);
-
-        if (auditError) throw auditError;
-
-        const history = ((auditRaw as AuditRow[]) || []).filter((row) => {
-          if (row.entity_type === "owner") {
-            return row.entity_id === ownerKey.toString();
-          }
-          if (row.entity_type === "pet") {
-            const before = row.payload_before || {};
-            const after = row.payload_after || {};
-            const petMatch =
-              petIds.includes(row.entity_id) ||
-              petIds.includes((before.id || "").toString()) ||
-              petIds.includes((after.id || "").toString());
-            const ownerMatch =
-              before.owner_id === ownerKey || after.owner_id === ownerKey;
-            return petMatch || ownerMatch;
-          }
-          return false;
-        });
-
-        setAuditRows(history.slice(0, 10));
       } catch (err) {
         console.error("load client error", err);
         setLoadError("Ошибка загрузки данных клиента.");
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
 
@@ -216,7 +317,8 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // === Сохранение клиента (ФИО / город) ===
+  // ==== Обработчики ====
+
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -235,11 +337,18 @@ export default function ClientDetailPage() {
     setSavingOwner(true);
     setActionError(null);
 
+    const extraContacts = {
+      email: ownerEmail.trim() || null,
+      phone: ownerPhone.trim() || null,
+      telegram: ownerTelegram.trim() || null,
+    };
+
     const { error } = await client
       .from("owner_profiles")
       .update({
         full_name: ownerFullName.trim(),
         city: ownerCity.trim() || null,
+        extra_contacts: extraContacts,
       })
       .eq("user_id", owner.user_id);
 
@@ -254,12 +363,12 @@ export default function ClientDetailPage() {
       ...owner,
       full_name: ownerFullName.trim(),
       city: ownerCity.trim() || null,
+      extra_contacts: extraContacts,
     });
     setSavingOwner(false);
     setIsEditingOwner(false);
   };
 
-  // === Удаление клиента (soft-delete) ===
   const handleDeleteOwner = async () => {
     if (
       !owner ||
@@ -294,8 +403,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // === Удаление питомца ===
-  const handleDeletePet = async (petId: string) => {
+  const handleDeletePet = async (petId: number) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
     const client = supabase;
@@ -319,7 +427,6 @@ export default function ClientDetailPage() {
     setPets((prev) => prev.filter((p) => p.id !== petId));
   };
 
-  // === Добавление питомца ===
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
@@ -338,20 +445,30 @@ export default function ClientDetailPage() {
     setAddingPet(true);
     setActionError(null);
 
-    const speciesText =
+    const speciesBase =
       newPetSpecies === "Другое"
-        ? newPetSpeciesOther.trim() || "другое"
+        ? newPetSpeciesOther.trim() || "Другое"
         : newPetSpecies;
-    const fullSpecies = newPetBreed.trim()
-      ? `${speciesText}, ${newPetBreed.trim()}`
-      : newPetSpecies;
+    const species = speciesBase;
+    const breed = newPetBreed.trim() || null;
+    const sex = newPetSex === "Не указан" ? null : newPetSex;
+    const birth_date = newPetBirthDate || null;
+    const weight_kg = newPetWeight ? Number(newPetWeight) : null;
+    const microchip_number = newPetChip.trim() || null;
+    const notes = newPetNotes.trim() || null;
 
     const { data, error } = await client
       .from("pets")
       .insert({
         owner_id: owner.user_id,
         name: newPetName.trim(),
-        species: fullSpecies,
+        species,
+        breed,
+        sex,
+        birth_date,
+        weight_kg,
+        microchip_number,
+        notes,
       })
       .select("*")
       .single();
@@ -371,13 +488,35 @@ export default function ClientDetailPage() {
     setNewPetSpecies("Кошка");
     setNewPetSpeciesOther("");
     setNewPetBreed("");
+    setNewPetSex("Не указан");
+    setNewPetBirthDate("");
+    setNewPetWeight("");
+    setNewPetChip("");
+    setNewPetNotes("");
     setAddingPet(false);
   };
 
-  // === Сохранение персональных данных ===
-  const handlePrivateSave = async (e: FormEvent) => {
+  // Редактирование питомца
+  const startEditPet = (pet: Pet) => {
+    setEditingPetId(pet.id);
+    setEditingPet({
+      ...pet,
+      birth_date: pet.birth_date
+        ? pet.birth_date.substring(0, 10)
+        : "",
+      weight_kg: pet.weight_kg,
+    });
+    setActionError(null);
+  };
+
+  const cancelEditPet = () => {
+    setEditingPetId(null);
+    setEditingPet(null);
+  };
+
+  const saveEditPet = async (e: FormEvent) => {
     e.preventDefault();
-    if (!owner) return;
+    if (!editingPetId || !editingPet) return;
 
     const client = supabase;
     if (!client) {
@@ -385,137 +524,283 @@ export default function ClientDetailPage() {
       return;
     }
 
-    setSavingPrivate(true);
-    setActionError(null);
-
-    const payload = {
-      passport_series: privateData?.passport_series || null,
-      passport_number: privateData?.passport_number || null,
-      passport_issued_by: privateData?.passport_issued_by || null,
-      passport_issued_at: privateData?.passport_issued_at || null,
-      registration_address: privateData?.registration_address || null,
-      actual_address: privateData?.actual_address || null,
-      legal_notes: privateData?.legal_notes || null,
-    };
-
-    let error = null;
-
-    if (privateData) {
-      const { error: updError } = await client
-        .from("owner_private_data")
-        .update(payload)
-        .eq("owner_id", owner.user_id);
-      error = updError;
-    } else {
-      const { error: insError } = await client
-        .from("owner_private_data")
-        .insert({
-          owner_id: owner.user_id,
-          ...payload,
-        });
-      error = insError;
-    }
-
-    if (error) {
-      console.error(error);
-      setActionError("Не удалось сохранить персональные данные клиента.");
-      setSavingPrivate(false);
+    if (!editingPet.name || !editingPet.name.trim()) {
+      setActionError("Имя питомца не может быть пустым.");
       return;
     }
 
-    setSavingPrivate(false);
-    setIsEditingPrivate(false);
+    setSavingPet(true);
+    setActionError(null);
+
+    const species = editingPet.species?.trim() || null;
+    const breed = editingPet.breed?.trim() || null;
+    const sex =
+      editingPet.sex && editingPet.sex !== "Не указан"
+        ? editingPet.sex
+        : null;
+    const birth_date = editingPet.birth_date || null;
+    const weight_kg =
+      editingPet.weight_kg !== null &&
+      editingPet.weight_kg !== undefined &&
+      !Number.isNaN(Number(editingPet.weight_kg))
+        ? Number(editingPet.weight_kg)
+        : null;
+    const microchip_number =
+      editingPet.microchip_number?.trim() || null;
+    const notes = editingPet.notes?.trim() || null;
+
+    const { error } = await client
+      .from("pets")
+      .update({
+        name: editingPet.name.trim(),
+        species,
+        breed,
+        sex,
+        birth_date,
+        weight_kg,
+        microchip_number,
+        notes,
+      })
+      .eq("id", editingPetId);
+
+    if (error) {
+      console.error("saveEditPet error", error);
+      setActionError(
+        "Не удалось сохранить изменения питомца: " +
+          (error.message || "")
+      );
+      setSavingPet(false);
+      return;
+    }
+
+    setPets((prev) =>
+      prev.map((p) =>
+        p.id === editingPetId
+          ? {
+              ...p,
+              name: editingPet.name!.trim(),
+              species,
+              breed,
+              sex,
+              birth_date,
+              weight_kg,
+              microchip_number,
+              notes,
+            }
+          : p
+      )
+    );
+
+    setSavingPet(false);
+    setEditingPetId(null);
+    setEditingPet(null);
   };
 
-  const renderContacts = (extra: any) => {
-    if (!extra) {
-      return <div className="text-xs text-gray-500">Контакты не указаны.</div>;
-    }
+  // === Рендер ===
 
-    let parsed: Record<string, any> | null = null;
+  const privateStatusLabel =
+    privateStatus === "заполнены"
+      ? "заполнены"
+      : "не заполнены";
 
-    if (typeof extra === "object" && !Array.isArray(extra)) {
-      parsed = extra as Record<string, any>;
-    } else if (typeof extra === "string") {
-      try {
-        parsed = JSON.parse(extra);
-      } catch {
-        parsed = null;
-      }
-    }
-
-    if (parsed) {
-      const email = parsed.email ?? parsed.mail ?? null;
-      const phone = parsed.phone ?? parsed.tel ?? null;
-      const telegram =
-        parsed.telegram ?? parsed.tg ?? parsed.telegramNick ?? null;
-
-      const hasKnown =
-        (email && String(email).trim()) ||
-        (phone && String(phone).trim()) ||
-        (telegram && String(telegram).trim());
-
+  const renderPetRow = (pet: Pet) => {
+    if (editingPetId === pet.id && editingPet) {
       return (
-        <div className="space-y-1 text-xs text-gray-800">
-          {email && (
-            <div>
-              <span className="font-semibold">E-mail: </span>
-              <span>{String(email)}</span>
-            </div>
-          )}
-          {phone && (
-            <div>
-              <span className="font-semibold">Телефон: </span>
-              <span>{String(phone)}</span>
-            </div>
-          )}
-          {telegram && (
-            <div>
-              <span className="font-semibold">Telegram: </span>
-              <span>{String(telegram)}</span>
-            </div>
-          )}
-          {!hasKnown && (
-            <>
-              <div className="text-gray-500">
-                Контакты указаны, но структура не распознана. Сырые данные:
-              </div>
-              <pre className="mt-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
-                {JSON.stringify(parsed, null, 2)}
-              </pre>
-            </>
-          )}
-        </div>
+        <tr key={pet.id} className="border-b last:border-0 bg-gray-50">
+          <td className="px-2 py-2 align-top text-[11px]">
+            <input
+              type="text"
+              value={editingPet.name ?? ""}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  name: e.target.value,
+                }))
+              }
+              className="w-full rounded border px-2 py-1 text-[11px]"
+            />
+          </td>
+          <td className="px-2 py-2 align-top text-[11px]">
+            <input
+              type="text"
+              value={editingPet.species ?? ""}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  species: e.target.value,
+                }))
+              }
+              className="mb-1 w-full rounded border px-2 py-1 text-[11px]"
+              placeholder="Вид (например: Кошка)"
+            />
+            <input
+              type="text"
+              value={editingPet.breed ?? ""}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  breed: e.target.value,
+                }))
+              }
+              className="w-full rounded border px-2 py-1 text-[11px]"
+              placeholder="Порода / описание"
+            />
+          </td>
+          <td className="px-2 py-2 align-top text-[11px]">
+            <select
+              value={editingPet.sex ?? "Не указан"}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  sex: e.target.value,
+                }))
+              }
+              className="w-full rounded border px-2 py-1 text-[11px]"
+            >
+              {SEX_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </td>
+          <td className="px-2 py-2 align-top text-[11px]">
+            <input
+              type="date"
+              value={editingPet.birth_date ?? ""}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  birth_date: e.target.value,
+                }))
+              }
+              className="w-full rounded border px-2 py-1 text-[11px]"
+            />
+          </td>
+          <td className="px-2 py-2 align-top text-[11px]">
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={
+                editingPet.weight_kg !== null &&
+                editingPet.weight_kg !== undefined
+                  ? String(editingPet.weight_kg)
+                  : ""
+              }
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  weight_kg: e.target.value
+                    ? Number(e.target.value)
+                    : null,
+                }))
+              }
+              className="w-full rounded border px-2 py-1 text-[11px]"
+              placeholder="Вес, кг"
+            />
+          </td>
+          <td className="px-2 py-2 align-top text-[11px]">
+            <input
+              type="text"
+              value={editingPet.microchip_number ?? ""}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  microchip_number: e.target.value,
+                }))
+              }
+              className="mb-1 w-full rounded border px-2 py-1 text-[11px]"
+              placeholder="Номер чипа"
+            />
+            <textarea
+              value={editingPet.notes ?? ""}
+              onChange={(e) =>
+                setEditingPet((prev) => ({
+                  ...(prev || {}),
+                  notes: e.target.value,
+                }))
+              }
+              className="w-full rounded border px-2 py-1 text-[11px]"
+              rows={2}
+              placeholder="Заметки"
+            />
+          </td>
+          <td className="px-2 py-2 align-top text-right text-[11px] space-y-1">
+            <button
+              type="button"
+              onClick={cancelEditPet}
+              className="block w-full rounded border px-2 py-1 text-[10px]"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={saveEditPet}
+              disabled={savingPet}
+              className="block w-full rounded bg-emerald-600 px-2 py-1 text-[10px] font-medium text-white disabled:opacity-60"
+            >
+              {savingPet ? "Сохраняю…" : "Сохранить"}
+            </button>
+          </td>
+        </tr>
       );
     }
 
+    // режим просмотра
     return (
-      <pre className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] text-gray-700 whitespace-pre-wrap break-words">
-        {typeof extra === "string" ? extra : JSON.stringify(extra, null, 2)}
-      </pre>
+      <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
+        <td className="px-2 py-2 align-top text-[11px] text-gray-800">
+          {pet.name || "Без имени"}
+        </td>
+        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+          {pet.species || "Не указан"}
+          {pet.breed && (
+            <span className="text-[10px] text-gray-500">
+              {" "}
+              ({pet.breed})
+            </span>
+          )}
+        </td>
+        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+          {formatPetSex(pet.sex)}
+        </td>
+        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+          {formatPetBirthDate(pet.birth_date)}
+        </td>
+        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+          {formatPetWeight(pet.weight_kg)}
+        </td>
+        <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+          {pet.microchip_number && (
+            <div>
+              <span className="font-semibold">Чип: </span>
+              {pet.microchip_number}
+            </div>
+          )}
+          {pet.notes && (
+            <div className="text-[10px] text-gray-500">Заметки: {pet.notes}</div>
+          )}
+        </td>
+        <td className="px-2 py-2 align-top text-right space-y-1 text-[11px]">
+          <button
+            type="button"
+            onClick={() => startEditPet(pet)}
+            className="block w-full text-[10px] font-medium text-emerald-700 hover:underline"
+          >
+            Редактировать
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDeletePet(pet.id)}
+            className="block w-full text-[10px] font-medium text-red-600 hover:underline"
+          >
+            Удалить
+          </button>
+        </td>
+      </tr>
     );
   };
-
-  const formatApptDate = (starts_at: string | null) => {
-    if (!starts_at) return "—";
-    const d = new Date(starts_at);
-    return d.toLocaleString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const privateStatus =
-    privateData &&
-    (privateData.passport_series ||
-      privateData.passport_number ||
-      privateData.registration_address ||
-      privateData.actual_address)
-      ? "заполнены"
-      : "не заполнены";
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -529,9 +814,7 @@ export default function ClientDetailPage() {
             >
               ← К картотеке клиентов
             </Link>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight">
-              Клиент
-            </h1>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight">Клиент</h1>
             <p className="text-sm text-gray-500">
               Карточка клиента, его питомцы и персональные данные.
             </p>
@@ -576,12 +859,6 @@ export default function ClientDetailPage() {
                   Основная информация
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/backoffice/registrar?ownerId=${owner.user_id}`}
-                    className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
-                  >
-                    Создать консультацию
-                  </Link>
                   <button
                     type="button"
                     onClick={() => {
@@ -590,7 +867,7 @@ export default function ClientDetailPage() {
                     }}
                     className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
                   >
-                    {isEditingOwner ? "Отмена" : "Редактировать клиента"}
+                    {isEditingOwner ? "Отмена" : "Редактировать"}
                   </button>
                   <button
                     type="button"
@@ -612,9 +889,7 @@ export default function ClientDetailPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-gray-500 mb-1">
-                        Город
-                      </div>
+                      <div className="text-[11px] text-gray-500 mb-1">Город</div>
                       <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                         {owner.city || "Не указан"}
                       </div>
@@ -689,11 +964,39 @@ export default function ClientDetailPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-[11px] text-gray-500 mb-1">
-                      Контакты
+                    <div>
+                      <label className="text-[11px] text-gray-500 mb-1 block">
+                        E-mail
+                      </label>
+                      <input
+                        type="email"
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
                     </div>
-                    <div className="rounded-xl border bg-gray-50 px-3 py-2">
-                      {renderContacts(owner.extra_contacts)}
+                    <div>
+                      <label className="text-[11px] text-gray-500 mb-1 block">
+                        Телефон
+                      </label>
+                      <input
+                        type="text"
+                        value={ownerPhone}
+                        onChange={(e) => setOwnerPhone(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 mb-1 block">
+                        Telegram
+                      </label>
+                      <input
+                        type="text"
+                        value={ownerTelegram}
+                        onChange={(e) => setOwnerTelegram(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        placeholder="@username"
+                      />
                     </div>
                   </div>
 
@@ -702,8 +1005,14 @@ export default function ClientDetailPage() {
                       type="button"
                       onClick={() => {
                         setIsEditingOwner(false);
-                        setOwnerFullName(owner.full_name ?? "");
-                        setOwnerCity(owner.city ?? "");
+                        if (owner) {
+                          setOwnerFullName(owner.full_name ?? "");
+                          setOwnerCity(owner.city ?? "");
+                          const c = parseContacts(owner.extra_contacts);
+                          setOwnerEmail(c.email);
+                          setOwnerPhone(c.phone);
+                          setOwnerTelegram(c.telegram);
+                        }
                         setActionError(null);
                       }}
                       className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
@@ -724,18 +1033,18 @@ export default function ClientDetailPage() {
 
             {/* Персональные данные */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify_between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold">
                     Персональные данные (паспорт и адреса)
                   </h2>
                   <p className="text-[11px] text-gray-500">
-                    Этот блок заполняет регистратор. Клиент не видит эти
-                    данные. Используется только при необходимости.
+                    Этот блок заполняет регистратор. Клиент не видит эти данные.
+                    Используется только при необходимости.
                   </p>
                 </div>
                 <div className="flex flex-col items-end text-[11px] text-gray-500">
-                  <span>Статус: {privateStatus}</span>
+                  <span>Статус: {privateStatusLabel}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -768,7 +1077,7 @@ export default function ClientDetailPage() {
                     <span className="font-semibold">Дата выдачи: </span>
                     {privateData?.passport_issued_at
                       ? new Date(
-                          privateData.passport_issued_at || ""
+                          privateData.passport_issued_at
                         ).toLocaleDateString("ru-RU")
                       : "не указана"}
                   </div>
@@ -856,7 +1165,7 @@ export default function ClientDetailPage() {
                       type="date"
                       value={
                         privateData?.passport_issued_at
-                          ? privateData.passport_issued_at!.substring(0, 10)
+                          ? privateData.passport_issued_at.substring(0, 10)
                           : ""
                       }
                       onChange={(e) =>
@@ -940,198 +1249,249 @@ export default function ClientDetailPage() {
                     </button>
                   </div>
                 </form>
-          )}
-        </section>
+              )}
+            </section>
 
-        {/* Питомцы */}
-        <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Питомцы</h2>
-          </div>
-
-          {pets.length === 0 && (
-            <p className="text-xs text-gray-400">
-              У этого клиента пока нет ни одного питомца.
-            </p>
-          )}
-
-          {pets.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                    <th className="px-2 py-2">Имя</th>
-                    <th className="px-2 py-2">Вид / порода</th>
-                    <th className="px-2 py-2">ID</th>
-                    <th className="px-2 py-2 text-right">Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pets.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="border-b last:border-0 hover:bg-gray-50"
-                    >
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-800">
-                        {p.name || "Без имени"}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-600">
-                        {p.species || "Не указана"}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-500 font-mono">
-                        {p.id}
-                      </td>
-                      <td className="px-2 py-2 align-top text-right space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePet(p.id)}
-                          className="block text-[10px] font-medium text-red-600 hover:underline"
-                        >
-                          Удалить питомца
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Добавление питомца */}
-          <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
-            <h3 className="text-xs font-semibold text-gray-700">
-              Добавить нового питомца
-            </h3>
-            <form onSubmit={handleAddPet} className="space-y-2">
-              <div>
-                <label className="mb-1 block text-[11px] text-gray-500">
-                  Имя питомца <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={newPetName}
-                  onChange={(e) => setNewPetName(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                  placeholder="Например: Мурзик"
-                />
+            {/* Питомцы */}
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">Питомцы</h2>
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-[11px] text-gray-500">
-                    Вид
-                  </label>
-                  <select
-                    value={newPetSpecies}
-                    onChange={(e) =>
-                      setNewPetSpecies(
-                        e.target.value as (typeof SPECIES_OPTIONS)[number]
-                      )
-                    }
-                    className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                  >
-                    {SPECIES_OPTIONS.map((sp) => (
-                      <option key={sp} value={sp}>
-                        {sp}
-                      </option>
-                    ))}
-                  </select>
-                  {newPetSpecies === "Другое" && (
+
+              {pets.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  У этого клиента пока нет ни одного питомца.
+                </p>
+              )}
+
+              {pets.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                        <th className="px-2 py-2">Имя</th>
+                        <th className="px-2 py-2">Вид / порода</th>
+                        <th className="px-2 py-2">Пол</th>
+                        <th className="px-2 py-2">Дата рождения</th>
+                        <th className="px-2 py-2">Вес</th>
+                        <th className="px-2 py-2">Чип / заметки</th>
+                        <th className="px-2 py-2 text-right">Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>{pets.map(renderPetRow)}</tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Добавление питомца */}
+              <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
+                <h3 className="text-xs font-semibold text-gray-700">
+                  Добавить нового питомца
+                </h3>
+                <form onSubmit={handleAddPet} className="space-y-2">
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Имя питомца <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      value={newPetSpeciesOther}
-                      onChange={(e) =>
-                        setNewPetSpeciesOther(e.target.value)
-                      }
-                      className="mt-2 w-full rounded-xl border px-3 py-1.5 text-xs"
-                      placeholder="Уточните вид"
+                      value={newPetName}
+                      onChange={(e) => setNewPetName(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      placeholder="Например: Мурзик"
                     />
-                  )}
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] text-gray-500">
-                    Порода / описание
-                  </label>
-                  <input
-                    type="text"
-                    value={newPetBreed}
-                    onChange={(e) => setNewPetBreed(e.target.value)}
-                    className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                    placeholder="Например: британская, метис…"
-                  />
-                </div>
-              </div>
-              <div className="pt-1 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={addingPet}
-                  className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  {addingPet ? "Добавляем…" : "Добавить питомца"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Вид
+                      </label>
+                      <select
+                        value={newPetSpecies}
+                        onChange={(e) =>
+                          setNewPetSpecies(
+                            e.target.value as (typeof SPECIES_OPTIONS)[number]
+                          )
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      >
+                        {SPECIES_OPTIONS.map((sp) => (
+                          <option key={sp} value={sp}>
+                            {sp}
+                          </option>
+                        ))}
+                      </select>
+                      {newPetSpecies === "Другое" && (
+                        <input
+                          type="text"
+                          value={newPetSpeciesOther}
+                          onChange={(e) =>
+                            setNewPetSpeciesOther(e.target.value)
+                          }
+                          className="mt-2 w-full rounded-xl border px-3 py-1.5 text-xs"
+                          placeholder="Уточните вид"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Порода / описание
+                      </label>
+                      <input
+                        type="text"
+                        value={newPetBreed}
+                        onChange={(e) => setNewPetBreed(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        placeholder="Например: британская, метис…"
+                      />
+                    </div>
+                  </div>
 
-        {/* История консультаций */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">
-              История консультаций клиента
-            </h2>
-          </div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Пол
+                      </label>
+                      <select
+                        value={newPetSex}
+                        onChange={(e) =>
+                          setNewPetSex(
+                            e.target.value as (typeof SEX_OPTIONS)[number]
+                          )
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      >
+                        {SEX_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Дата рождения
+                      </label>
+                      <input
+                        type="date"
+                        value={newPetBirthDate}
+                        onChange={(e) =>
+                          setNewPetBirthDate(e.target.value)
+                        }
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Вес (кг)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={newPetWeight}
+                        onChange={(e) => setNewPetWeight(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                  </div>
 
-          {appointments.length === 0 && (
-            <p className="text-xs text-gray-400">
-              У клиента пока нет ни одной консультации.
-            </p>
-          )}
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Номер чипа
+                    </label>
+                    <input
+                      type="text"
+                      value={newPetChip}
+                      onChange={(e) => setNewPetChip(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                    />
+                  </div>
 
-          {appointments.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                    <th className="px-2 py-2">Дата / время</th>
-                    <th className="px-2 py-2">Питомец</th>
-                    <th className="px-2 py-2">Услуга (код)</th>
-                    <th className="px-2 py-2">Статус</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {appointments.map((a) => (
-                    <tr
-                      key={a.id}
-                      className="border-b last:border-0 hover:bg-gray-50"
+                  <div>
+                    <label className="mb-1 block text-[11px] text-gray-500">
+                      Заметки
+                    </label>
+                    <textarea
+                      value={newPetNotes}
+                      onChange={(e) => setNewPetNotes(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      rows={2}
+                      placeholder="Например: особенности поведения, риски…"
+                    />
+                  </div>
+
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={addingPet}
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {formatApptDate(a.starts_at)}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {a.pet_name || "Без имени"}
-                        {a.species && (
-                          <span className="text-[10px] text-gray-500">
-                            {" "}
-                            ({a.species})
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {a.service_code || "—"}
-                      </td>
-                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {a.status || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-        </>
-        )}
+                      {addingPet ? "Добавляем…" : "Добавить питомца"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </section>
 
+            {/* История консультаций */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">
+                  История консультаций клиента
+                </h2>
+              </div>
+
+              {appointments.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  У клиента пока нет ни одной консультации.
+                </p>
+              )}
+
+              {appointments.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                        <th className="px-2 py-2">Дата / время</th>
+                        <th className="px-2 py-2">Питомец</th>
+                        <th className="px-2 py-2">Услуга (код)</th>
+                        <th className="px-2 py-2">Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {appointments.map((a) => (
+                        <tr
+                          key={a.id}
+                          className="border-b last:border-0 hover:bg-gray-50"
+                        >
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {formatApptDate(a.starts_at)}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.pet_name || "Без имени"}
+                            {a.species && (
+                              <span className="text-[10px] text-gray-500">
+                                {" "}
+                                ({a.species})
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.service_code || "—"}
+                          </td>
+                          <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                            {a.status || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </main>
     </RoleGuard>
   );
