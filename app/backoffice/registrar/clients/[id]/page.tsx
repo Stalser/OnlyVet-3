@@ -75,7 +75,7 @@ export default function ClientDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // профиль
+  // Профиль клиента
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerCity, setOwnerCity] = useState("");
@@ -84,7 +84,7 @@ export default function ClientDetailPage() {
   const [ownerTelegram, setOwnerTelegram] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
-  // новый питомец
+  // Новый питомец
   const [showAddPetForm, setShowAddPetForm] = useState(false);
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] =
@@ -99,15 +99,15 @@ export default function ClientDetailPage() {
   const [newPetNotes, setNewPetNotes] = useState("");
   const [addingPet, setAddingPet] = useState(false);
 
-  // редактирование питомца
+  // Редактирование питомца
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [savingPetEdit, setSavingPetEdit] = useState(false);
 
-  // персональные данные
+  // Персональные данные
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // ==== helpers ====
+  // ===== helpers =====
 
   const parseContacts = (extra: any): {
     email: string;
@@ -208,7 +208,7 @@ export default function ClientDetailPage() {
   const formatPetWeight = (w: number | null) =>
     w != null ? `${w.toFixed(1)} кг` : "—";
 
-  // ==== загрузка клиента ====
+  // ===== загрузка клиента =====
 
   useEffect(() => {
     let ignore = false;
@@ -306,7 +306,7 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // ==== обработчики профиля ====
+  // ===== обработчики профиля =====
 
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -393,7 +393,7 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // ==== обработчики питомцев ====
+  // ===== обработчики питомцев =====
 
   const handleDeletePet = async (petId: number) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
@@ -552,7 +552,7 @@ export default function ClientDetailPage() {
     setEditingPet(null);
   };
 
-  // ==== обработчик персональных данных ====
+  // ===== handlePrivateSave: DELETE + INSERT =====
 
   const handlePrivateSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -577,43 +577,47 @@ export default function ClientDetailPage() {
       legal_notes: privateData?.legal_notes || null,
     };
 
-    let error = null;
-
-    if (privateData) {
-      const { error: updError } = await client
+    try {
+      // Удаляем старую запись (если есть)
+      const { error: delError } = await client
         .from("owner_private_data")
-        .update(payload)
+        .delete()
         .eq("owner_id", owner.user_id);
-      error = updError;
-    } else {
+
+      if (delError) {
+        console.error("owner_private_data delete error", delError);
+        throw delError;
+      }
+
+      // Вставляем новую запись
       const { error: insError } = await client
         .from("owner_private_data")
         .insert({
           owner_id: owner.user_id,
           ...payload,
         });
-      error = insError;
-    }
 
-    if (error) {
-      console.error("handlePrivateSave error", error);
+      if (insError) {
+        console.error("owner_private_data insert error", insError);
+        throw insError;
+      }
+
+      // Обновляем UI
+      setPrivateData(payload);
+      setSavingPrivate(false);
+      setIsEditingPrivate(false);
+    } catch (err) {
+      console.error("handlePrivateSave error", err);
       setActionError(
         "Не удалось сохранить персональные данные клиента."
       );
       setSavingPrivate(false);
-      return;
     }
-
-    // обновляем UI
-    setPrivateData(payload);
-
-    setSavingPrivate(false);
-    setIsEditingPrivate(false);
   };
 
   const privateStatusLabel = privateStatus;
 
-  // ==== рендер строки питомца ====
+  // ===== рендер строки питомца =====
 
   const renderPetRow = (pet: Pet) => (
     <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
@@ -763,17 +767,13 @@ export default function ClientDetailPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div>
-                  <div className="text-[11px] text-gray-500 mb-1">
-                    ФИО
-                  </div>
+                  <div className="text-[11px] text-gray-500 mb-1">ФИО</div>
                   <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                     {owner.full_name || "Без имени"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-gray-500 mb-1">
-                    Город
-                  </div>
+                  <div className="text-[11px] text-gray-500 mb-1">Город</div>
                   <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                     {owner.city || "Не указан"}
                   </div>
