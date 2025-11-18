@@ -1,99 +1,44 @@
-"use client";
-
-import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
-import { getOwnersSummary, type OwnerSummary } from "@/lib/clients";
+import { getOwnersSummary } from "@/lib/clients";
 
-type PetsFilter = "all" | "with" | "without";
-type PrivateFilter = "all" | "with" | "without";
-
-export default function RegistrarClientsPage() {
-  const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  // фильтры
-  const [petsFilter, setPetsFilter] = useState<PetsFilter>("all");
-  const [privateFilter, setPrivateFilter] =
-    useState<PrivateFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-
-  useEffect(() => {
-    let ignore = false;
-
-    async function load() {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const data = await getOwnersSummary();
-        if (!ignore) {
-          setOwners(data);
-        }
-      } catch (e) {
-        console.error("load clients error", e);
-        if (!ignore) {
-          setLoadError("Ошибка загрузки картотеки клиентов.");
-        }
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  const handleSearchSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setSearchQuery(searchInput.trim());
+type PageProps = {
+  searchParams?: {
+    pets?: "all" | "with" | "without";
+    priv?: "all" | "with" | "without";
   };
+};
 
-  // агрегаты
-  const totalClients = owners.length;
-  const withPetsCount = owners.filter((o) => o.petsCount > 0).length;
-  const withoutPetsCount = totalClients - withPetsCount;
-  const withPrivateCount = owners.filter((o) => o.hasPrivateData).length;
-  const withoutPrivateCount = totalClients - withPrivateCount;
+export default async function RegistrarClientsPage({ searchParams }: PageProps) {
+  const owners = await getOwnersSummary();
 
-  // применение фильтров
-  const normalizedSearch = searchQuery.toLowerCase();
+  const petsFilter = searchParams?.pets ?? "all";
+  const privFilter = searchParams?.priv ?? "all";
 
-  const filteredOwners = owners
-    .filter((o) => {
-      if (petsFilter === "with" && o.petsCount === 0) return false;
-      if (petsFilter === "without" && o.petsCount > 0) return false;
-      return true;
-    })
-    .filter((o) => {
-      if (privateFilter === "with" && !o.hasPrivateData) return false;
-      if (privateFilter === "without" && o.hasPrivateData) return false;
-      return true;
-    })
-    .filter((o) => {
-      if (!normalizedSearch) return true;
-      const name = o.fullName.toLowerCase();
-      const city = (o.city || "").toLowerCase();
-      const email = (o.email || "").toLowerCase();
-      const phone = (o.phone || "").toLowerCase();
-      return (
-        name.includes(normalizedSearch) ||
-        city.includes(normalizedSearch) ||
-        email.includes(normalizedSearch) ||
-        phone.includes(normalizedSearch)
-      );
-    });
+  const total = owners.length;
+  const withPets = owners.filter((o) => o.petsCount > 0).length;
+  const withoutPets = total - withPets;
+  const withPrivate = owners.filter((o) => o.hasPrivateData).length;
 
-  const visibleOwners = filteredOwners.slice(0, 10);
+  let filtered = owners;
 
-  const pillClass = (active: boolean) =>
-    active
-      ? "rounded-full bg-emerald-600 text-white px-3 py-1 text-[11px]"
-      : "rounded-full border border-gray-300 px-3 py-1 text-[11px] text-gray-600 hover:bg-gray-50";
+  if (petsFilter === "with") {
+    filtered = filtered.filter((o) => o.petsCount > 0);
+  } else if (petsFilter === "without") {
+    filtered = filtered.filter((o) => o.petsCount === 0);
+  }
+
+  if (privFilter === "with") {
+    filtered = filtered.filter((o) => o.hasPrivateData);
+  } else if (privFilter === "without") {
+    filtered = filtered.filter((o) => !o.hasPrivateData);
+  }
+
+  const visibleOwners = filtered.slice(0, 10);
+
+  const buildUrl = (pets: string, priv: string) =>
+    `/backoffice/registrar/clients?pets=${pets}&priv=${priv}`;
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -111,176 +56,187 @@ export default function RegistrarClientsPage() {
               Картотека клиентов
             </h1>
             <p className="text-sm text-gray-500">
-              Список владельцев и их питомцев. Поиск по имени, городу или
-              контактам и фильтр по наличию питомцев и персональных данных.
+              Список владельцев и их питомцев. Поиск по имени, городу или контактам, фильтр по наличию питомцев и персональных данных.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
-        {/* Ошибка загрузки */}
-        {loadError && (
-          <section className="rounded-2xl border bg-white p-4">
-            <p className="text-sm text-red-700">{loadError}</p>
-          </section>
-        )}
-
-        {/* Поиск */}
-        <section className="rounded-2xl border bg-white p-4">
-          <form
-            onSubmit={handleSearchSubmit}
-            className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
-          >
+        {/* Поиск (пока визуальный, без реального запроса) */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex-1">
-              <label className="text-[11px] text-gray-500 mb-1 block">
+              <label className="mb-1 block text-[11px] text-gray-500">
                 Поиск по картотеке
               </label>
               <input
                 type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Например: Иванов, Москва, +7 900…"
-                className="w-full rounded-xl border px-3 py-2 text-xs"
+                className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                placeholder="Например: Иванов, Москва, +7 900..."
+                disabled
               />
+              <p className="mt-1 text-[10px] text-gray-400">
+                Поиск по картотеке появится позже. Сейчас фильтрация работает по питомцам и персональным данным.
+              </p>
             </div>
-            <div className="pt-4 md:pt-6 md:pl-4">
+            <div className="md:w-40">
               <button
-                type="submit"
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
+                type="button"
+                className="mt-4 w-full rounded-xl bg-gray-100 px-4 py-1.5 text-xs text-gray-500 md:mt-6"
+                disabled
               >
                 Искать
               </button>
             </div>
-          </form>
+          </div>
         </section>
 
         {/* Сводка + фильтры */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <h2 className="text-base font-semibold">
+          <h2 className="text-sm font-semibold">
             Сводка по картотеке (с учётом фильтра)
           </h2>
 
-          {/* Карточки */}
-          <div className="grid gap-3 md:grid-cols-4 text-xs">
-            <div className="rounded-xl border px-3 py-2">
-              <div className="text-gray-500">Клиентов</div>
-              <div className="mt-1 text-lg font-semibold text-gray-900">
-                {totalClients}
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">Клиентов</div>
+              <div className="text-xl font-semibold text-gray-900">
+                {total}
               </div>
             </div>
-            <div className="rounded-xl border px-3 py-2">
-              <div className="text-gray-500">Клиентов с питомцами</div>
-              <div className="mt-1 text-lg font-semibold text-gray-900">
-                {withPetsCount}
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">
+                Клиентов с питомцами
+              </div>
+              <div className="text-xl font-semibold text-gray-900">
+                {withPets}
               </div>
             </div>
-            <div className="rounded-xl border px-3 py-2">
-              <div className="text-gray-500">Клиентов без питомцев</div>
-              <div className="mt-1 text-lg font-semibold text-gray-900">
-                {withoutPetsCount}
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">
+                Клиентов без питомцев
+              </div>
+              <div className="text-xl font-semibold text-gray-900">
+                {withoutPets}
               </div>
             </div>
-            <div className="rounded-xl border px-3 py-2">
-              <div className="text-gray-500">
+            <div className="rounded-xl border bg-gray-50 px-3 py-2">
+              <div className="text-[11px] text-gray-500">
                 С персональными данными
               </div>
-              <div className="mt-1 text-lg font-semibold text-gray-900">
-                {withPrivateCount}
+              <div className="text-xl font-semibold text-gray-900">
+                {withPrivate}
               </div>
             </div>
           </div>
 
           {/* Фильтры */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <div className="text-[11px] text-gray-500">
-                Питомцы
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={pillClass(petsFilter === "all")}
-                  onClick={() => setPetsFilter("all")}
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <div className="mb-1 text-[11px] text-gray-500">Питомцы</div>
+              <div className="inline-flex rounded-full border bg-gray-50 p-1 text-[11px]">
+                <Link
+                  href={buildUrl("all", privFilter)}
+                  className={`rounded-full px-3 py-1 ${
+                    petsFilter === "all"
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-700 hover:bg-white"
+                  }`}
                 >
                   Все
-                </button>
-                <button
-                  type="button"
-                  className={pillClass(petsFilter === "with")}
-                  onClick={() => setPetsFilter("with")}
+                </Link>
+                <Link
+                  href={buildUrl("with", privFilter)}
+                  className={`rounded-full px-3 py-1 ${
+                    petsFilter === "with"
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-700 hover:bg-white"
+                  }`}
                 >
                   С питомцами
-                </button>
-                <button
-                  type="button"
-                  className={pillClass(petsFilter === "without")}
-                  onClick={() => setPetsFilter("without")}
+                </Link>
+                <Link
+                  href={buildUrl("without", privFilter)}
+                  className={`rounded-full px-3 py-1 ${
+                    petsFilter === "without"
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-700 hover:bg-white"
+                  }`}
                 >
                   Без питомцев
-                </button>
+                </Link>
               </div>
             </div>
-
-            <div className="space-y-1">
-              <div className="text-[11px] text-gray-500">
+            <div>
+              <div className="mb-1 text-[11px] text-gray-500">
                 Персональные данные
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={pillClass(privateFilter === "all")}
-                  onClick={() => setPrivateFilter("all")}
+              <div className="inline-flex rounded-full border bg-gray-50 p-1 text-[11px]">
+                <Link
+                  href={buildUrl(petsFilter, "all")}
+                  className={`rounded-full px-3 py-1 ${
+                    privFilter === "all"
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-700 hover:bg-white"
+                  }`}
                 >
                   Все
-                </button>
-                <button
-                  type="button"
-                  className={pillClass(privateFilter === "with")}
-                  onClick={() => setPrivateFilter("with")}
+                </Link>
+                <Link
+                  href={buildUrl(petsFilter, "with")}
+                  className={`rounded-full px-3 py-1 ${
+                    privFilter === "with"
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-700 hover:bg-white"
+                  }`}
                 >
                   С данными
-                </button>
-                <button
-                  type="button"
-                  className={pillClass(privateFilter === "without")}
-                  onClick={() => setPrivateFilter("without")}
+                </Link>
+                <Link
+                  href={buildUrl(petsFilter, "without")}
+                  className={`rounded-full px-3 py-1 ${
+                    privFilter === "without"
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-700 hover:bg-white"
+                  }`}
                 >
                   Без данных
-                </button>
+                </Link>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Блок “Клиенты” */}
+        {/* Клиенты (10 по фильтру) */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-base font-semibold">Клиенты</h2>
+              <h2 className="text-sm font-semibold">Клиенты</h2>
               <p className="text-[11px] text-gray-500">
-                Показаны последние{" "}
-                {visibleOwners.length} клиентов по текущему фильтру.
+                Показаны последние {visibleOwners.length} клиентов по текущему фильтру.
               </p>
             </div>
-            <div className="flex gap-2">
-              {/* тут позже можно добавить ссылку “Полная картотека →” */}
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/backoffice/registrar/clients/all"
+                className="rounded-xl border px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+              >
+                Полная картотека →
+              </Link>
               <Link
                 href="/backoffice/registrar/clients/new"
-                className="rounded-xl bg-emerald-600 px-4 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
               >
                 Добавить клиента
               </Link>
             </div>
           </div>
 
-          {visibleOwners.length === 0 && (
+          {visibleOwners.length === 0 ? (
             <p className="text-xs text-gray-400">
-              По заданным условиям фильтра клиенты не найдены. Попробуйте
-              изменить поиск или фильтр.
+              По текущему фильтру клиенты не найдены.
             </p>
-          )}
-
-          {visibleOwners.length > 0 && (
+          ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs">
                 <thead>
@@ -288,7 +244,7 @@ export default function RegistrarClientsPage() {
                     <th className="px-2 py-2">Клиент</th>
                     <th className="px-2 py-2">Город</th>
                     <th className="px-2 py-2">Питомцы</th>
-                    <th className="px-2 py-2">Последняя активность</th>
+                    <th className="px-2 py-2">Персональные данные</th>
                     <th className="px-2 py-2 text-right">Действия</th>
                   </tr>
                 </thead>
@@ -298,14 +254,20 @@ export default function RegistrarClientsPage() {
                       key={o.ownerId}
                       className="border-b last:border-0 hover:bg-gray-50"
                     >
-                      <td className="px-2 py-2 align-top">
-                        <div className="text-sm font-medium text-gray-900">
-                          {o.fullName}
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-800">
+                        <div className="font-medium">
+                          {o.fullName || "Без имени"}
                         </div>
-                        <div className="text-[11px] text-gray-500">
-                          Персональные данные:{" "}
-                          {o.hasPrivateData ? "есть" : "нет"}
-                        </div>
+                        {o.email && (
+                          <div className="text-[10px] text-gray-500">
+                            {o.email}
+                          </div>
+                        )}
+                        {o.phone && (
+                          <div className="text-[10px] text-gray-500">
+                            {o.phone}
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                         {o.city || "—"}
@@ -313,18 +275,24 @@ export default function RegistrarClientsPage() {
                       <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                         {o.petsCount > 0 ? (
                           <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
-                            {o.petsCount} питом{" "}
+                            {o.petsCount} питомц.
                           </span>
                         ) : (
-                          <span className="text-gray-400">
+                          <span className="text-[10px] text-gray-400">
                             нет питомцев
                           </span>
                         )}
                       </td>
                       <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                        {o.appointmentsCount > 0
-                          ? "Есть консультации"
-                          : "Консультаций нет"}
+                        {o.hasPrivateData ? (
+                          <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                            есть данные
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">
+                            нет данных
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 py-2 align-top text-right">
                         <Link
@@ -341,14 +309,6 @@ export default function RegistrarClientsPage() {
             </div>
           )}
         </section>
-
-        {loading && !loadError && owners.length === 0 && (
-          <section className="rounded-2xl border bg-white p-4">
-            <p className="text-xs text-gray-500">
-              Загрузка картотеки…
-            </p>
-          </section>
-        )}
       </main>
     </RoleGuard>
   );
