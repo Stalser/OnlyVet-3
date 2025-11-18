@@ -7,38 +7,70 @@ import { getOwnerDocuments } from "@/lib/documents";
 
 type Props = {
   ownerId: number;
+  /** Может ли текущий пользователь добавлять/редактировать/удалять документы */
+  canManage?: boolean;
 };
 
-export function ClientDocumentsSection({ ownerId }: Props) {
+// Предлагаемые типы документов для клиента (юридические)
+const OWNER_DOCUMENT_TYPES = [
+  "Договор на оказание услуг",
+  "Долгосрочный договор / абонемент",
+  "Акт выполненных работ",
+  "Информированное согласие",
+  "Согласие на операцию / анестезию",
+  "Согласие на обработку персональных данных",
+  "Согласие на обработку мед. данных",
+  "Заявление / претензия",
+  "Иное",
+] as const;
+
+export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
   const [docs, setDocs] = useState<OwnerDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  // форма
-  const [type, setType] = useState("");
-  const [title, setTitle] = useState("");
-  const [fileUrl, setFileUrl] = useState("");
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
+  // спойлер (для блока на странице клиента)
+  const [expanded, setExpanded] = useState(false);
 
-  // загрузка документов при открытии
+  // форма добавления
+  const [newType, setNewType] = useState<string>("Договор на оказание услуг");
+  const [newTitle, setNewTitle] = useState("");
+  const [newFileUrl, setNewFileUrl] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
+
+  // редактирование документа
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editType, setEditType] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editFileUrl, setEditFileUrl] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // фильтрация
+  const [filterType, setFilterType] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
   useEffect(() => {
     let ignore = false;
 
     async function load() {
       setLoading(true);
       setErrorText(null);
-
       try {
         const data = await getOwnerDocuments(ownerId);
         if (!ignore) {
-          setDocs(data);
+          const sorted = [...data].sort((a, b) => {
+            const da = new Date(a.created_at).getTime();
+            const db = new Date(b.created_at).getTime();
+            return db - da;
+          });
+          setDocs(sorted);
         }
       } catch (e) {
-        console.error("ClientDocumentsSection load error", e);
+        console.error("getOwnerDocuments error", e);
         if (!ignore) {
           setErrorText("Не удалось загрузить документы клиента.");
-          setDocs([]);
         }
       } finally {
         if (!ignore) setLoading(false);
@@ -46,18 +78,37 @@ export function ClientDocumentsSection({ ownerId }: Props) {
     }
 
     load();
-
     return () => {
       ignore = true;
     };
   }, [ownerId]);
 
-  async function handleAdd(e: FormEvent) {
+  const resetNewForm = () => {
+    setNewType("Договор на оказание услуг");
+    setNewTitle("");
+    setNewFileUrl("");
+    setNewNotes("");
+  };
+
+  const startEdit = (doc: OwnerDocument) => {
+    if (!canManage) return;
+    setEditingId(doc.id);
+    setEditType(doc.type);
+    setEditTitle(doc.title);
+    setEditFileUrl(doc.file_url || "");
+    setEditNotes(doc.notes || "");
+    setErrorText(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setSavingEdit(false);
+    setErrorText(null);
+  };
+
+  const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!type.trim() || !title.trim()) {
-      setErrorText("Укажите тип и название документа.");
-      return;
-    }
+    if (!canManage) return;
 
     const client = supabase;
     if (!client) {
@@ -65,15 +116,20 @@ export function ClientDocumentsSection({ ownerId }: Props) {
       return;
     }
 
-    setSaving(true);
+    if (!newTitle.trim()) {
+      setErrorText("Укажите название документа.");
+      return;
+    }
+
+    setSavingNew(true);
     setErrorText(null);
 
     const payload = {
       owner_id: ownerId,
-      type: type.trim(),
-      title: title.trim(),
-      file_url: fileUrl.trim() || null,
-      notes: notes.trim() || null,
+      type: newType.trim(),
+      title: newTitle.trim(),
+      file_url: newFileUrl.trim() || null,
+      notes: newNotes.trim() || null,
     };
 
     const { data, error } = await client
@@ -82,23 +138,86 @@ export function ClientDocumentsSection({ ownerId }: Props) {
       .select("*")
       .single();
 
-    setSaving(false);
-
     if (error || !data) {
-      console.error("add owner_document error", error);
-      setErrorText("Не удалось добавить документ.");
+      console.error("owner_documents insert error", error);
+      setErrorText("Не удалось добавить документ клиента.");
+      setSavingNew(false);
       return;
     }
 
-    setDocs((prev) => [data as OwnerDocument, ...prev]);
-    setType("");
-    setTitle("");
-    setFileUrl("");
-    setNotes("");
-  }
+    const created = data as OwnerDocument;
+    setDocs((prev) =>
+      [...prev, created].sort((a, b) => {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        return db - da;
+      })
+    );
+    resetNewForm();
+    setSavingNew(false);
+  };
 
-  async function handleDelete(id: number) {
-    if (!confirm("Удалить этот документ?")) return;
+  const handleEditSave = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!canManage || editingId == null) return;
+
+    const client = supabase;
+    if (!client) {
+      setErrorText("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    if (!editTitle.trim()) {
+      setErrorText("Название документа не может быть пустым.");
+      return;
+    }
+
+    setSavingEdit(true);
+    setErrorText(null);
+
+    const payload = {
+      type: editType.trim() || "Иное",
+      title: editTitle.trim(),
+      file_url: editFileUrl.trim() || null,
+      notes: editNotes.trim() || null,
+    };
+
+    const { error } = await client
+      .from("owner_documents")
+      .update(payload)
+      .eq("id", editingId);
+
+    if (error) {
+      console.error("owner_documents update error", error);
+      setErrorText("Не удалось сохранить изменения документа.");
+      setSavingEdit(false);
+      return;
+    }
+
+    setDocs((prev) =>
+      prev
+        .map((d) =>
+          d.id === editingId
+            ? {
+                ...d,
+                ...payload,
+                updated_at: new Date().toISOString(),
+              }
+            : d
+        )
+        .sort((a, b) => {
+          const da = new Date(a.created_at).getTime();
+          const db = new Date(b.created_at).getTime();
+          return db - da;
+        })
+    );
+    setSavingEdit(false);
+    setEditingId(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!canManage) return;
+    if (!confirm("Удалить этот документ клиента?")) return;
 
     const client = supabase;
     if (!client) {
@@ -110,153 +229,371 @@ export function ClientDocumentsSection({ ownerId }: Props) {
 
     const { error } = await client
       .from("owner_documents")
-      .update({ deleted_at: new Date().toISOString() })
+      .delete()
       .eq("id", id);
 
     if (error) {
-      console.error("delete owner_document error", error);
+      console.error("owner_documents delete error", error);
       setErrorText("Не удалось удалить документ.");
       return;
     }
 
     setDocs((prev) => prev.filter((d) => d.id !== id));
-  }
+    if (editingId === id) {
+      setEditingId(null);
+    }
+  };
+
+  // фильтрация
+  const filteredDocs = docs.filter((d) => {
+    const typeOk = filterType === "all" || d.type === filterType;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return typeOk;
+    const haystack =
+      (d.title || "").toLowerCase() +
+      " " +
+      (d.type || "").toLowerCase() +
+      " " +
+      (d.notes || "").toLowerCase();
+    return typeOk && haystack.includes(q);
+  });
+
+  const distinctTypes = Array.from(
+    new Set(docs.map((d) => d.type).filter(Boolean))
+  );
 
   return (
-    <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Документы клиента</h2>
-        <span className="text-[11px] text-gray-500">
-          Всего документов: {docs.length}
-        </span>
-      </div>
+    <div className="space-y-3">
+      {/* ШАПКА + СПОЙЛЕР */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between rounded-2xl border bg-gray-50 px-4 py-3 text-left"
+      >
+        <div>
+          <div className="text-sm font-semibold">Документы клиента</div>
+          <div className="text-[11px] text-gray-500">
+            Договора, акты, согласия и другие юридические документы, связанные
+            с владельцем.
+          </div>
+        </div>
+        <div className="flex flex-col items-end text-[11px] text-gray-500">
+          <span>Всего: {docs.length}</span>
+          <span className="mt-1">
+            {expanded ? "Свернуть ▲" : "Развернуть ▼"}
+          </span>
+        </div>
+      </button>
 
-      {errorText && (
-        <p className="text-[11px] text-red-600">{errorText}</p>
-      )}
-
-      {loading ? (
-        <p className="text-xs text-gray-400">Загрузка документов…</p>
-      ) : docs.length === 0 ? (
-        <p className="text-xs text-gray-400">
-          У этого клиента ещё нет документов.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {docs.map((doc) => (
-            <div
-              key={doc.id}
-              className="flex items-start justify-between gap-3 rounded-xl border bg-gray-50 px-3 py-2"
-            >
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-gray-800">
-                  {doc.title}
-                </div>
-                <div className="text-[11px] text-gray-500">
-                  Тип: {doc.type}
-                </div>
-                {doc.file_url && (
-                  <a
-                    href={doc.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-emerald-700 hover:underline"
-                  >
-                    Открыть файл
-                  </a>
-                )}
-                {doc.notes && (
-                  <div className="text-[11px] text-gray-500">
-                    {doc.notes}
-                  </div>
-                )}
-                <div className="text-[10px] text-gray-400">
-                  Добавлен:{" "}
-                  {new Date(doc.created_at).toLocaleString("ru-RU")}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(doc.id)}
-                className="text-[11px] text-red-600 hover:underline"
-              >
-                Удалить
-              </button>
-            </div>
-          ))}
+      {!expanded && (
+        <div className="rounded-2xl border bg-white px-4 py-3 text-[11px] text-gray-500">
+          Документы скрыты. Нажмите, чтобы развернуть и увидеть список и формы
+          управления.
         </div>
       )}
 
-      {/* Форма добавления нового документа */}
-      <div className="mt-3 rounded-xl border bg-gray-50 p-3 space-y-2">
-        <h3 className="text-xs font-semibold text-gray-700">
-          Добавить документ
-        </h3>
-        <form onSubmit={handleAdd} className="space-y-2 text-xs">
-          <div className="grid gap-2 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Тип документа
-              </label>
-              <input
-                type="text"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                placeholder="например: договор, акт, заключение"
-              />
+      {expanded && (
+        <div className="space-y-3 rounded-2xl border bg-white p-4">
+          {/* Ошибки */}
+          {errorText && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+              {errorText}
             </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-gray-500">
-                Название
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                placeholder="например: Договор на оказание услуг"
-              />
+          )}
+
+          {loading && (
+            <p className="text-[11px] text-gray-500">
+              Загрузка документов клиента…
+            </p>
+          )}
+
+          {!loading && docs.length === 0 && (
+            <p className="text-[11px] text-gray-500">
+              Документов клиента пока нет.
+              {canManage &&
+                " Вы можете добавить первый документ (договор, согласие и т.д.)."}
+            </p>
+          )}
+
+          {/* Фильтры */}
+          {!loading && docs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 text-[11px]">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Тип:</span>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="rounded-xl border px-2 py-1 text-[11px]"
+                >
+                  <option value="all">Все</option>
+                  {distinctTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Поиск:</span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Название, тип, пометки…"
+                  className="min-w-[160px] rounded-xl border px-2 py-1 text-[11px]"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <label className="mb-1 block text-[11px] text-gray-500">
-              Ссылка на файл
-            </label>
-            <input
-              type="text"
-              value={fileUrl}
-              onChange={(e) => setFileUrl(e.target.value)}
-              className="w-full rounded-xl border px-3 py-1.5 text-xs"
-              placeholder="https://... (можно пока оставить пустым)"
-            />
-          </div>
+          {/* Таблица документов */}
+          {!loading && docs.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-[11px]">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
+                    <th className="px-2 py-2">Тип</th>
+                    <th className="px-2 py-2">Название</th>
+                    <th className="px-2 py-2">Дата добавления</th>
+                    <th className="px-2 py-2">Заметки</th>
+                    <th className="px-2 py-2 text-right">Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDocs.map((d) => {
+                    const created = d.created_at
+                      ? new Date(d.created_at).toLocaleString("ru-RU")
+                      : "—";
+                    const isEditing = editingId === d.id;
 
-          <div>
-            <label className="mb-1 block text-[11px] text-gray-500">
-              Примечание
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-xl border px-3 py-1.5 text-xs"
-              rows={2}
-              placeholder="Любая служебная информация по документу"
-            />
-          </div>
+                    if (isEditing && canManage) {
+                      return (
+                        <tr key={d.id} className="border-b last:border-0">
+                          <td className="px-2 py-2 align-top">
+                            <select
+                              value={editType}
+                              onChange={(e) => setEditType(e.target.value)}
+                              className="w-full rounded-xl border px-2 py-1 text-[11px]"
+                            >
+                              {OWNER_DOCUMENT_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                              {!OWNER_DOCUMENT_TYPES.includes(
+                                editType as any
+                              ) &&
+                                editType && (
+                                  <option value={editType}>{editType}</option>
+                                )}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              className="w-full rounded-xl border px-2 py-1 text-[11px]"
+                            />
+                            <input
+                              type="text"
+                              value={editFileUrl}
+                              onChange={(e) =>
+                                setEditFileUrl(e.target.value)
+                              }
+                              className="mt-1 w-full rounded-xl border px-2 py-1 text-[11px]"
+                              placeholder="Ссылка на файл (URL)"
+                            />
+                          </td>
+                          <td className="px-2 py-2 align-top text-gray-500">
+                            {created}
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <textarea
+                              value={editNotes}
+                              onChange={(e) => setEditNotes(e.target.value)}
+                              rows={2}
+                              className="w-full rounded-xl border px-2 py-1 text-[11px]"
+                            />
+                          </td>
+                          <td className="px-2 py-2 align-top text-right space-y-1">
+                            <button
+                              type="button"
+                              onClick={handleEditSave}
+                              disabled={savingEdit}
+                              className="block w-full rounded-xl bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                            >
+                              {savingEdit ? "Сохраняю…" : "Сохранить"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="block w-full rounded-xl border px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50"
+                            >
+                              Отмена
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
 
-          <div className="pt-1 flex justify-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {saving ? "Сохраняю…" : "Добавить документ"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </section>
+                    return (
+                      <tr key={d.id} className="border-b last:border-0">
+                        <td className="px-2 py-2 align-top text-gray-700">
+                          {d.type || "—"}
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          {d.file_url ? (
+                            <a
+                              href={d.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-700 hover:underline"
+                            >
+                              {d.title || "Документ"}
+                            </a>
+                          ) : (
+                            <span className="text-gray-800">
+                              {d.title || "Документ"}
+                            </span>
+                          )}
+                          {d.file_url && (
+                            <div className="text-[10px] text-gray-500">
+                              Файл: {d.file_url}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 align-top text-gray-500">
+                          {created}
+                        </td>
+                        <td className="px-2 py-2 align-top text-gray-700">
+                          {d.notes || <span className="text-gray-400">—</span>}
+                        </td>
+                        <td className="px-2 py-2 align-top text-right space-y-1">
+                          {d.file_url && (
+                            <a
+                              href={d.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                            >
+                              Открыть / скачать
+                            </a>
+                          )}
+                          {canManage && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEdit(d)}
+                                className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                              >
+                                Заменить / редактировать
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(d.id)}
+                                className="block w-full text-left text-[11px] text-red-600 hover:underline"
+                              >
+                                Удалить
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Добавление нового документа (только если есть права) */}
+          {canManage && (
+            <div className="mt-2 rounded-xl border bg-gray-50 p-3">
+              <h3 className="text-xs font-semibold text-gray-700">
+                Добавить документ клиента
+              </h3>
+              <form
+                onSubmit={handleAdd}
+                className="mt-2 grid gap-2 text-[11px] md:grid-cols-2"
+              >
+                <div>
+                  <label className="mb-1 block text-gray-500">
+                    Тип документа
+                  </label>
+                  <select
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1"
+                  >
+                    {OWNER_DOCUMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                    {!OWNER_DOCUMENT_TYPES.includes(newType as any) && (
+                      <option value={newType}>{newType}</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-gray-500">
+                    Название документа <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1"
+                    placeholder="Например: Договор на оказание услуг №123"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-gray-500">
+                    Ссылка на файл (URL)
+                  </label>
+                  <input
+                    type="text"
+                    value={newFileUrl}
+                    onChange={(e) => setNewFileUrl(e.target.value)}
+                    className="w-full rounded-xl border px-2 py-1"
+                    placeholder="https://… (готовый файл в хранилище)"
+                  />
+                  <p className="mt-1 text-[10px] text-gray-500">
+                    Здесь просто указываем ссылку на уже готовый файл
+                    (договор, согласие, акт и т.д.).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-gray-500">
+                    Служебные заметки
+                  </label>
+                  <textarea
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border px-2 py-1"
+                    placeholder="Например: оригинал в бумажном архиве, подписан обеими сторонами…"
+                  />
+                </div>
+
+                <div className="md:col-span-2 flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={savingNew}
+                    className="rounded-xl bg-emerald-600 px-4 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {savingNew ? "Сохраняю…" : "Добавить документ"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
