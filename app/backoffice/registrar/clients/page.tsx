@@ -1,52 +1,88 @@
+"use client";
+
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getOwnersSummary } from "@/lib/clients";
+import { useSearchParams } from "next/navigation";
 
-type PageProps = {
-  searchParams?: {
-    pets?: "all" | "with" | "without";
-    priv?: "all" | "with" | "without";
-    mode?: "dashboard" | "all";
-  };
-};
-
-export default async function RegistrarClientsPage({ searchParams }: PageProps) {
+export default async function RegistrarClientsPage() {
   const owners = await getOwnersSummary();
 
-  const petsFilter = searchParams?.pets ?? "all";
-  const privFilter = searchParams?.priv ?? "all";
-  const mode: "dashboard" | "all" =
-    searchParams?.mode === "all" ? "all" : "dashboard";
+  return <ClientsDashboard owners={owners} />;
+}
 
-  // ===== COUNTS =====
-  const total = owners.length;
-  const withPets = owners.filter((o) => o.petsCount > 0).length;
-  const withoutPets = total - withPets;
-  const withPrivate = owners.filter((o) => o.hasPrivateData).length;
+//
+// CLIENT-SIDE COMPONENT
+//
 
-  // ===== FILTERING =====
-  let filtered = owners;
+import { useState, useMemo } from "react";
 
-  if (petsFilter === "with") filtered = filtered.filter((o) => o.petsCount > 0);
-  if (petsFilter === "without") filtered = filtered.filter((o) => o.petsCount === 0);
-  if (privFilter === "with") filtered = filtered.filter((o) => o.hasPrivateData);
-  if (privFilter === "without") filtered = filtered.filter((o) => !o.hasPrivateData);
+function ClientsDashboard({ owners }: { owners: any[] }) {
+  const searchParams = useSearchParams();
 
-  const visibleOwners = mode === "all" ? filtered : filtered.slice(0, 10);
+  // фильтры
+  const initialPets = searchParams.get("pets") ?? "all";
+  const initialPriv = searchParams.get("priv") ?? "all";
+  const initialMode = searchParams.get("mode") ?? "dashboard";
 
-  // URL builder
-  const buildUrl = (
-    pets: string,
-    priv: string,
-    modeValue: "dashboard" | "all" = mode
-  ) => `/backoffice/registrar/clients?pets=${pets}&priv=${priv}&mode=${modeValue}`;
+  const [petsFilter, setPetsFilter] = useState(initialPets);
+  const [privFilter, setPrivFilter] = useState(initialPriv);
+  const [mode, setMode] = useState<"dashboard" | "all">(initialMode as any);
+
+  const filtered = useMemo(() => {
+    let f = [...owners];
+
+    // petsFilter
+    if (petsFilter === "with") {
+      f = f.filter((o) => o.petsCount > 0);
+    } else if (petsFilter === "without") {
+      f = f.filter((o) => o.petsCount === 0);
+    }
+
+    // privFilter
+    if (privFilter === "with") {
+      f = f.filter((o) => o.hasPrivateData);
+    } else if (privFilter === "without") {
+      f = f.filter((o) => !o.hasPrivateData);
+    }
+
+    return f;
+  }, [owners, petsFilter, privFilter]);
+
+  const visibleOwners =
+    mode === "all"
+      ? filtered
+      : filtered.slice(0, 10); // свернутая версия
+
+  // формируем ссылку для сохранения фильтров
+  const buildUrl = ({
+    pets,
+    priv,
+    modeValue,
+  }: {
+    pets: string;
+    priv: string;
+    modeValue: "dashboard" | "all";
+  }) =>
+    `/backoffice/registrar/clients?pets=${pets}&priv=${priv}&mode=${modeValue}`;
+
+  const fullUrl = buildUrl({
+    pets: petsFilter,
+    priv: privFilter,
+    modeValue: "all",
+  });
+
+  const dashboardUrl = buildUrl({
+    pets: petsFilter,
+    priv: privFilter,
+    modeValue: "dashboard",
+  });
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-
-        {/* HEADER */}
+        {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
             <Link
@@ -59,152 +95,241 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             <h1 className="mt-2 text-2xl font-bold tracking-tight">
               Картотека клиентов
             </h1>
-
             <p className="text-sm text-gray-500">
-              Фильтрация по питомцам и персональным данным. Полная или краткая картотека.
+              Фильтрация по питомцам и персональным данным. Полная или
+              краткая картотека.
             </p>
           </div>
+
           <RegistrarHeader />
         </header>
 
-        {/* SUMMARY BLOCK */}
+        {/* --- Сводка --- */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <h2 className="text-sm font-semibold">Сводка</h2>
+          <h2 className="text-base font-semibold">Сводка</h2>
 
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">Клиентов</div>
-              <div className="text-xl font-semibold">{total}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="rounded-xl border bg-gray-50 p-3">
+              <div className="text-[11px] uppercase text-gray-500">Клиентов</div>
+              <div className="mt-1 text-xl font-semibold">{owners.length}</div>
             </div>
 
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">С питомцами</div>
-              <div className="text-xl font-semibold">{withPets}</div>
+            <div className="rounded-xl border bg-gray-50 p-3">
+              <div className="text-[11px] uppercase text-gray-500">
+                С питомцами
+              </div>
+              <div className="mt-1 text-xl font-semibold">
+                {owners.filter((o) => o.petsCount > 0).length}
+              </div>
             </div>
 
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">Без питомцев</div>
-              <div className="text-xl font-semibold">{withoutPets}</div>
+            <div className="rounded-xl border bg-gray-50 p-3">
+              <div className="text-[11px] uppercase text-gray-500">
+                Без питомцев
+              </div>
+              <div className="mt-1 text-xl font-semibold">
+                {owners.filter((o) => o.petsCount === 0).length}
+              </div>
             </div>
 
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-[11px] text-gray-500">С персональными данными</div>
-              <div className="text-xl font-semibold">{withPrivate}</div>
+            <div className="rounded-xl border bg-gray-50 p-3">
+              <div className="text-[11px] uppercase text-gray-500">
+                С персональными данными
+              </div>
+              <div className="mt-1 text-xl font-semibold">
+                {owners.filter((o) => o.hasPrivateData).length}
+              </div>
             </div>
           </div>
 
-          {/* FILTERS */}
-          <div className="grid gap-3 md:grid-cols-2">
-            {/* PETS filter */}
-            <div>
-              <div className="mb-1 text-[11px] text-gray-500">Питомцы</div>
-              <div className="inline-flex rounded-full border bg-gray-50 p-1 text-[11px]">
-                <Link href={buildUrl("all", privFilter)} className={`rounded-full px-3 py-1 ${petsFilter === "all" ? "bg-emerald-600 text-white" : ""}`}>Все</Link>
-                <Link href={buildUrl("with", privFilter)} className={`rounded-full px-3 py-1 ${petsFilter === "with" ? "bg-emerald-600 text-white" : ""}`}>С питомцами</Link>
-                <Link href={buildUrl("without", privFilter)} className={`rounded-full px-3 py-1 ${petsFilter === "without" ? "bg-emerald-600 text-white" : ""}`}>Без питомцев</Link>
+          {/* Фильтры */}
+          <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+            {/* Фильтр по питомцам */}
+            <div className="space-y-1">
+              <div className="text-[11px] text-gray-500">Питомцы</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPetsFilter("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs border ${
+                    petsFilter === "all"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  Все
+                </button>
+                <button
+                  onClick={() => setPetsFilter("with")}
+                  className={`px-3 py-1.5 rounded-xl text-xs border ${
+                    petsFilter === "with"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  С питомцами
+                </button>
+                <button
+                  onClick={() => setPetsFilter("without")}
+                  className={`px-3 py-1.5 rounded-xl text-xs border ${
+                    petsFilter === "without"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  Без питомцев
+                </button>
               </div>
             </div>
 
-            {/* PRIVATE-DATA filter */}
-            <div>
-              <div className="mb-1 text-[11px] text-gray-500">Персональные данные</div>
-              <div className="inline-flex rounded-full border bg-gray-50 p-1 text-[11px]">
-                <Link href={buildUrl(petsFilter, "all")} className={`rounded-full px-3 py-1 ${privFilter === "all" ? "bg-emerald-600 text-white" : ""}`}>Все</Link>
-                <Link href={buildUrl(petsFilter, "with")} className={`rounded-full px-3 py-1 ${privFilter === "with" ? "bg-emerald-600 text-white" : ""}`}>С данными</Link>
-                <Link href={buildUrl(petsFilter, "without")} className={`rounded-full px-3 py-1 ${privFilter === "without" ? "bg-emerald-600 text-white" : ""}`}>Без данных</Link>
+            {/* Фильтр по приватным данным */}
+            <div className="space-y-1">
+              <div className="text-[11px] text-gray-500">Персональные данные</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPrivFilter("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs border ${
+                    privFilter === "all"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  Все
+                </button>
+                <button
+                  onClick={() => setPrivFilter("with")}
+                  className={`px-3 py-1.5 rounded-xl text-xs border ${
+                    privFilter === "with"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  С данными
+                </button>
+                <button
+                  onClick={() => setPrivFilter("without")}
+                  className={`px-3 py-1.5 rounded-xl text-xs border ${
+                    privFilter === "without"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  Без данных
+                </button>
               </div>
             </div>
+          </div>
+
+          {/* Кнопки */}
+          <div className="flex justify-end gap-3">
+            {/* Новая кнопка – Полная картотека */}
+            <Link
+              href={fullUrl}
+              className="rounded-xl px-4 py-2 text-xs font-medium border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+            >
+              Полная картотека
+            </Link>
+
+            {/* Вторая кнопка — свернуть */}
+            <Link
+              href={dashboardUrl}
+              className="rounded-xl px-4 py-2 text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Свернуть до 10 клиентов
+            </Link>
+
+            <Link
+              href="/backoffice/registrar/clients/new"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              Добавить клиента
+            </Link>
           </div>
         </section>
 
-        {/* CLIENTS TABLE */}
+        {/* Клиенты */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Клиенты</h2>
+          <h2 className="text-base font-semibold">Клиенты</h2>
 
-            <div className="flex gap-2">
-              {mode === "dashboard" ? (
-                <Link
-                  href={buildUrl(petsFilter, privFilter, "all")}
-                  className="rounded-xl border px-3 py-1.5 text-[11px] hover:bg-gray-50"
-                >
-                  Полная картотека →
-                </Link>
-              ) : (
-                <Link
-                  href={buildUrl(petsFilter, privFilter, "dashboard")}
-                  className="rounded-xl border px-3 py-1.5 text-[11px] hover:bg-gray-50"
-                >
-                  Свернуть до 10 кли
-                </Link>
-              )}
+          {visibleOwners.length === 0 && (
+            <p className="text-xs text-gray-400">
+              Клиенты не найдены по выбранным фильтрам.
+            </p>
+          )}
 
-              <Link
-                href="/backoffice/registrar/clients/new"
-                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] text-white hover:bg-emerald-700"
-              >
-                Добавить клиента
-              </Link>
-            </div>
-          </div>
-
-          {/* TABLE */}
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                <th className="px-2 py-2">Клиент</th>
-                <th className="px-2 py-2">Город</th>
-                <th className="px-2 py-2">Питомцы</th>
-                <th className="px-2 py-2">Персональные данные</th>
-                <th className="px-2 py-2 text-right">Действия</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {visibleOwners.map((o) => {
-                const href = `/backoffice/registrar/clients/${o.ownerId}?from=${mode}&pets=${petsFilter}&priv=${privFilter}&mode=${mode}`;
-                return (
-                  <tr key={o.ownerId} className="border-b hover:bg-gray-50">
-                    <td className="px-2 py-2">
-                      <div className="font-medium">{o.fullName}</div>
-                      {o.email && <div className="text-[10px] text-gray-500">{o.email}</div>}
-                      {o.phone && <div className="text-[10px] text-gray-500">{o.phone}</div>}
-                    </td>
-
-                    <td className="px-2 py-2">{o.city || "—"}</td>
-
-                    <td className="px-2 py-2">
-                      {o.petsCount > 0 ? (
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
-                          {o.petsCount} питомц.
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400">нет питомцев</span>
-                      )}
-                    </td>
-
-                    <td className="px-2 py-2">
-                      {o.hasPrivateData ? (
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
-                          есть данные
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400">нет данных</span>
-                      )}
-                    </td>
-
-                    <td className="px-2 py-2 text-right">
-                      <Link href={href} className="text-[11px] font-medium text-emerald-700 hover:underline">
-                        Открыть →
-                      </Link>
-                    </td>
+          {visibleOwners.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
+                    <th className="px-2 py-2">Клиент</th>
+                    <th className="px-2 py-2">Город</th>
+                    <th className="px-2 py-2">Питомцы</th>
+                    <th className="px-2 py-2">Персональные данные</th>
+                    <th className="px-2 py-2 text-right">Действия</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {visibleOwners.map((o) => (
+                    <tr
+                      key={o.ownerId}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2">
+                        <div className="font-medium text-gray-800">
+                          {o.fullName}
+                        </div>
+                        {o.email && (
+                          <div className="text-[10px] text-gray-500">{o.email}</div>
+                        )}
+                        {o.phone && (
+                          <div className="text-[10px] text-gray-500">{o.phone}</div>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-2 text-[11px] text-gray-700">
+                        {o.city || "—"}
+                      </td>
+
+                      <td className="px-2 py-2 text-[11px] text-gray-700">
+                        {o.petsCount > 0 ? (
+                          <span className="text-emerald-700">
+                            {o.petsCount} питомц{plural(o.petsCount)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">нет</span>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-2 text-[11px] text-gray-700">
+                        {o.hasPrivateData ? (
+                          <span className="text-emerald-700">есть данные</span>
+                        ) : (
+                          <span className="text-gray-500">нет</span>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-2 text-right">
+                        <Link
+                          href={`/backoffice/registrar/clients/${o.ownerId}`}
+                          className="text-[11px] font-medium text-emerald-700 hover:underline"
+                        >
+                          Открыть →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </main>
     </RoleGuard>
   );
+}
+
+function plural(n: number) {
+  if (n % 10 === 1 && n % 100 !== 11) return "а";
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "а";
+  return "ев";
 }
