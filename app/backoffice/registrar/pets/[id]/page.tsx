@@ -2,6 +2,7 @@ import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getPetDetails } from "@/lib/pets";
+import { PetDocumentsSection } from "@/components/registrar/PetDocumentsSection";
 
 interface PageProps {
   params: {
@@ -244,7 +245,8 @@ export default async function RegistrarPetDetailsPage({ params }: PageProps) {
               )}
             </section>
 
-            {/* Документы питомца (заглушка, будем делать позже) */}
+            {/* Документы питомца */}
+<PetDocumentsSection petId={pet.id} canManage />
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-base font-semibold">Документы питомца</h2>
               <p className="text-xs text-gray-400">
