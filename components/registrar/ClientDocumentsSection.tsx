@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { OwnerDocument } from "@/lib/documents";
 import { getOwnerDocuments } from "@/lib/documents";
@@ -10,6 +10,9 @@ type Props = {
   /** Может ли текущий пользователь добавлять/редактировать/удалять документы */
   canManage?: boolean;
 };
+
+// Имя bucket'а в Supabase Storage
+const STORAGE_BUCKET = "onlyvet-docs";
 
 // Предлагаемые типы документов для клиента (юридические)
 const OWNER_DOCUMENT_TYPES = [
@@ -37,9 +40,10 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
   const [newTitle, setNewTitle] = useState("");
   const [newFileUrl, setNewFileUrl] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [newFile, setNewFile] = useState<File | null>(null);
   const [savingNew, setSavingNew] = useState(false);
 
-  // редактирование документа
+  // редактирование документа (пока без перезаливки файла — через URL)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editType, setEditType] = useState("");
   const [editTitle, setEditTitle] = useState("");
@@ -88,6 +92,12 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
     setNewTitle("");
     setNewFileUrl("");
     setNewNotes("");
+    setNewFile(null);
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setNewFile(file);
   };
 
   const startEdit = (doc: OwnerDocument) => {
@@ -105,6 +115,35 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
     setSavingEdit(false);
     setErrorText(null);
   };
+
+  async function uploadOwnerFile(file: File): Promise<string | null> {
+    const client = supabase;
+    if (!client) {
+      setErrorText("Supabase недоступен на клиенте.");
+      return null;
+    }
+
+    const ext = file.name.split(".").pop() || "file";
+    const path = `owners/${ownerId}/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${ext}`;
+
+    const { error: uploadError } = await client.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, file);
+
+    if (uploadError) {
+      console.error("upload owner document error", uploadError);
+      setErrorText("Не удалось загрузить файл в хранилище.");
+      return null;
+    }
+
+    const { data: publicData } = client.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(path);
+
+    return publicData.publicUrl ?? null;
+  }
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
@@ -124,11 +163,23 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
     setSavingNew(true);
     setErrorText(null);
 
+    let finalUrl: string | null = newFileUrl.trim() || null;
+
+    // если выбран файл — загружаем его и берём URL из хранилища
+    if (newFile) {
+      const uploadedUrl = await uploadOwnerFile(newFile);
+      if (!uploadedUrl) {
+        setSavingNew(false);
+        return;
+      }
+      finalUrl = uploadedUrl;
+    }
+
     const payload = {
       owner_id: ownerId,
       type: newType.trim(),
       title: newTitle.trim(),
-      file_url: newFileUrl.trim() || null,
+      file_url: finalUrl,
       notes: newNotes.trim() || null,
     };
 
@@ -269,8 +320,7 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
   if (!hasDocs) {
     emptyMessage = "Документов клиента пока нет.";
   } else {
-    emptyMessage =
-      "Нет документов, удовлетворяющих текущим фильтрам.";
+    emptyMessage = "Нет документов, удовлетворяющих текущим фильтрам.";
   }
 
   return (
@@ -318,299 +368,316 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
             </p>
           )}
 
-          {/* Фильтры — показываем всегда, чтобы было понятно, что тут вообще есть */}
           {!loading && (
-            <div className="flex flex-wrap items-center gap-3 text-[11px]">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Тип:</span>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="rounded-xl border px-2 py-1 text-[11px]"
-                >
-                  <option value="all">Все</option>
-                  {distinctTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Поиск:</span>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Название, тип, пометки…"
-                  className="min-w-[160px] rounded-xl border px-2 py-1 text-[11px]"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Таблица документов — всегда видна, даже если пустая */}
-          {!loading && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-[11px]">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
-                    <th className="px-2 py-2">Тип</th>
-                    <th className="px-2 py-2">Название</th>
-                    <th className="px-2 py-2">Дата добавления</th>
-                    <th className="px-2 py-2">Заметки</th>
-                    <th className="px-2 py-2 text-right">Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!hasFilteredDocs ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-2 py-4 text-center text-[11px] text-gray-400"
-                      >
-                        {emptyMessage}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredDocs.map((d) => {
-                      const created = d.created_at
-                        ? new Date(d.created_at).toLocaleString("ru-RU")
-                        : "—";
-                      const isEditing = editingId === d.id;
-
-                      if (isEditing && canManage) {
-                        return (
-                          <tr key={d.id} className="border-b last:border-0">
-                            <td className="px-2 py-2 align-top">
-                              <select
-                                value={editType}
-                                onChange={(e) => setEditType(e.target.value)}
-                                className="w-full rounded-xl border px-2 py-1 text-[11px]"
-                              >
-                                {OWNER_DOCUMENT_TYPES.map((t) => (
-                                  <option key={t} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                                {!OWNER_DOCUMENT_TYPES.includes(
-                                  editType as any
-                                ) &&
-                                  editType && (
-                                    <option value={editType}>{editType}</option>
-                                  )}
-                              </select>
-                            </td>
-                            <td className="px-2 py-2 align-top">
-                              <input
-                                type="text"
-                                value={editTitle}
-                                onChange={(e) =>
-                                  setEditTitle(e.target.value)
-                                }
-                                className="w-full rounded-xl border px-2 py-1 text-[11px]"
-                              />
-                              <input
-                                type="text"
-                                value={editFileUrl}
-                                onChange={(e) =>
-                                  setEditFileUrl(e.target.value)
-                                }
-                                className="mt-1 w-full rounded-xl border px-2 py-1 text-[11px]"
-                                placeholder="Ссылка на файл (URL)"
-                              />
-                            </td>
-                            <td className="px-2 py-2 align-top text-gray-500">
-                              {created}
-                            </td>
-                            <td className="px-2 py-2 align-top">
-                              <textarea
-                                value={editNotes}
-                                onChange={(e) =>
-                                  setEditNotes(e.target.value)
-                                }
-                                rows={2}
-                                className="w-full rounded-xl border px-2 py-1 text-[11px]"
-                              />
-                            </td>
-                            <td className="px-2 py-2 align-top text-right space-y-1">
-                              <button
-                                type="button"
-                                onClick={handleEditSave}
-                                disabled={savingEdit}
-                                className="block w-full rounded-xl bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                              >
-                                {savingEdit ? "Сохраняю…" : "Сохранить"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelEdit}
-                                className="block w-full rounded-xl border px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50"
-                              >
-                                Отмена
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      }
-
-                      return (
-                        <tr key={d.id} className="border-b last:border-0">
-                          <td className="px-2 py-2 align-top text-gray-700">
-                            {d.type || "—"}
-                          </td>
-                          <td className="px-2 py-2 align-top">
-                            {d.file_url ? (
-                              <a
-                                href={d.file_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-emerald-700 hover:underline"
-                              >
-                                {d.title || "Документ"}
-                              </a>
-                            ) : (
-                              <span className="text-gray-800">
-                                {d.title || "Документ"}
-                              </span>
-                            )}
-                            {d.file_url && (
-                              <div className="text-[10px] text-gray-500">
-                                Файл: {d.file_url}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-2 py-2 align-top text-gray-500">
-                            {created}
-                          </td>
-                          <td className="px-2 py-2 align-top text-gray-700">
-                            {d.notes || (
-                              <span className="text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-2 align-top text-right space-y-1">
-                            {d.file_url && (
-                              <a
-                                href={d.file_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
-                              >
-                                Открыть / скачать
-                              </a>
-                            )}
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => startEdit(d)}
-                                  className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
-                                >
-                                  Заменить / редактировать
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(d.id)}
-                                  className="block w-full text-left text-[11px] text-red-600 hover:underline"
-                                >
-                                  Удалить
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Добавление нового документа (только если есть права) */}
-          {canManage && (
-            <div className="mt-2 rounded-xl border bg-gray-50 p-3">
-              <h3 className="text-xs font-semibold text-gray-700">
-                Добавить документ клиента
-              </h3>
-              <form
-                onSubmit={handleAdd}
-                className="mt-2 grid gap-2 text-[11px] md:grid-cols-2"
-              >
-                <div>
-                  <label className="mb-1 block text-gray-500">
-                    Тип документа
-                  </label>
+            <>
+              {/* Фильтры */}
+              <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Тип:</span>
                   <select
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                    className="w-full rounded-xl border px-2 py-1"
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="rounded-xl border px-2 py-1 text-[11px]"
                   >
-                    {OWNER_DOCUMENT_TYPES.map((t) => (
+                    <option value="all">Все</option>
+                    {distinctTypes.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
                     ))}
-                    {!OWNER_DOCUMENT_TYPES.includes(newType as any) && (
-                      <option value={newType}>{newType}</option>
-                    )}
                   </select>
                 </div>
-
-                <div>
-                  <label className="mb-1 block text-gray-500">
-                    Название документа <span className="text-red-500">*</span>
-                  </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Поиск:</span>
                   <input
                     type="text"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    className="w-full rounded-xl border px-2 py-1"
-                    placeholder="Например: Договор на оказание услуг №123"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Название, тип, пометки…"
+                    className="min-w-[160px] rounded-xl border px-2 py-1 text-[11px]"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="mb-1 block text-gray-500">
-                    Ссылка на файл (URL)
-                  </label>
-                  <input
-                    type="text"
-                    value={newFileUrl}
-                    onChange={(e) => setNewFileUrl(e.target.value)}
-                    className="w-full rounded-xl border px-2 py-1"
-                    placeholder="https://… (готовый файл в хранилище)"
-                  />
-                  <p className="mt-1 text-[10px] text-gray-500">
-                    Здесь просто указываем ссылку на уже готовый файл
-                    (договор, согласие, акт и т.д.).
-                  </p>
-                </div>
+              {/* Таблица */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
+                      <th className="px-2 py-2">Тип</th>
+                      <th className="px-2 py-2">Название</th>
+                      <th className="px-2 py-2">Дата добавления</th>
+                      <th className="px-2 py-2">Заметки</th>
+                      <th className="px-2 py-2 text-right">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!hasFilteredDocs ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-2 py-4 text-center text-[11px] text-gray-400"
+                        >
+                          {emptyMessage}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDocs.map((d) => {
+                        const created = d.created_at
+                          ? new Date(d.created_at).toLocaleString("ru-RU")
+                          : "—";
+                        const isEditing = editingId === d.id;
 
-                <div>
-                  <label className="mb-1 block text-gray-500">
-                    Служебные заметки
-                  </label>
-                  <textarea
-                    value={newNotes}
-                    onChange={(e) => setNewNotes(e.target.value)}
-                    rows={3}
-                    className="w-full rounded-xl border px-2 py-1"
-                    placeholder="Например: оригинал в бумажном архиве, подписан обеими сторонами…"
-                  />
-                </div>
+                        if (isEditing && canManage) {
+                          return (
+                            <tr key={d.id} className="border-b last:border-0">
+                              <td className="px-2 py-2 align-top">
+                                <select
+                                  value={editType}
+                                  onChange={(e) =>
+                                    setEditType(e.target.value)
+                                  }
+                                  className="w-full rounded-xl border px-2 py-1 text-[11px]"
+                                >
+                                  {OWNER_DOCUMENT_TYPES.map((t) => (
+                                    <option key={t} value={t}>
+                                      {t}
+                                    </option>
+                                  ))}
+                                  {!OWNER_DOCUMENT_TYPES.includes(
+                                    editType as any
+                                  ) &&
+                                    editType && (
+                                      <option value={editType}>
+                                        {editType}
+                                      </option>
+                                    )}
+                                </select>
+                              </td>
+                              <td className="px-2 py-2 align-top">
+                                <input
+                                  type="text"
+                                  value={editTitle}
+                                  onChange={(e) =>
+                                    setEditTitle(e.target.value)
+                                  }
+                                  className="w-full rounded-xl border px-2 py-1 text-[11px]"
+                                />
+                                <input
+                                  type="text"
+                                  value={editFileUrl}
+                                  onChange={(e) =>
+                                    setEditFileUrl(e.target.value)
+                                  }
+                                  className="mt-1 w-full rounded-xl border px-2 py-1 text-[11px]"
+                                  placeholder="Ссылка на файл (URL)"
+                                />
+                              </td>
+                              <td className="px-2 py-2 align-top text-gray-500">
+                                {created}
+                              </td>
+                              <td className="px-2 py-2 align-top">
+                                <textarea
+                                  value={editNotes}
+                                  onChange={(e) =>
+                                    setEditNotes(e.target.value)
+                                  }
+                                  rows={2}
+                                  className="w-full rounded-xl border px-2 py-1 text-[11px]"
+                                />
+                              </td>
+                              <td className="px-2 py-2 align-top text-right space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={handleEditSave}
+                                  disabled={savingEdit}
+                                  className="block w-full rounded-xl bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                                >
+                                  {savingEdit ? "Сохраняю…" : "Сохранить"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEdit}
+                                  className="block w-full rounded-xl border px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50"
+                                >
+                                  Отмена
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                <div className="md:col-span-2 flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    disabled={savingNew}
-                    className="rounded-xl bg-emerald-600 px-4 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                        return (
+                          <tr key={d.id} className="border-b last:border-0">
+                            <td className="px-2 py-2 align-top text-gray-700">
+                              {d.type || "—"}
+                            </td>
+                            <td className="px-2 py-2 align-top">
+                              {d.file_url ? (
+                                <a
+                                  href={d.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-emerald-700 hover:underline"
+                                >
+                                  {d.title || "Документ"}
+                                </a>
+                              ) : (
+                                <span className="text-gray-800">
+                                  {d.title || "Документ"}
+                                </span>
+                              )}
+                              {d.file_url && (
+                                <div className="text-[10px] text-gray-500">
+                                  Файл: {d.file_url}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 align-top text-gray-500">
+                              {created}
+                            </td>
+                            <td className="px-2 py-2 align-top text-gray-700">
+                              {d.notes || (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 align-top text-right space-y-1">
+                              {d.file_url && (
+                                <a
+                                  href={d.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                >
+                                  Открыть / скачать
+                                </a>
+                              )}
+                              {canManage && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(d)}
+                                    className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                  >
+                                    Заменить / редактировать
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(d.id)}
+                                    className="block w-full text-left text-[11px] text-red-600 hover:underline"
+                                  >
+                                    Удалить
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Добавление нового документа (только если есть права) */}
+              {canManage && (
+                <div className="mt-2 rounded-xl border bg-gray-50 p-3">
+                  <h3 className="text-xs font-semibold text-gray-700">
+                    Добавить документ клиента
+                  </h3>
+                  <form
+                    onSubmit={handleAdd}
+                    className="mt-2 grid gap-2 text-[11px] md:grid-cols-2"
                   >
-                    {savingNew ? "Сохраняю…" : "Добавить документ"}
-                  </button>
+                    <div>
+                      <label className="mb-1 block text-gray-500">
+                        Тип документа
+                      </label>
+                      <select
+                        value={newType}
+                        onChange={(e) => setNewType(e.target.value)}
+                        className="w-full rounded-xl border px-2 py-1"
+                      >
+                        {OWNER_DOCUMENT_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                        {!OWNER_DOCUMENT_TYPES.includes(newType as any) && (
+                          <option value={newType}>{newType}</option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text_gray-500">
+                        Название документа{" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        className="w-full rounded-xl border px-2 py-1"
+                        placeholder="Например: Договор на оказание услуг №123"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-gray-500">
+                        Ссылка на файл (URL)
+                      </label>
+                      <input
+                        type="text"
+                        value={newFileUrl}
+                        onChange={(e) => setNewFileUrl(e.target.value)}
+                        className="w-full rounded-xl border px-2 py-1"
+                        placeholder="https://… (готовый файл в хранилище или внешнем сервисе)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-gray-500">
+                        Файл (загрузить в хранилище)
+                      </label>
+                      <input
+                        type="file"
+                        onChange={handleFileChange}
+                        className="w-full text-[11px]"
+                      />
+                      <p className="mt-1 text-[10px] text-gray-500">
+                        Можно либо указать ссылку, либо выбрать файл. Если указаны
+                        оба варианта, будет использован загруженный файл из
+                        хранилища.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-gray-500">
+                        Служебные заметки
+                      </label>
+                      <textarea
+                        value={newNotes}
+                        onChange={(e) => setNewNotes(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-xl border px-2 py-1"
+                        placeholder="Например: оригинал в бумажном архиве, подписан обеими сторонами…"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 flex justify-end pt-1">
+                      <button
+                        type="submit"
+                        disabled={savingNew}
+                        className="rounded-xl bg-emerald-600 px-4 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {savingNew ? "Сохраняю…" : "Добавить документ"}
+                      </button>
+                    </div>
+                  </form>
                 </div>
-              </form>
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
