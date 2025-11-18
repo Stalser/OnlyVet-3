@@ -107,7 +107,7 @@ export default function ClientDetailPage() {
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // ===== helpers =====
+  // ==== helpers ====
 
   const parseContacts = (extra: any): {
     email: string;
@@ -208,7 +208,7 @@ export default function ClientDetailPage() {
   const formatPetWeight = (w: number | null) =>
     w != null ? `${w.toFixed(1)} кг` : "—";
 
-  // ===== загрузка клиента =====
+  // ==== загрузка клиента ====
 
   useEffect(() => {
     let ignore = false;
@@ -225,7 +225,12 @@ export default function ClientDetailPage() {
         return;
       }
 
-      const client = supabase!;
+      const client = supabase;
+      if (!client) {
+        setLoadError("Supabase недоступен на клиенте.");
+        setLoading(false);
+        return;
+      }
 
       try {
         const { data: ownerData, error: ownerError } = await client
@@ -249,10 +254,10 @@ export default function ClientDetailPage() {
 
         setOwnerFullName(ownerData.full_name ?? "");
         setOwnerCity(ownerData.city ?? "");
-        const contacts = parseContacts(ownerData.extra_contacts);
-        setOwnerEmail(contacts.email);
-        setOwnerPhone(contacts.phone);
-        setOwnerTelegram(contacts.telegram);
+        const c = parseContacts(ownerData.extra_contacts);
+        setOwnerEmail(c.email);
+        setOwnerPhone(c.phone);
+        setOwnerTelegram(c.telegram);
 
         const { data: petsData, error: petsError } = await client
           .from("pets")
@@ -301,12 +306,16 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // ===== обработчики профиля =====
+  // ==== обработчики профиля ====
 
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
-    const client = supabase!;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен.");
+      return;
+    }
 
     if (!ownerFullName.trim()) {
       setActionError("ФИО клиента не может быть пустым.");
@@ -358,7 +367,11 @@ export default function ClientDetailPage() {
       return;
     }
 
-    const client = supabase!;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен.");
+      return;
+    }
 
     setActionError(null);
     setLoading(true);
@@ -380,11 +393,15 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
-  // ===== обработчики питомцев =====
+  // ==== обработчики питомцев ====
 
   const handleDeletePet = async (petId: number) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
-    const client = supabase!;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен.");
+      return;
+    }
 
     setActionError(null);
 
@@ -405,7 +422,11 @@ export default function ClientDetailPage() {
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
-    const client = supabase!;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен.");
+      return;
+    }
 
     if (!newPetName.trim()) {
       setActionError("Укажите имя питомца.");
@@ -483,7 +504,11 @@ export default function ClientDetailPage() {
     e.preventDefault();
     if (!editingPet) return;
 
-    const client = supabase!;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен.");
+      return;
+    }
 
     if (!editingPet.name || !editingPet.name.trim()) {
       setActionError("Имя питомца не может быть пустым.");
@@ -527,13 +552,17 @@ export default function ClientDetailPage() {
     setEditingPet(null);
   };
 
-  // ===== обработчик персональных данных =====
+  // ==== обработчик персональных данных ====
 
   const handlePrivateSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
 
-    const client = supabase!;
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен.");
+      return;
+    }
 
     setSavingPrivate(true);
     setActionError(null);
@@ -575,7 +604,7 @@ export default function ClientDetailPage() {
       return;
     }
 
-    // ключевой момент: обновляем локальное состояние, чтобы UI сразу увидел изменения
+    // обновляем UI
     setPrivateData(payload);
 
     setSavingPrivate(false);
@@ -584,7 +613,7 @@ export default function ClientDetailPage() {
 
   const privateStatusLabel = privateStatus;
 
-  // ===== рендер строки питомца =====
+  // ==== рендер строки питомца ====
 
   const renderPetRow = (pet: Pet) => (
     <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
@@ -734,13 +763,17 @@ export default function ClientDetailPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div>
-                  <div className="text-[11px] text-gray-500 mb-1">ФИО</div>
+                  <div className="text-[11px] text-gray-500 mb-1">
+                    ФИО
+                  </div>
                   <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                     {owner.full_name || "Без имени"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-gray-500 mb-1">Город</div>
+                  <div className="text-[11px] text-gray-500 mb-1">
+                    Город
+                  </div>
                   <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-800">
                     {owner.city || "Не указан"}
                   </div>
@@ -842,7 +875,9 @@ export default function ClientDetailPage() {
                   <input
                     type="text"
                     value={ownerTelegram}
-                    onChange={(e) => setOwnerTelegram(e.target.value)}
+                    onChange={(e) =>
+                      setOwnerTelegram(e.target.value)
+                    }
                     className="w-full rounded-xl border px-3 py-1.5 text-xs"
                     placeholder="@username"
                   />
@@ -1502,7 +1537,7 @@ export default function ClientDetailPage() {
                   {appointments.map((a) => (
                     <tr
                       key={a.id}
-                      className="border-б last:border-0 hover:bg-gray-50"
+                      className="border-b last:border-0 hover:bg-gray-50"
                     >
                       <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                         {formatApptDate(a.starts_at)}
