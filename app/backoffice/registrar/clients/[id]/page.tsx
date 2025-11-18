@@ -59,6 +59,9 @@ export default function ClientDetailPage() {
 
   const idParam = params?.id as string;
 
+  // спойлер для блока документов клиента
+  const [showClientDocs, setShowClientDocs] = useState(false);
+
   // Считываем параметры, чтобы правильно вычислить обратную ссылку
   const from = search.get("from");
   const petsFilter = search.get("pets") ?? "all";
@@ -1115,20 +1118,17 @@ export default function ClientDetailPage() {
           )}
         </section>
 
-                {/* ДОКУМЕНТЫ КЛИЕНТА (СПОЙЛЕР) */}
+        {/* ДОКУМЕНТЫ КЛИЕНТА — СПОЙЛЕР */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <button
             type="button"
-            onClick={() => {
-              // локальное состояние можно вынести наверх компонента, см. ниже
-              setShowClientDocs((v) => !v);
-            }}
+            onClick={() => setShowClientDocs((v) => !v)}
             className="flex w-full items-center justify-between text-left"
           >
             <div>
               <h2 className="text-base font-semibold">Документы клиента</h2>
               <p className="text-[11px] text-gray-500">
-                Договора, акты, согласия и другие файлы, прикреплённые к владельцу.
+                Договора, акты, согласия и другие юридические документы, связанные с владельцем.
               </p>
             </div>
             <span className="text-[11px] text-gray-500">
@@ -1138,10 +1138,12 @@ export default function ClientDetailPage() {
 
           {showClientDocs && (
             <div className="pt-3">
-              <ClientDocumentsSection ownerId={owner.user_id} />
+              {/* canManage=true — т.к. это страница регистратуры/админа */}
+              <ClientDocumentsSection ownerId={owner.user_id} canManage />
             </div>
           )}
         </section>
+
         {/* ПИТОМЦЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex items-center justify-between">
