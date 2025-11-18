@@ -59,9 +59,6 @@ export default function ClientDetailPage() {
 
   const idParam = params?.id as string;
 
-  // спойлер для блока документов клиента
-  const [showClientDocs, setShowClientDocs] = useState(false);
-
   // Считываем параметры, чтобы правильно вычислить обратную ссылку
   const from = search.get("from");
   const petsFilter = search.get("pets") ?? "all";
@@ -1118,31 +1115,8 @@ export default function ClientDetailPage() {
           )}
         </section>
 
-        {/* ДОКУМЕНТЫ КЛИЕНТА — СПОЙЛЕР */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <button
-            type="button"
-            onClick={() => setShowClientDocs((v) => !v)}
-            className="flex w-full items-center justify-between text-left"
-          >
-            <div>
-              <h2 className="text-base font-semibold">Документы клиента</h2>
-              <p className="text-[11px] text-gray-500">
-                Договора, акты, согласия и другие юридические документы, связанные с владельцем.
-              </p>
-            </div>
-            <span className="text-[11px] text-gray-500">
-              {showClientDocs ? "Свернуть ▲" : "Развернуть ▼"}
-            </span>
-          </button>
-
-          {showClientDocs && (
-            <div className="pt-3">
-              {/* canManage=true — т.к. это страница регистратуры/админа */}
-              <ClientDocumentsSection ownerId={owner.user_id} canManage />
-            </div>
-          )}
-        </section>
+                {/* ДОКУМЕНТЫ КЛИЕНТА */}
+        <ClientDocumentsSection ownerId={owner.user_id} canManage />
 
         {/* ПИТОМЦЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
