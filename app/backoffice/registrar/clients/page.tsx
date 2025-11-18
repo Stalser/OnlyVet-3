@@ -6,7 +6,7 @@ import { getOwnersSummary } from "@/lib/clients";
 type PageProps = {
   searchParams?: {
     pets?: "all" | "with" | "without";
-    priv?: "all" | "with" | "without";
+    priv?: "all" | "without" | "with";
     mode?: "dashboard" | "all";
   };
 };
@@ -43,10 +43,8 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     filtered = filtered.filter((o) => !o.hasPrivateData);
   }
 
-  const visibleOwners =
-    mode === "all" ? filtered : filtered.slice(0, 10);
+  const visibleOwners = mode === "all" ? filtered : filtered.slice(0, 10);
 
-  // ссылки с сохранением фильтров
   const fullUrl = `/backoffice/registrar/clients?pets=${petsFilter}&priv=${privFilter}&mode=all`;
   const dashboardUrl = `/backoffice/registrar/clients?pets=${petsFilter}&priv=${privFilter}&mode=dashboard`;
   const showCollapseButton = filtered.length > 10 && mode === "all";
@@ -93,7 +91,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="mt-1 text-xl font-semibold">{withPets}</div>
             </div>
 
-            <div className="rounded-xl border bg-gray-50 p-3">
+          <div className="rounded-xl border bg-gray-50 p-3">
               <div className="text-[11px] uppercase text-gray-500">
                 Без питомцев
               </div>
@@ -104,7 +102,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="text-[11px] uppercase text-gray-500">
                 С персональными данными
               </div>
-              <div className="mt-1 text-xl font-semibold">{withPrivate}</div>
+              <div className="mt1 text-xl font-semibold">{withPrivate}</div>
             </div>
           </div>
 
@@ -162,39 +160,52 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </div>
             </div>
           </div>
-
-          {/* Кнопки */}
-          <div className="flex justify-end gap-3 pt-2">
-            {/* Полная картотека — всегда */}
-            <Link
-              href={fullUrl}
-              className="rounded-xl px-4 py-2 text-xs font-medium border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
-            >
-              Полная картотека
-            </Link>
-
-            {/* Свернуть — только если есть смысл (фильтр > 10 и мы в режиме all) */}
-            {showCollapseButton && (
-              <Link
-                href={dashboardUrl}
-                className="rounded-xl px-4 py-2 text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                Свернуть до 10 клиентов
-              </Link>
-            )}
-
-            <Link
-              href="/backoffice/registrar/clients/new"
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
-            >
-              Добавить клиента
-            </Link>
-          </div>
         </section>
 
-        {/* ТАБЛИЦА КЛИЕНТОВ */}
+        {/* КЛИЕНТЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="text-base font-semibold">Клиенты</h2>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Клиенты</h2>
+              {mode === "all" ? (
+                <p className="text-[11px] text-gray-500">
+                  Показаны все {filtered.length} клиентов по текущему фильтру.
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-500">
+                  Показаны последние {visibleOwners.length} из{" "}
+                  {filtered.length} клиентов по текущему фильтру.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {/* Полная картотека — всегда */}
+              <Link
+                href={fullUrl}
+                className="rounded-xl px-4 py-2 text-xs font-medium border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+              >
+                Полная картотека
+              </Link>
+
+              {/* Свернуть до 10 клиентов — только если есть смысл */}
+              {showCollapseButton && (
+                <Link
+                  href={dashboardUrl}
+                  className="rounded-xl px-4 py-2 text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Свернуть до 10 клиентов
+                </Link>
+              )}
+
+              <Link
+                href="/backoffice/registrar/clients/new"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
+              >
+                Добавить клиента
+              </Link>
+            </div>
+          </div>
 
           {visibleOwners.length === 0 && (
             <p className="text-xs text-gray-400">
@@ -281,7 +292,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   );
 }
 
-// маленький помощник для склонения "питомец"
+/** Склонение "питомец" → "питомцев/питомца" */
 function plural(n: number) {
   const mod10 = n % 10;
   const mod100 = n % 100;
