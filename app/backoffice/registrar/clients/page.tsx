@@ -4,7 +4,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getOwnersSummary } from "@/lib/clients";
 
-// Всегда рендерим динамически, чтобы searchParams применялись сразу
+// Страница всегда рендерится динамически, чтобы searchParams применялись сразу
 export const dynamic = "force-dynamic";
 
 type PageProps = {
@@ -27,10 +27,11 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   const qRaw = (searchParams?.q ?? "").trim();
   const q = qRaw === "" ? "" : qRaw;
 
+  // Фильтры
   const petsFilter = (searchParams?.pets ?? "all") as "all" | "with" | "without";
   const privFilter = (searchParams?.priv ?? "all") as "all" | "with" | "without";
 
-  // Фильтр по ID и городу (по колонкам)
+  // Фильтр по колонкам
   const idFilter = (searchParams?.id ?? "").trim();
   const cityRaw = (searchParams?.city ?? "").trim();
   const cityFilter = cityRaw.toLowerCase();
@@ -48,7 +49,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   // --- Фильтрация ---
   let filtered = owners;
 
-  // Глобальный поиск
+  // Глобальный поиск по имени / городу / email / телефону
   if (q) {
     const qLower = q.toLowerCase();
     filtered = filtered.filter((o) => {
@@ -60,14 +61,14 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   // Фильтр по ID
   if (idFilter) {
     filtered = filtered.filter((o) =>
-      String(o.ownerId ?? "").includes(idFilter)
+      String(o.ownerId ?? "").includes(idFilter),
     );
   }
 
   // Фильтр по городу
   if (cityFilter) {
     filtered = filtered.filter((o) =>
-      (o.city ?? "").toLowerCase().includes(cityFilter)
+      (o.city ?? "").toLowerCase().includes(cityFilter),
     );
   }
 
@@ -115,7 +116,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     return s ? `?${s}` : "";
   };
 
-  // Полный reset: /backoffice/registrar/clients без query
+  // полный reset — URL без query
   const resetUrl = basePath;
 
   const pageUrl = (pageNum: number) =>
@@ -152,20 +153,25 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
           <RegistrarHeader />
         </header>
 
-        {/* Сводка */}
-        <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <h2 className="text-base font-semibold">Сводка</h2>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <SummaryCard label="Клиентов" value={total} />
-            <SummaryCard label="С питомцами" value={withPets} />
-            <SummaryCard label="Без питомцев" value={withoutPets} />
-            <SummaryCard label="С персональными данными" value={withPrivate} />
-            <SummaryCard label="Без персональных данных" value={withoutPrivate} />
+        {/* Сводка + глобальные фильтры */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          {/* Компактная сводка одной строкой */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">Сводка</h2>
+            <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+              <SummaryChip label="Клиентов" value={total} />
+              <SummaryChip label="С питомцами" value={withPets} />
+              <SummaryChip label="Без питомцев" value={withoutPets} />
+              <SummaryChip label="С персональными данными" value={withPrivate} />
+              <SummaryChip
+                label="Без персональных данных"
+                value={withoutPrivate}
+              />
+            </div>
           </div>
 
           {/* Глобальные фильтры + поиск */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-1">
             {/* Фильтр по питомцам */}
             <div className="space-y-1">
               <div className="text-[11px] text-gray-500">Питомцы</div>
@@ -193,9 +199,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
 
             {/* Фильтр по персональным данным */}
             <div className="space-y-1">
-              <div className="text-[11px] text-gray-500">
-                Персональные данные
-              </div>
+              <div className="text-[11px] text-gray-500">Персональные данные</div>
               <div className="flex gap-2 flex-wrap">
                 <FilterLink
                   href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1, id: idFilter, city: cityRaw })}
@@ -218,7 +222,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </div>
             </div>
 
-            {/* Поиск */}
+            {/* Глобальный поиск */}
             <div className="w-full md:max-w-xs space-y-1">
               <div className="text-[11px] text-gray-500">Поиск</div>
               <form action={basePath} method="GET" className="flex gap-2">
@@ -244,8 +248,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </form>
               {q && (
                 <p className="text-[10px] text-gray-500">
-                  Поиск по запросу: <b>{q}</b>
-                  {" · "}
+                  Поиск по запросу: <b>{q}</b> ·{" "}
                   <Link href={resetUrl} className="text-emerald-700 hover:underline">
                     сбросить строку поиска
                   </Link>
@@ -255,7 +258,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
           </div>
         </section>
 
-        {/* Таблица клиентов */}
+        {/* Блок с клиентами */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
@@ -286,80 +289,76 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           </div>
 
-          {/* Фильтр по колонкам */}
+          {/* Фильтр по колонкам в виде капсул */}
           <form
             action={basePath}
             method="GET"
-            className="grid grid-cols-5 gap-2 items-end pt-2 text-[11px]"
+            className="flex flex-wrap gap-2 items-end pt-2 text-[11px]"
           >
-            {/* ID */}
-            <div>
-              <label className="block text-gray-500 mb-1">ID</label>
+            <ColumnFilter>
+              <label className="mb-1 block text-gray-500">ID</label>
               <input
                 type="text"
                 name="id"
                 defaultValue={idFilter}
-                className="w-full rounded-xl border px-2 py-1"
-                placeholder="например, 5"
+                className="w-20 rounded-full border-none bg-white px-3 py-1 text-xs outline-none"
+                placeholder="5"
               />
-            </div>
+            </ColumnFilter>
 
-            {/* Клиент */}
-            <div>
-              <label className="block text-gray-500 mb-1">Клиент</label>
+            <ColumnFilter className="min-w-[160px] flex-1">
+              <label className="mb-1 block text-gray-500">Клиент</label>
               <input
                 type="text"
                 name="q"
                 defaultValue={q}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-full rounded-full border-none bg-white px-3 py-1 text-xs outline-none"
                 placeholder="ФИО / e-mail / телефон"
               />
-            </div>
+            </ColumnFilter>
 
-            {/* Город */}
-            <div>
-              <label className="block text-gray-500 mb-1">Город</label>
+            <ColumnFilter>
+              <label className="mb-1 block text-gray-500">Город</label>
               <input
                 type="text"
                 name="city"
                 defaultValue={cityRaw}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-28 rounded-full border-none bg-white px-3 py-1 text-xs outline-none"
                 placeholder="Москва"
               />
-            </div>
+            </ColumnFilter>
 
-            {/* Питомцы */}
-            <div>
-              <label className="block text-gray-500 mb-1">Питомцы</label>
+            <ColumnFilter>
+              <label className="mb-1 block text-gray-500">Питомцы</label>
               <select
                 name="pets"
                 defaultValue={petsFilter}
-                className="w-full rounded-xl border px-2 py-1"
-              >
-                <option value="all">Все</option>
-                <option value="with">Есть</option>
-                <option value="without">Нет питомцев</option>
-              </select>
-            </div>
-
-            {/* Персональные данные */}
-            <div>
-              <label className="block text-gray-500 mb-1">Перс. данные</label>
-              <select
-                name="priv"
-                defaultValue={privFilter}
-                className="w-full rounded-xl border px-2 py-1"
+                className="w-32 rounded-full border-none bg-white px-3 py-1 text-xs outline-none"
               >
                 <option value="all">Все</option>
                 <option value="with">Есть</option>
                 <option value="without">Нет</option>
               </select>
-            </div>
+            </ColumnFilter>
 
-            {/* При любой отправке формы перекидываем на первую страницу */}
+            <ColumnFilter>
+              <label className="mb-1 block text-gray-500">Перс. данные</label>
+              <select
+                name="priv"
+                defaultValue={privFilter}
+                className="w-32 rounded-full border-none bg-white px-3 py-1 text-xs outline-none"
+              >
+                <option value="all">Все</option>
+                <option value="with">Есть</option>
+                <option value="without">Нет</option>
+              </select>
+            </ColumnFilter>
+
+            {/* При любом изменении фильтра → на первую страницу */}
             <input type="hidden" name="page" value="1" />
           </form>
 
+          {/* Таблица клиентов */}
           {visibleOwners.length === 0 ? (
             <p className="text-xs text-gray-400 pt-2">
               Клиенты не найдены по выбранным условиям.
@@ -389,6 +388,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                         id: idFilter,
                         city: cityRaw,
                       });
+
                     return (
                       <tr
                         key={o.ownerId}
@@ -456,24 +456,24 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               {page > 1 ? (
                 <Link
                   href={pageUrl(page - 1)}
-                  className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
+                  className="rounded-full border px-3 py-1.5 hover:bg-gray-50"
                 >
                   ← Назад
                 </Link>
               ) : (
-                <span className="rounded-xl border px-3 py-1.5 text-gray-400 cursor-default">
+                <span className="rounded-full border px-3 py-1.5 text-gray-400 cursor-default">
                   ← Назад
                 </span>
               )}
               {page < totalPages ? (
                 <Link
                   href={pageUrl(page + 1)}
-                  className="rounded-xl border px-3 py-1.5 hover:bg-gray-50"
+                  className="rounded-full border px-3 py-1.5 hover:bg-gray-50"
                 >
                   Вперёд →
                 </Link>
               ) : (
-                <span className="rounded-xl border px-3 py-1.5 text-gray-400 cursor-default">
+                <span className="rounded-full border px-3 py-1.5 text-gray-400 cursor-default">
                   Вперёд →
                 </span>
               )}
@@ -485,12 +485,32 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   );
 }
 
-/** Карточка в сводке */
-function SummaryCard({ label, value }: { label: string; value: number }) {
+/** Чип для сводки */
+function SummaryChip({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-gray-50 p-3">
-      <div className="text-[11px] uppercase text-gray-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
+    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1">
+      <span className="text-[11px] text-gray-500">{label}</span>
+      <span className="text-sm font-semibold text-gray-900">{value}</span>
+    </div>
+  );
+}
+
+/** Капсула-фильтр для колонок */
+function ColumnFilter({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={
+        "flex flex-col rounded-full border border-gray-200 bg-gray-50 px-3 py-1 " +
+        className
+      }
+    >
+      {children}
     </div>
   );
 }
@@ -514,7 +534,7 @@ function FilterLink({ href, active, children }: FilterLinkProps) {
   return (
     <Link
       href={href}
-      className={`px-3 py-1.5 rounded-xl text-xs border ${
+      className={`px-3 py-1.5 rounded-full text-xs border ${
         active
           ? "bg-emerald-600 text-white border-emerald-600"
           : "text-gray-700 border-gray-300 hover:bg-gray-50"
