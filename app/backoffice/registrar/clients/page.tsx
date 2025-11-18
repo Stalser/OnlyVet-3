@@ -1,62 +1,99 @@
+"use client";
+
+import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getOwnersSummary, type OwnerSummary } from "@/lib/clients";
 
-interface ClientsListPageProps {
-  searchParams?: {
-    q?: string;
-    filter?: string; // all | withPets | withoutPets
+type PetsFilter = "all" | "with" | "without";
+type PrivateFilter = "all" | "with" | "without";
+
+export default function RegistrarClientsPage() {
+  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // фильтры
+  const [petsFilter, setPetsFilter] = useState<PetsFilter>("all");
+  const [privateFilter, setPrivateFilter] =
+    useState<PrivateFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const data = await getOwnersSummary();
+        if (!ignore) {
+          setOwners(data);
+        }
+      } catch (e) {
+        console.error("load clients error", e);
+        if (!ignore) {
+          setLoadError("Ошибка загрузки картотеки клиентов.");
+        }
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setSearchQuery(searchInput.trim());
   };
-}
 
-export default async function ClientsListPage({
-  searchParams,
-}: ClientsListPageProps) {
-  const owners: OwnerSummary[] = await getOwnersSummary();
+  // агрегаты
+  const totalClients = owners.length;
+  const withPetsCount = owners.filter((o) => o.petsCount > 0).length;
+  const withoutPetsCount = totalClients - withPetsCount;
+  const withPrivateCount = owners.filter((o) => o.hasPrivateData).length;
+  const withoutPrivateCount = totalClients - withPrivateCount;
 
-  const q = (searchParams?.q || "").trim().toLowerCase();
-  const filter = (searchParams?.filter || "all") as
-    | "all"
-    | "withPets"
-    | "withoutPets";
+  // применение фильтров
+  const normalizedSearch = searchQuery.toLowerCase();
 
-  const withPetsCount = (owner: OwnerSummary): number => owner.petsCount ?? 0;
+  const filteredOwners = owners
+    .filter((o) => {
+      if (petsFilter === "with" && o.petsCount === 0) return false;
+      if (petsFilter === "without" && o.petsCount > 0) return false;
+      return true;
+    })
+    .filter((o) => {
+      if (privateFilter === "with" && !o.hasPrivateData) return false;
+      if (privateFilter === "without" && o.hasPrivateData) return false;
+      return true;
+    })
+    .filter((o) => {
+      if (!normalizedSearch) return true;
+      const name = o.fullName.toLowerCase();
+      const city = (o.city || "").toLowerCase();
+      const email = (o.email || "").toLowerCase();
+      const phone = (o.phone || "").toLowerCase();
+      return (
+        name.includes(normalizedSearch) ||
+        city.includes(normalizedSearch) ||
+        email.includes(normalizedSearch) ||
+        phone.includes(normalizedSearch)
+      );
+    });
 
-  // Текстовый поиск
-  const afterTextFilter = q
-    ? owners.filter((owner) => {
-        const name = owner.fullName ?? "";
-        const city = owner.city ?? "";
-        const haystack = `${name} ${city} ${owner.email || ""} ${
-          owner.phone || ""
-        }`.toLowerCase();
-        return haystack.includes(q);
-      })
-    : owners;
+  const visibleOwners = filteredOwners.slice(0, 10);
 
-  // Фильтр по наличию питомцев
-  const filteredOwners = afterTextFilter.filter((owner) => {
-    const pc = withPetsCount(owner);
-    if (filter === "withPets") return pc > 0;
-    if (filter === "withoutPets") return pc === 0;
-    return true;
-  });
-
-  const total = filteredOwners.length;
-  const withPetsNum = filteredOwners.filter((o) => withPetsCount(o) > 0)
-    .length;
-  const withoutPetsNum = total - withPetsNum;
-
-  const buildLink = (newFilter: "all" | "withPets" | "withoutPets") => {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (newFilter !== "all") params.set("filter", newFilter);
-    const search = params.toString();
-    return search
-      ? `/backoffice/registrar/clients?${search}`
-      : `/backoffice/registrar/clients`;
-  };
+  const pillClass = (active: boolean) =>
+    active
+      ? "rounded-full bg-emerald-600 text-white px-3 py-1 text-[11px]"
+      : "rounded-full border border-gray-300 px-3 py-1 text-[11px] text-gray-600 hover:bg-gray-50";
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -75,155 +112,175 @@ export default async function ClientsListPage({
             </h1>
             <p className="text-sm text-gray-500">
               Список владельцев и их питомцев. Поиск по имени, городу или
-              контактам и фильтр по наличию питомцев.
+              контактам и фильтр по наличию питомцев и персональных данных.
             </p>
           </div>
           <RegistrarHeader />
         </header>
 
+        {/* Ошибка загрузки */}
+        {loadError && (
+          <section className="rounded-2xl border bg-white p-4">
+            <p className="text-sm text-red-700">{loadError}</p>
+          </section>
+        )}
+
         {/* Поиск */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold">Поиск по картотеке</h2>
-            <span className="text-[11px] text-gray-500">
-              Найти клиента по ФИО, городу или контактам
-            </span>
-          </div>
-          <form className="flex flex-wrap items-center gap-2" method="get">
-            <input
-              type="text"
-              name="q"
-              defaultValue={q}
-              className="flex-1 min-w-[180px] rounded-xl border px-3 py-1.5 text-xs"
-              placeholder="Например: Иванов, Москва, +7 900..."
-            />
-            {filter && filter !== "all" && (
-              <input type="hidden" name="filter" value={filter} />
-            )}
-            <button
-              type="submit"
-              className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
-            >
-              Искать
-            </button>
-            {q && (
-              <Link
-                href={
-                  filter && filter !== "all"
-                    ? `/backoffice/registrar/clients?filter=${filter}`
-                    : "/backoffice/registrar/clients"
-                }
-                className="text-[11px] text-gray-500 hover:underline"
+        <section className="rounded-2xl border bg-white p-4">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+          >
+            <div className="flex-1">
+              <label className="text-[11px] text-gray-500 mb-1 block">
+                Поиск по картотеке
+              </label>
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Например: Иванов, Москва, +7 900…"
+                className="w-full rounded-xl border px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="pt-4 md:pt-6 md:pl-4">
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
               >
-                Сбросить строку поиска
-              </Link>
-            )}
+                Искать
+              </button>
+            </div>
           </form>
-          {q && (
-            <p className="text-[10px] text-gray-400">
-              Результаты по запросу: <span className="font-mono">{q}</span>
-            </p>
-          )}
         </section>
 
-        {/* Сводка + фильтр по питомцам */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-xs font-semibold text-gray-700">
-                Сводка по картотеке (с учётом фильтра)
-              </div>
-              <div className="grid gap-2 md:grid-cols-3 text-xs">
-                <div className="rounded-xl border bg-gray-50 px-3 py-2">
-                  <div className="text-[11px] text-gray-500">
-                    Клиентов
-                  </div>
-                  <div className="mt-1 text-xl font-semibold text-gray-900">
-                    {total}
-                  </div>
-                </div>
-                <div className="rounded-xl border bg-gray-50 px-3 py-2">
-                  <div className="text-[11px] text-gray-500">
-                    Клиентов с питомцами
-                  </div>
-                  <div className="mt-1 text-xl font-semibold text-gray-900">
-                    {withPetsNum}
-                  </div>
-                </div>
-                <div className="rounded-xl border bg-gray-50 px-3 py-2">
-                  <div className="text-[11px] text-gray-500">
-                    Клиентов без питомцев
-                  </div>
-                  <div className="mt-1 text-xl font-semibold text-gray-900">
-                    {withoutPetsNum}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <Link
-              href="/backoffice/registrar/clients/new"
-              className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
-            >
-              Добавить клиента
-            </Link>
-          </div>
-
-          {/* Чипы-фильтры */}
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="text-gray-500">Показать:</span>
-            <div className="inline-flex rounded-xl bg-gray-100 p-1">
-              <Link
-                href={buildLink("all")}
-                className={
-                  filter === "all"
-                    ? "px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm"
-                    : "px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900"
-                }
-              >
-                Все
-              </Link>
-              <Link
-                href={buildLink("withPets")}
-                className={
-                  filter === "withPets"
-                    ? "px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm"
-                    : "px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900"
-                }
-              >
-                С питомцами
-              </Link>
-              <Link
-                href={buildLink("withoutPets")}
-                className={
-                  filter === "withoutPets"
-                    ? "px-3 py-1.5 rounded-lg bg-white text-gray-900 shadow-sm"
-                    : "px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900"
-                }
-              >
-                Без питомцев
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* Список клиентов */}
+        {/* Сводка + фильтры */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Клиенты</h2>
-            <span className="text-[11px] text-gray-500">
-              Нажмите &quot;Открыть&quot; для просмотра карточки клиента и
-              его питомцев
-            </span>
+          <h2 className="text-base font-semibold">
+            Сводка по картотеке (с учётом фильтра)
+          </h2>
+
+          {/* Карточки */}
+          <div className="grid gap-3 md:grid-cols-4 text-xs">
+            <div className="rounded-xl border px-3 py-2">
+              <div className="text-gray-500">Клиентов</div>
+              <div className="mt-1 text-lg font-semibold text-gray-900">
+                {totalClients}
+              </div>
+            </div>
+            <div className="rounded-xl border px-3 py-2">
+              <div className="text-gray-500">Клиентов с питомцами</div>
+              <div className="mt-1 text-lg font-semibold text-gray-900">
+                {withPetsCount}
+              </div>
+            </div>
+            <div className="rounded-xl border px-3 py-2">
+              <div className="text-gray-500">Клиентов без питомцев</div>
+              <div className="mt-1 text-lg font-semibold text-gray-900">
+                {withoutPetsCount}
+              </div>
+            </div>
+            <div className="rounded-xl border px-3 py-2">
+              <div className="text-gray-500">
+                С персональными данными
+              </div>
+              <div className="mt-1 text-lg font-semibold text-gray-900">
+                {withPrivateCount}
+              </div>
+            </div>
           </div>
 
-          {filteredOwners.length === 0 && (
+          {/* Фильтры */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="text-[11px] text-gray-500">
+                Питомцы
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={pillClass(petsFilter === "all")}
+                  onClick={() => setPetsFilter("all")}
+                >
+                  Все
+                </button>
+                <button
+                  type="button"
+                  className={pillClass(petsFilter === "with")}
+                  onClick={() => setPetsFilter("with")}
+                >
+                  С питомцами
+                </button>
+                <button
+                  type="button"
+                  className={pillClass(petsFilter === "without")}
+                  onClick={() => setPetsFilter("without")}
+                >
+                  Без питомцев
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-[11px] text-gray-500">
+                Персональные данные
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={pillClass(privateFilter === "all")}
+                  onClick={() => setPrivateFilter("all")}
+                >
+                  Все
+                </button>
+                <button
+                  type="button"
+                  className={pillClass(privateFilter === "with")}
+                  onClick={() => setPrivateFilter("with")}
+                >
+                  С данными
+                </button>
+                <button
+                  type="button"
+                  className={pillClass(privateFilter === "without")}
+                  onClick={() => setPrivateFilter("without")}
+                >
+                  Без данных
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Блок “Клиенты” */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Клиенты</h2>
+              <p className="text-[11px] text-gray-500">
+                Показаны последние{" "}
+                {visibleOwners.length} клиентов по текущему фильтру.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {/* тут позже можно добавить ссылку “Полная картотека →” */}
+              <Link
+                href="/backoffice/registrar/clients/new"
+                className="rounded-xl bg-emerald-600 px-4 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+              >
+                Добавить клиента
+              </Link>
+            </div>
+          </div>
+
+          {visibleOwners.length === 0 && (
             <p className="text-xs text-gray-400">
-              Клиентов по выбранному фильтру не найдено. Попробуйте изменить
-              условия поиска или добавить нового клиента.
+              По заданным условиям фильтра клиенты не найдены. Попробуйте
+              изменить поиск или фильтр.
             </p>
           )}
 
-          {filteredOwners.length > 0 && (
+          {visibleOwners.length > 0 && (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs">
                 <thead>
@@ -236,73 +293,62 @@ export default async function ClientsListPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOwners.map((owner) => {
-                    const name = owner.fullName ?? "Без имени";
-                    const city = owner.city ?? "—";
-                    const petsCount = withPetsCount(owner);
-
-                    return (
-                      <tr
-                        key={owner.ownerId}
-                        className="border-b last:border-0 hover:bg-gray-50"
-                      >
-                        {/* КЛИЕНТ + статус персональных данных */}
-                        <td className="px-2 py-2 align-top text-[11px] text-gray-800">
-                          <div>{name}</div>
-                          <div className="mt-0.5 text-[10px] text-gray-500">
-                            {owner.hasPrivateData
-                              ? "Персональные данные: есть"
-                              : "Персональные данные: нет"}
-                          </div>
-                        </td>
-
-                        {/* ГОРОД */}
-                        <td className="px-2 py-2 align-top text-[11px] text-gray-600">
-                          {city || "—"}
-                        </td>
-
-                        {/* ПИТОМЦЫ */}
-                        <td className="px-2 py-2 align-top text-[11px] text-gray-600">
-                          {petsCount > 0 ? (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-100">
-                              {petsCount}{" "}
-                              {petsCount === 1
-                                ? "питомец"
-                                : petsCount < 5
-                                ? "питомца"
-                                : "питомцев"}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-gray-400">
-                              нет питомцев
-                            </span>
-                          )}
-                        </td>
-
-                        {/* ПОСЛЕДНЯЯ АКТИВНОСТЬ */}
-                        <td className="px-2 py-2 align-top text-[11px] text-gray-600">
-                          {owner.appointmentsCount > 0
-                            ? `Консультаций: ${owner.appointmentsCount}`
-                            : "Консультаций нет"}
-                        </td>
-
-                        {/* ДЕЙСТВИЯ */}
-                        <td className="px-2 py-2 align-top text-right">
-                          <Link
-                            href={`/backoffice/registrar/clients/${owner.ownerId}`}
-                            className="text-[11px] font-medium text-emerald-700 hover:underline"
-                          >
-                            Открыть →
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {visibleOwners.map((o) => (
+                    <tr
+                      key={o.ownerId}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2 align-top">
+                        <div className="text-sm font-medium text-gray-900">
+                          {o.fullName}
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          Персональные данные:{" "}
+                          {o.hasPrivateData ? "есть" : "нет"}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {o.city || "—"}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {o.petsCount > 0 ? (
+                          <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                            {o.petsCount} питом{" "}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">
+                            нет питомцев
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        {o.appointmentsCount > 0
+                          ? "Есть консультации"
+                          : "Консультаций нет"}
+                      </td>
+                      <td className="px-2 py-2 align-top text-right">
+                        <Link
+                          href={`/backoffice/registrar/clients/${o.ownerId}`}
+                          className="text-[11px] font-medium text-emerald-700 hover:underline"
+                        >
+                          Открыть →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
         </section>
+
+        {loading && !loadError && owners.length === 0 && (
+          <section className="rounded-2xl border bg-white p-4">
+            <p className="text-xs text-gray-500">
+              Загрузка картотеки…
+            </p>
+          </section>
+        )}
       </main>
     </RoleGuard>
   );
