@@ -4,7 +4,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getOwnersSummary } from "@/lib/clients";
 
-// выключаем статический пререндер, чтобы страница всегда учитывала searchParams
+// чтобы не кэшировался результат и страница всегда учитывала query-параметры
 export const dynamic = "force-dynamic";
 
 type PageProps = {
@@ -13,6 +13,8 @@ type PageProps = {
     pets?: "all" | "with" | "without";
     priv?: "all" | "with" | "without";
     page?: string;
+    id?: string;
+    city?: string;
   };
 };
 
@@ -27,6 +29,9 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   const petsFilter = (searchParams?.pets ?? "all") as "all" | "with" | "without";
   const privFilter = (searchParams?.priv ?? "all") as "all" | "with" | "without";
 
+  const idFilter = (searchParams?.id ?? "").trim();
+  const cityFilter = (searchParams?.city ?? "").trim().toLowerCase();
+
   let page = Number.parseInt(searchParams?.page ?? "1", 10);
   if (!Number.isFinite(page) || page < 1) page = 1;
 
@@ -39,6 +44,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   // --- фильтрация ---
   let filtered = owners;
 
+  // глобальный поиск
   if (q) {
     const qLower = q.toLowerCase();
     filtered = filtered.filter((o) => {
@@ -47,12 +53,28 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
     });
   }
 
+  // фильтр по ID
+  if (idFilter) {
+    filtered = filtered.filter((o) =>
+      String(o.ownerId ?? "").includes(idFilter)
+    );
+  }
+
+  // фильтр по городу
+  if (cityFilter) {
+    filtered = filtered.filter((o) =>
+      (o.city ?? "").toLowerCase().includes(cityFilter)
+    );
+  }
+
+  // фильтр по питомцам
   if (petsFilter === "with") {
     filtered = filtered.filter((o) => o.petsCount > 0);
   } else if (petsFilter === "without") {
     filtered = filtered.filter((o) => o.petsCount === 0);
   }
 
+  // фильтр по персональным данным
   if (privFilter === "with") {
     filtered = filtered.filter((o) => o.hasPrivateData);
   } else if (privFilter === "without") {
@@ -69,23 +91,27 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
 
   const basePath = "/backoffice/registrar/clients";
 
-  // helper-строитель query
+  // helper сборки query
   const buildQuery = (params: {
     q?: string;
     pets?: string;
     priv?: string;
     page?: number;
+    id?: string;
+    city?: string;
   }) => {
     const sp = new URLSearchParams();
-    if (params.q && params.q.trim() !== "") sp.set("q", params.q.trim());
-    if (params.pets && params.pets !== "all") sp.set("pets", params.pets);
-    if (params.priv && params.priv !== "all") sp.set("priv", params.priv);
-    if (params.page && params.page > 1) sp.set("page", String(params.page));
+    if (params.q && params.q.trim() !== "") sp.еt("q", params.q.trim());
+    if (params.pets && params.pets !== "all") sp.еt("pets", params.pets);
+    if (params.priv && params.priv !== "all") sp.еt("priv", params.priv);
+    if (params.id && params.id.trim() !== "") sp.еt("id", params.id.trim());
+    if (params.city && params.city.trim() !== "") sp.еt("city", params.city.trim());
+    if (params.page && params.page > 1) sp.еt("page", String(params.page));
     const s = sp.toString();
     return s ? `?${s}` : "";
   };
 
-  // полный reset: без query → q="", pets="all", priv="all", page=1
+  // полный сброс всего: /backoffice/registrar/clients без query
   const resetUrl = basePath;
 
   const pageUrl = (pageNum: number) =>
@@ -95,6 +121,8 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
       pets: petsFilter,
       priv: privFilter,
       page: pageNum,
+      id: idFilter,
+      city: cityFilter,
     });
 
   return (
@@ -131,26 +159,26 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             <SummaryCard label="С персональными данными" value={withPrivate} />
           </div>
 
-          {/* Фильтры + поиск */}
+          {/* Глобальные фильтры + поиск */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             {/* Фильтр по питомцам */}
             <div className="space-y-1">
               <div className="text-[11px] text-gray-500">Питомцы</div>
               <div className="flex gap-2">
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1 })}
+                  href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1, id: idFilter, city: cityFilter })}
                   active={petsFilter === "all"}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1 })}
+                  href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1, id: idFilter, city: cityFilter })}
                   active={petsFilter === "with"}
                 >
                   С питомцами
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1 })}
+                  href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1, id: idFilter, city: cityFilter })}
                   active={petsFilter === "without"}
                 >
                   Без питомцев
@@ -165,19 +193,19 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               </div>
               <div className="flex gap-2">
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1 })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1, id: idFilter, city: cityFilter })}
                   active={privFilter === "all"}
                 >
                   Все
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1 })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1, id: idFilter, city: cityFilter })}
                   active={privFilter === "with"}
                 >
                   С данными
                 </FilterLink>
                 <FilterLink
-                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1 })}
+                  href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1, id: idFilter, city: cityFilter })}
                   active={privFilter === "without"}
                 >
                   Без данных
@@ -190,16 +218,18 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
               <div className="text-[11px] text-gray-500">Поиск</div>
               <form action={basePath} method="GET" className="flex gap-2">
                 <input
-                  key={q} // важно: для визуального сброса поля при изменении q
+                  key={q} // важно для визуального сброса
                   type="text"
                   name="q"
                   defaultValue={q}
                   className="flex-1 rounded-xl border px-3 py-1.5 text-xs"
                   placeholder="Имя, город, телефон или email…"
                 />
-                {/* сохраняем фильтры при поиске */}
+                {/* сохраняем остальные фильтры */}
                 <input type="hidden" name="pets" value={petsFilter} />
                 <input type="hidden" name="priv" value={privFilter} />
+                <input type="hidden" name="id" value={idFilter} />
+                <input type="hidden" name="city" value={cityFilter} />
                 <button
                   type="submit"
                   className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700"
@@ -251,46 +281,79 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           </div>
 
-          {/* Локальные фильтры в блоке "Клиенты" */}
-          <div className="flex flex-wrap gap-3 pt-2 text-[11px] text-gray-600">
-            <span className="mr-2 font-medium">Фильтр:</span>
-            <FilterLink
-              href={basePath + buildQuery({ q, pets: "all", priv: privFilter, page: 1 })}
-              active={petsFilter === "all"}
-            >
-              Питомцы: все
-            </FilterLink>
-            <FilterLink
-              href={basePath + buildQuery({ q, pets: "with", priv: privFilter, page: 1 })}
-              active={petsFilter === "with"}
-            >
-              Питомцы: есть
-            </FilterLink>
-            <FilterLink
-              href={basePath + buildQuery({ q, pets: "without", priv: privFilter, page: 1 })}
-              active={petsFilter === "without"}
-            >
-              Питомцы: нет
-            </FilterLink>
-            <FilterLink
-              href={basePath + buildQuery({ q, pets: petsFilter, priv: "all", page: 1 })}
-              active={privFilter === "all"}
-            >
-              Данные: все
-            </FilterLink>
-            <FilterLink
-              href={basePath + buildQuery({ q, pets: petsFilter, priv: "with", page: 1 })}
-              active={privFilter === "with"}
-            >
-              Данные: есть
-            </FilterLink>
-            <FilterLink
-              href={basePath + buildQuery({ q, pets: petsFilter, priv: "without", page: 1 })}
-              active={privFilter === "without"}
-            >
-              Данные: нет
-            </FilterLink>
-          </div>
+          {/* Фильтры по колонкам */}
+          <form
+            action={basePath}
+            method="GET"
+            className="grid grid-cols-5 gap-2 items-end pt-2 text-[11px]"
+          >
+            {/* ID */}
+            <div>
+              <label className="block text-gray-500 mb-1">ID</label>
+              <input
+                type="text"
+                name="id"
+                defaultValue={idFilter}
+                className="w-full rounded-xl border px-2 py-1"
+                placeholder="например, 5"
+              />
+            </div>
+
+            {/* Клиент — можно использовать тулбар сверху (поэтому здесь ничего) */}
+            <div>
+              <label className="block text-gray-500 mb-1">Клиент</label>
+              <input
+                type="text"
+                name="q"
+                defaultValue={q}
+                className="w-full rounded-xl border px-2 py-1"
+                placeholder="ФИО / e-mail / телефон"
+              />
+            </div>
+
+            {/* Город */}
+            <div>
+              <label className="block text-gray-500 mb-1">Город</label>
+              <input
+                type="text"
+                name="city"
+                defaultValue={cityFilter}
+                className="w-full rounded-xl border px-2 py-1"
+                placeholder="Москва"
+              />
+            </div>
+
+            {/* Питомцы */}
+            <div>
+              <label className="block text-gray-500 mb-1">Питомцы</label>
+              <select
+                name="pets"
+                defaultValue={petsFilter}
+                className="w-full rounded-xl border px-2 py-1"
+              >
+                <option value="all">Все</option>
+                <option value="with">Есть</option>
+                <option value="without">Нет</option>
+              </select>
+            </div>
+
+            {/* Персональные данные */}
+            <div>
+              <label className="block text-gray-500 mb-1">Данные</label>
+              <select
+                name="priv"
+                defaultValue={privFilter}
+                className="w-full rounded-xl border px-2 py-1"
+              >
+                <option value="all">Все</option>
+                <option value="with">Есть</option>
+                <option value="without">Нет</option>
+              </select>
+            </div>
+
+            {/* скрытые поля для сброса на первую страницу */}
+            <input type="hidden" name="page" value="1" />
+          </form>
 
           {visibleOwners.length === 0 ? (
             <p className="text-xs text-gray-400 pt-2">
@@ -313,7 +376,14 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                   {visibleOwners.map((o) => {
                     const href =
                       `/backoffice/registrar/clients/${o.ownerId}` +
-                      buildQuery({ q, pets: petsFilter, priv: privFilter, page });
+                      buildQuery({
+                        q,
+                        pets: petsFilter,
+                        priv: privFilter,
+                        page,
+                        id: idFilter,
+                        city: cityFilter,
+                      });
                     return (
                       <tr
                         key={o.ownerId}
@@ -337,11 +407,9 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                             </div>
                           )}
                         </td>
-
                         <td className="px-2 py-2 text-[11px] text-gray-700">
                           {o.city || "—"}
                         </td>
-
                         <td className="px-2 py-2 text-[11px] text-gray-700">
                           {o.petsCount > 0 ? (
                             <span className="text-emerald-700">
@@ -351,7 +419,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                             <span className="text-gray-500">нет</span>
                           )}
                         </td>
-
                         <td className="px-2 py-2 text-[11px] text-gray-700">
                           {o.hasPrivateData ? (
                             <span className="text-emerald-700">есть данные</span>
@@ -359,7 +426,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                             <span className="text-gray-500">нет</span>
                           )}
                         </td>
-
                         <td className="px-2 py-2 text-right">
                           <Link
                             href={href}
@@ -376,7 +442,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
             </div>
           )}
 
-          {/* Пагинация — всегда видна */}
+          {/* Пагинация */}
           <div className="flex justify-between items-center pt-3 text-xs text-gray-600">
             <div>
               Страница {page} из {Math.max(totalPages, 1)}
@@ -394,7 +460,6 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
                   ← Назад
                 </span>
               )}
-
               {page < totalPages ? (
                 <Link
                   href={pageUrl(page + 1)}
@@ -415,7 +480,7 @@ export default async function RegistrarClientsPage({ searchParams }: PageProps) 
   );
 }
 
-/** мини-карточка для сводки */
+/** карточка сводки */
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border bg-gray-50 p-3">
