@@ -42,53 +42,16 @@ export default async function RegistrarDashboardPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Верхняя строка виджетов: Новые заявки + Календарь записей */}
+                {/* Верхняя строка виджетов: Новые заявки + Календарь записей */}
         <section className="grid gap-4 md:grid-cols-2">
           {/* Новые заявки */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">Новые заявки</h2>
-              {newRequestsCount > 0 ? (
-                <p className="mt-1 text-xs text-gray-500">
-                  Консультации в статусе &quot;запрошена&quot;, ожидающие
-                  обработки.
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-gray-500">
-                  Сейчас нет заявок в статусе &quot;запрошена&quot;.
-                </p>
-              )}
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] uppercase text-gray-500">
-                  Новых заявок
-                </div>
-                <div className="text-2xl font-semibold text-gray-900">
-                  {newRequestsCount}
-                </div>
-              </div>
-              <Link
-                href="/backoffice/registrar/consultations"
-                className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
-              >
-                К списку заявок
-              </Link>
-            </div>
+            ...
           </div>
 
-          {/* Календарь / расписание записей */}
+          {/* Расписание и календарь */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">
-                Расписание и календарь записей
-              </h2>
-              <p className="mt-1 text-xs text-gray-500">
-                Быстрый доступ к расписанию врачей и календарю записей.
-                Используется для управления слотами и визуальной проверки
-                загрузки.
-              </p>
-            </div>
+            ...
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-gray-500">
                 Открыть расписание врачей или календарь записей:
@@ -111,6 +74,20 @@ export default async function RegistrarDashboardPage() {
           </div>
         </section>
 
+        {/* Документация клиентов и питомцев */}
+        <section className="grid gap-4 md:grid-cols-3">
+          <Link
+            href="/backoffice/registrar/documents"
+            className="rounded-2xl border bg-white p-4 hover:border-emerald-500 transition-colors block"
+          >
+            <h2 className="text-sm font-semibold">Документы</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Все договоры, согласия, анализы, заключения и другие документы
+              клиентов и питомцев в одном месте.
+            </p>
+          </Link>
+        </section>
+        
         {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
 
