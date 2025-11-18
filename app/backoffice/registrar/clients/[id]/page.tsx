@@ -82,7 +82,8 @@ export default function ClientDetailPage() {
   const [ownerTelegram, setOwnerTelegram] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
-  // Новый питомец
+  // Новый питомец (форма под спойлером)
+  const [showAddPetForm, setShowAddPetForm] = useState(false);
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] =
     useState<(typeof SPECIES_OPTIONS)[number]>("Кошка");
@@ -104,7 +105,7 @@ export default function ClientDetailPage() {
   const [isEditingPrivate, setIsEditingPrivate] = useState(false);
   const [savingPrivate, setSavingPrivate] = useState(false);
 
-  // ==== Вспомогательные ====
+  // ===== Вспомогательные функции =====
 
   const parseContacts = (extra: any): {
     email: string;
@@ -201,7 +202,17 @@ export default function ClientDetailPage() {
       ? "заполнены"
       : "не заполнены";
 
-  // ==== Загрузка данных клиента ====
+  const formatPetWeight = (w: number | null) => {
+    if (w == null) return "—";
+    return `${w.toFixed(1)} кг`;
+  };
+
+  const formatPetBirthDate = (date: string | null) => {
+    if (!date) return "—";
+    return new Date(date).toLocaleDateString("ru-RU");
+  };
+
+  // ===== Загрузка данных клиента =====
 
   useEffect(() => {
     let ignore = false;
@@ -218,13 +229,7 @@ export default function ClientDetailPage() {
         return;
       }
 
-      const client = supabase;
-      if (!client) {
-        setLoadError("Supabase недоступен на клиенте.");
-        setLoading(false);
-        return;
-      }
-
+      const client = supabase!;
       try {
         // Клиент
         const { data: ownerData, error: ownerError } = await client
@@ -248,6 +253,7 @@ export default function ClientDetailPage() {
 
         setOwnerFullName(ownerData.full_name ?? "");
         setOwnerCity(ownerData.city ?? "");
+
         const contacts = parseContacts(ownerData.extra_contacts);
         setOwnerEmail(contacts.email);
         setOwnerPhone(contacts.phone);
@@ -303,18 +309,13 @@ export default function ClientDetailPage() {
     };
   }, [idParam]);
 
-  // ==== Обработчики ====
+  // ===== Обработчики профиля =====
 
   const handleOwnerSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
 
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
-
+    const client = supabase!;
     if (!ownerFullName.trim()) {
       setActionError("ФИО клиента не может быть пустым.");
       return;
@@ -365,11 +366,7 @@ export default function ClientDetailPage() {
       return;
     }
 
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
+    const client = supabase!;
 
     setActionError(null);
     setLoading(true);
@@ -389,14 +386,12 @@ export default function ClientDetailPage() {
     router.push("/backoffice/registrar/clients");
   };
 
+  // ===== Обработчики питомцев =====
+
   const handleDeletePet = async (petId: number) => {
     if (!confirm("Удалить этого питомца из картотеки?")) return;
 
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
+    const client = supabase!;
 
     setActionError(null);
 
@@ -411,20 +406,14 @@ export default function ClientDetailPage() {
     }
 
     setPets((prev) => prev.filter((p) => p.id !== petId));
-    if (editingPet && editingPet.id === petId) {
-      setEditingPet(null);
-    }
+    if (editingPet && editingPet.id === petId) setEditingPet(null);
   };
 
   const handleAddPet = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
 
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
+    const client = supabase!;
 
     if (!newPetName.trim()) {
       setActionError("Укажите имя питомца.");
@@ -484,6 +473,7 @@ export default function ClientDetailPage() {
     setNewPetChip("");
     setNewPetNotes("");
     setAddingPet(false);
+    setShowAddPetForm(false);
   };
 
   const startEditPet = (pet: Pet) => {
@@ -496,7 +486,7 @@ export default function ClientDetailPage() {
     setActionError(null);
   };
 
-  const handleEditPetChange = (field: keyof Pet, value: any) => {
+  const handleEditPetField = (field: keyof Pet, value: any) => {
     if (!editingPet) return;
     setEditingPet({
       ...editingPet,
@@ -513,11 +503,7 @@ export default function ClientDetailPage() {
     e.preventDefault();
     if (!editingPet) return;
 
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
+    const client = supabase!;
 
     if (!editingPet.name || !editingPet.name.trim()) {
       setActionError("Имя питомца не может быть пустым.");
@@ -555,24 +541,19 @@ export default function ClientDetailPage() {
     }
 
     setPets((prev) =>
-      prev.map((p) =>
-        p.id === editingPet.id ? (editingPet as Pet) : p
-      )
+      prev.map((p) => (p.id === editingPet.id ? editingPet : p))
     );
-
-    setEditingPet(null);
     setSavingPetEdit(false);
+    setEditingPet(null);
   };
+
+  // ===== Персональные данные =====
 
   const handlePrivateSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!owner) return;
 
-    const client = supabase;
-    if (!client) {
-      setActionError("Supabase недоступен на клиенте.");
-      return;
-    }
+    const client = supabase!;
 
     setSavingPrivate(true);
     setActionError(null);
@@ -618,7 +599,67 @@ export default function ClientDetailPage() {
     setIsEditingPrivate(false);
   };
 
+  // ===== Рендер =====
+
   const privateStatusLabel = privateStatus;
+
+  const renderPetTableRow = (pet: Pet) => {
+    return (
+      <tr key={pet.id} className="border-b last:border-0 hover:bg-gray-50">
+        <td className="px-2 py-2 text-[11px] text-gray-800">
+          {pet.name || "Без имени"}
+        </td>
+        <td className="px-2 py-2 text-[11px] text-gray-700">
+          {pet.species || "Не указан"}
+          {pet.breed && (
+            <span className="text-[10px] text-gray-500">
+              {" "}
+              ({pet.breed})
+            </span>
+          )}
+        </td>
+        <td className="px-2 py-2 text-[11px] text-gray-700">
+          {pet.sex || "—"}
+        </td>
+        <td className="px-2 py-2 text-[11px] text-gray-700">
+          {formatPetBirthDate(pet.birth_date)}
+        </td>
+        <td className="px-2 py-2 text-[11px] text-gray-700">
+          {formatPetWeight(pet.weight_kg)}
+        </td>
+        <td className="px-2 py-2 text-[11px] text-gray-700">
+          {pet.microchip_number || "—"}
+          {pet.notes && (
+            <div className="text-[10px] text-gray-500">
+              Заметки: {pet.notes}
+            </div>
+          )}
+        </td>
+        <td className="px-2 py-2 text-right text-[11px] space-y-1">
+          <Link
+            href={`/backoffice/registrar?ownerId=${pet.owner_id}&petId=${pet.id}`}
+            className="block w-full text-left text-emerald-700 hover:underline"
+          >
+            Записать на консультацию
+          </Link>
+          <button
+            type="button"
+            onClick={() => startEditPet(pet)}
+            className="block w-full text-left text-emerald-700 hover:underline"
+          >
+            Редактировать
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDeletePet(pet.id)}
+            className="block w-full text-left text-red-600 hover:underline"
+          >
+            Удалить
+          </button>
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -760,9 +801,7 @@ export default function ClientDetailPage() {
                       <input
                         type="text"
                         value={ownerFullName}
-                        onChange={(e) =>
-                          setOwnerFullName(e.target.value)
-                        }
+                        onChange={(e) => setOwnerFullName(e.target.value)}
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
                       />
                     </div>
@@ -817,9 +856,7 @@ export default function ClientDetailPage() {
                       <input
                         type="text"
                         value={ownerTelegram}
-                        onChange={(e) =>
-                          setOwnerTelegram(e.target.value)
-                        }
+                        onChange={(e) => setOwnerTelegram(e.target.value)}
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
                         placeholder="@username"
                       />
@@ -1099,64 +1136,12 @@ export default function ClientDetailPage() {
                         <th className="px-2 py-2">Пол</th>
                         <th className="px-2 py-2">Дата рождения</th>
                         <th className="px-2 py-2">Вес</th>
-                        <th className="px-2 py-2">Чип</th>
+                        <th className="px-2 py-2">Чип / заметки</th>
                         <th className="px-2 py-2 text-right">Действия</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pets.map((pet) => (
-                        <tr
-                          key={pet.id}
-                          className="border-b last:border-0 hover:bg-gray-50"
-                        >
-                          <td className="px-2 py-2 text-[11px] text-gray-800">
-                            {pet.name || "Без имени"}
-                          </td>
-                          <td className="px-2 py-2 text-[11px] text-gray-700">
-                            {pet.species || "Не указан"}
-                            {pet.breed && (
-                              <span className="text-[10px] text-gray-500">
-                                {" "}
-                                ({pet.breed})
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-2 py-2 text-[11px] text-gray-700">
-                            {pet.sex || "—"}
-                          </td>
-                          <td className="px-2 py-2 text-[11px] text-gray-700">
-                            {pet.birth_date
-                              ? new Date(
-                                  pet.birth_date
-                                ).toLocaleDateString("ru-RU")
-                              : "—"}
-                          </td>
-                          <td className="px-2 py-2 text-[11px] text-gray-700">
-                            {pet.weight_kg != null
-                              ? `${pet.weight_kg.toFixed(1)} кг`
-                              : "—"}
-                          </td>
-                          <td className="px-2 py-2 text-[11px] text-gray-700">
-                            {pet.microchip_number || "—"}
-                          </td>
-                          <td className="px-2 py-2 text-right text-[11px] space-y-1">
-                            <button
-                              type="button"
-                              onClick={() => startEditPet(pet)}
-                              className="block w-full text-left text-emerald-700 hover:underline"
-                            >
-                              Редактировать
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePet(pet.id)}
-                              className="block w-full text-left text-red-600 hover:underline"
-                            >
-                              Удалить
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {pets.map((p) => renderPetTableRow(p))}
                     </tbody>
                   </table>
                 </div>
@@ -1345,154 +1330,165 @@ export default function ClientDetailPage() {
                 </div>
               )}
 
-              {/* Добавление питомца */}
+              {/* Форма добавления питомца (под спойлером) */}
               <div className="mt-4 rounded-xl border bg-gray-50 p-3 space-y-3">
-                <h3 className="text-xs font-semibold text-gray-700">
-                  Добавить нового питомца
-                </h3>
-                <form onSubmit={handleAddPet} className="space-y-2">
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      Имя питомца <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newPetName}
-                      onChange={(e) => setNewPetName(e.target.value)}
-                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      placeholder="Например: Мурзик"
-                    />
-                  </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPetForm((v) => !v)}
+                  className="flex items-center justify-between w-full text-left text-xs font-semibold text-gray-700"
+                >
+                  <span>Добавить нового питомца</span>
+                  <span className="text-[10px] text-gray-500">
+                    {showAddPetForm ? "Свернуть ▲" : "Развернуть ▼"}
+                  </span>
+                </button>
 
-                  <div className="grid gap-2 md:grid-cols-2">
+                {showAddPetForm && (
+                  <form onSubmit={handleAddPet} className="space-y-2 text-xs">
                     <div>
                       <label className="mb-1 block text-[11px] text-gray-500">
-                        Вид
-                      </label>
-                      <select
-                        value={newPetSpecies}
-                        onChange={(e) =>
-                          setNewPetSpecies(
-                            e.target.value as (typeof SPECIES_OPTIONS)[number]
-                          )
-                        }
-                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      >
-                        {SPECIES_OPTIONS.map((sp) => (
-                          <option key={sp} value={sp}>
-                            {sp}
-                          </option>
-                        ))}
-                      </select>
-                      {newPetSpecies === "Другое" && (
-                        <input
-                          type="text"
-                          value={newPetSpeciesOther}
-                          onChange={(e) =>
-                            setNewPetSpeciesOther(e.target.value)
-                          }
-                          className="mt-2 w-full rounded-xl border px-3 py-1.5 text-xs"
-                          placeholder="Уточните вид"
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] text-gray-500">
-                        Порода / описание
+                        Имя питомца <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
-                        value={newPetBreed}
-                        onChange={(e) => setNewPetBreed(e.target.value)}
+                        value={newPetName}
+                        onChange={(e) => setNewPetName(e.target.value)}
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                        placeholder="Например: британская, метис…"
+                        placeholder="Например: Мурзик"
                       />
                     </div>
-                  </div>
 
-                  <div className="grid gap-2 md:grid-cols-3">
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-500">
+                          Вид
+                        </label>
+                        <select
+                          value={newPetSpecies}
+                          onChange={(e) =>
+                            setNewPetSpecies(
+                              e.target.value as (typeof SPECIES_OPTIONS)[number]
+                            )
+                          }
+                          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        >
+                          {SPECIES_OPTIONS.map((sp) => (
+                            <option key={sp} value={sp}>
+                              {sp}
+                            </option>
+                          ))}
+                        </select>
+                        {newPetSpecies === "Другое" && (
+                          <input
+                            type="text"
+                            value={newPetSpeciesOther}
+                            onChange={(e) =>
+                              setNewPetSpeciesOther(e.target.value)
+                            }
+                            className="mt-2 w-full rounded-xl border px-3 py-1.5 text-xs"
+                            placeholder="Уточните вид"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-500">
+                          Порода / описание
+                        </label>
+                        <input
+                          type="text"
+                          value={newPetBreed}
+                          onChange={(e) => setNewPetBreed(e.target.value)}
+                          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                          placeholder="Например: британская, метис…"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-500">
+                          Пол
+                        </label>
+                        <select
+                          value={newPetSex}
+                          onChange={(e) =>
+                            setNewPetSex(
+                              e.target.value as (typeof SEX_OPTIONS)[number]
+                            )
+                          }
+                          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        >
+                          {SEX_OPTIONS.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-500">
+                          Дата рождения
+                        </label>
+                        <input
+                          type="date"
+                          value={newPetBirthDate}
+                          onChange={(e) =>
+                            setNewPetBirthDate(e.target.value)
+                          }
+                          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-500">
+                          Вес (кг)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={newPetWeight}
+                          onChange={(e) => setNewPetWeight(e.target.value)}
+                          className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="mb-1 block text-[11px] text-gray-500">
-                        Пол
+                        Номер чипа
                       </label>
-                      <select
-                        value={newPetSex}
-                        onChange={(e) =>
-                          setNewPetSex(
-                            e.target.value as (typeof SEX_OPTIONS)[number]
-                          )
-                        }
+                      <input
+                        type="text"
+                        value={newPetChip}
+                        onChange={(e) => setNewPetChip(e.target.value)}
                         className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[11px] text-gray-500">
+                        Заметки
+                      </label>
+                      <textarea
+                        value={newPetNotes}
+                        onChange={(e) => setNewPetNotes(e.target.value)}
+                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
+                        rows={2}
+                        placeholder="Особенности поведения, аллергии, риски…"
+                      />
+                    </div>
+
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={addingPet}
+                        className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                       >
-                        {SEX_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        {addingPet ? "Добавляем…" : "Добавить питомца"}
+                      </button>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] text-gray-500">
-                        Дата рождения
-                      </label>
-                      <input
-                        type="date"
-                        value={newPetBirthDate}
-                        onChange={(e) =>
-                          setNewPetBirthDate(e.target.value)
-                        }
-                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] text-gray-500">
-                        Вес (кг)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={newPetWeight}
-                        onChange={(e) => setNewPetWeight(e.target.value)}
-                        className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      Номер чипа
-                    </label>
-                    <input
-                      type="text"
-                      value={newPetChip}
-                      onChange={(e) => setNewPetChip(e.target.value)}
-                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-[11px] text-gray-500">
-                      Заметки
-                    </label>
-                    <textarea
-                      value={newPetNotes}
-                      onChange={(e) => setNewPetNotes(e.target.value)}
-                      className="w-full rounded-xl border px-3 py-1.5 text-xs"
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="pt-1 flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={addingPet}
-                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      {addingPet ? "Добавляем…" : "Добавить питомца"}
-                    </button>
-                  </div>
-                </form>
+                  </form>
+                )}
               </div>
             </section>
 
