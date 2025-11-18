@@ -8,8 +8,6 @@ import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMin
 
 // ВАЖНО: делаем страницу динамической, чтобы она всегда брала свежие данные из БД
 export const dynamic = "force-dynamic";
-// или можно использовать:
-// export const revalidate = 0;
 
 export default async function RegistrarDashboardPage() {
   const [appointments, owners] = await Promise.all([
@@ -25,6 +23,14 @@ export default async function RegistrarDashboardPage() {
 
   // для таблицы внизу показываем только первые 10
   const lastAppointments = appointments.slice(0, 10);
+
+  // функция для подписи количества заявок
+  const newRequestsLabel = (() => {
+    if (newRequestsCount === 0) return "новых заявок";
+    if (newRequestsCount === 1) return "новая заявка";
+    if (newRequestsCount >= 2 && newRequestsCount <= 4) return "новые заявки";
+    return "новых заявок";
+  })();
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -42,16 +48,47 @@ export default async function RegistrarDashboardPage() {
           <RegistrarHeader />
         </header>
 
-                {/* Верхняя строка виджетов: Новые заявки + Календарь записей */}
+        {/* Верхняя строка виджетов: Новые заявки + Календарь записей */}
         <section className="grid gap-4 md:grid-cols-2">
           {/* Новые заявки */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
-            ...
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold">Новые заявки</h2>
+              <p className="text-xs text-gray-500">
+                Заявки в статусе «запрошено», ожидающие обработки
+                регистратором.
+              </p>
+            </div>
+            <div className="mt-4 flex items-end justify-between">
+              <div>
+                <div className="text-3xl font-bold">
+                  {newRequestsCount}
+                </div>
+                <div className="text-[11px] text-gray-500">
+                  {newRequestsCount === 0
+                    ? "нет новых заявок"
+                    : `${newRequestsCount} ${newRequestsLabel}`}
+                </div>
+              </div>
+              <Link
+                href="/backoffice/registrar/consultations"
+                className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+              >
+                Открыть заявки
+              </Link>
+            </div>
           </div>
 
           {/* Расписание и календарь */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
-            ...
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold">Расписание и записи</h2>
+              <p className="text-xs text-gray-500">
+                Быстрый доступ к расписанию врачей и списку приёмов. Используйте
+                эти разделы для планирования и контроля нагрузки.
+              </p>
+            </div>
+
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-gray-500">
                 Открыть расписание врачей или календарь записей:
@@ -87,7 +124,7 @@ export default async function RegistrarDashboardPage() {
             </p>
           </Link>
         </section>
-        
+
         {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
 
