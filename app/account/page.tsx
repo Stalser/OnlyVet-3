@@ -46,6 +46,7 @@ type DbDocument = {
   type: DocumentType;
   created_at: string;
   appointment_id: string | null;
+  // Supabase вернёт массив appointments!inner(...)
   appointments?: {
     owner_id: number;
     pet_name: string;
@@ -173,7 +174,7 @@ export default function AccountPage() {
         setAppointments((apptsData ?? []) as DbAppointment[]);
       }
 
-      // 5. Документы
+      // 5. Документы (appointment_documents + join appointments)
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select(
@@ -196,7 +197,8 @@ export default function AccountPage() {
         console.error(docsErr);
         setError("Ошибка загрузки документов");
       } else {
-        setDocs((docsData ?? []) as DbDocument[]);
+        // TS ругается на несовпадение типов → явно говорим, что знаем, что делаем
+        setDocs(((docsData ?? []) as unknown) as DbDocument[]);
       }
 
       setLoading(false);
@@ -260,7 +262,7 @@ export default function AccountPage() {
           </p>
           <Link
             href="/auth/login"
-            className="inline-block.mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Войти
           </Link>
@@ -370,7 +372,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl.border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptStatusFilter}
                 onChange={(e) =>
                   setApptStatusFilter(e.target.value as AppointmentStatus | "all")
@@ -434,7 +436,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
