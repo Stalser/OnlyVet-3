@@ -27,6 +27,12 @@ const OWNER_DOCUMENT_TYPES = [
   "Иное",
 ] as const;
 
+// Определяем, является ли URL файлом из нашего хранилища Supabase
+function isInternalFile(url: string | null | undefined) {
+  if (!url) return false;
+  return url.includes("/storage/v1/object/public/onlyvet-docs/");
+}
+
 export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
   const [docs, setDocs] = useState<OwnerDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +49,7 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
   const [newFile, setNewFile] = useState<File | null>(null);
   const [savingNew, setSavingNew] = useState(false);
 
-  // редактирование документа (пока без перезаливки файла — через URL)
+  // редактирование документа (через URL)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editType, setEditType] = useState("");
   const [editTitle, setEditTitle] = useState("");
@@ -165,7 +171,7 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
 
     let finalUrl: string | null = newFileUrl.trim() || null;
 
-    // если выбран файл — загружаем его и берём URL из хранилища
+    // если выбран файл — загружаем его и используем URL из хранилища
     if (newFile) {
       const uploadedUrl = await uploadOwnerFile(newFile);
       if (!uploadedUrl) {
@@ -427,6 +433,7 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
                           ? new Date(d.created_at).toLocaleString("ru-RU")
                           : "—";
                         const isEditing = editingId === d.id;
+                        const isFile = isInternalFile(d.file_url);
 
                         if (isEditing && canManage) {
                           return (
@@ -518,6 +525,7 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
                                   href={d.file_url}
                                   target="_blank"
                                   rel="noreferrer"
+                                  title={d.file_url}
                                   className="text-emerald-700 hover:underline"
                                 >
                                   {d.title || "Документ"}
@@ -528,8 +536,10 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
                                 </span>
                               )}
                               {d.file_url && (
-                                <div className="text-[10px] text-gray-500">
-                                  Файл: {d.file_url}
+                                <div className="text-[10px] text-gray-400">
+                                  {isFile
+                                    ? "Тип: файл (хранилище)"
+                                    : "Тип: ссылка"}
                                 </div>
                               )}
                             </td>
@@ -543,14 +553,30 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
                             </td>
                             <td className="px-2 py-2 align-top text-right space-y-1">
                               {d.file_url && (
-                                <a
-                                  href={d.file_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
-                                >
-                                  Открыть / скачать
-                                </a>
+                                <>
+                                  {isFile ? (
+                                    <a
+                                      href={d.file_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title={d.file_url}
+                                      download
+                                      className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                    >
+                                      Открыть файл
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={d.file_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title={d.file_url}
+                                      className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                    >
+                                      Перейти по ссылке
+                                    </a>
+                                  )}
+                                </>
                               )}
                               {canManage && (
                                 <>
@@ -610,7 +636,7 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
                     </div>
 
                     <div>
-                      <label className="mb-1 block text_gray-500">
+                      <label className="mb-1 block text-gray-500">
                         Название документа{" "}
                         <span className="text-red-500">*</span>
                       </label>
@@ -646,9 +672,9 @@ export function ClientDocumentsSection({ ownerId, canManage = false }: Props) {
                         className="w-full text-[11px]"
                       />
                       <p className="mt-1 text-[10px] text-gray-500">
-                        Можно либо указать ссылку, либо выбрать файл. Если указаны
-                        оба варианта, будет использован загруженный файл из
-                        хранилища.
+                        Можно либо указать ссылку, либо выбрать файл. Если
+                        указаны оба варианта, будет использован загруженный
+                        файл.
                       </p>
                     </div>
 
