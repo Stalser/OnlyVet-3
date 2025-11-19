@@ -7,6 +7,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { ClientDocumentsSection } from "@/components/registrar/ClientDocumentsSection";
+import { ClientFinanceSection } from "@/components/registrar/ClientFinanceSection";
 
 type Owner = {
   user_id: number;
@@ -1118,6 +1119,9 @@ export default function ClientDetailPage() {
                 {/* ДОКУМЕНТЫ КЛИЕНТА */}
         <ClientDocumentsSection ownerId={owner.user_id} canManage />
 
+                {/* ФИНАНСЫ КЛИЕНТА */}
+        <ClientFinanceSection ownerId={owner.user_id} canManage />
+        
         {/* ПИТОМЦЫ */}
         <section className="rounded-2xl border bg-white p-4 space-y-4">
           <div className="flex items-center justify-between">
