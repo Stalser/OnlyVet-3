@@ -119,9 +119,13 @@ export default function FinanceCenterPage() {
       }));
 
       setRows(unified);
-    } catch (e) {
+    } catch (e: any) {
       console.error("loadAll invoices error", e);
-      setLoadError("Не удалось загрузить список счетов.");
+      const msg =
+        e?.message ||
+        e?.error?.message ||
+        "Не удалось загрузить список счетов (ошибка без подробностей).";
+      setLoadError(msg);
     } finally {
       setLoading(false);
     }
