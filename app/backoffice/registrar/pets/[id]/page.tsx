@@ -246,14 +246,7 @@ export default async function RegistrarPetDetailsPage({ params }: PageProps) {
             </section>
 
             {/* Документы питомца */}
-<PetDocumentsSection petId={pet.id} canManage />
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <h2 className="text-base font-semibold">Документы питомца</h2>
-              <p className="text-xs text-gray-400">
-                В будущем здесь будут: выписки, заключения, анализа, файлы и другие
-                документы, связанные с этим животным.
-              </p>
-            </section>
+            <PetDocumentsSection petId={pet.id} canManage />
           </>
         )}
       </main>
