@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type AuthRole = "guest" | "user" | "staff";
 
 type DbOwnerProfile = {
-  id: number;           // TODO: или user_id, если так в БД
+  id: number; // TODO: или user_id, если так в БД
   full_name: string | null;
   phone: string | null;
   telegram?: string | null;
@@ -25,11 +26,10 @@ type AppointmentStatus = "запрошена" | "подтверждена" | "з
 
 type DbAppointment = {
   id: string;
-  // TODO: подставь реальные имена полей по своей схеме
-  starts_at: string;           // timestamptz
+  starts_at: string; // timestamptz
   pet_name: string;
   species: string | null;
-  doctor_name: string | null;  // если нет — потом заменим на join с doctors
+  doctor_name: string | null; // если нет — потом заменим на join с doctors
   service_name: string | null; // если нет — можно тянуть из services_catalog
   status: AppointmentStatus;
 };
@@ -71,19 +71,24 @@ export default function AccountPage() {
   );
 
   useEffect(() => {
+    // Если supabase не сконфигурирован
     if (!supabase) {
       setError("Supabase не сконфигурирован (нет env-переменных).");
       setLoading(false);
       return;
     }
 
+    const client: SupabaseClient = supabase;
+
     const load = async () => {
       setLoading(true);
       setError(null);
 
       // 1. Текущий пользователь (из Auth)
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      const { data: userData, error: userErr } = await client.auth.getUser();
+
       if (userErr) {
+        console.error(userErr);
         setError("Ошибка получения пользователя");
         setLoading(false);
         return;
@@ -96,15 +101,13 @@ export default function AccountPage() {
         return;
       }
 
-      // роль из user_metadata, как в Navbar
       const metaRole =
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Ищем owner_profile, привязанный к auth.users.id
-      const { data: ownerProfile, error: ownerErr } = await supabase
+      // 2. owner_profiles
+      const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
-        // TODO: если у тебя поле называется по-другому, например auth_id → поправь
         .select("id, full_name, phone, telegram, email, auth_id")
         .eq("auth_id", user.id)
         .maybeSingle();
@@ -117,7 +120,6 @@ export default function AccountPage() {
       }
 
       if (!ownerProfile) {
-        // Владельца ещё нет в картотеке
         setOwner(null);
         setPets([]);
         setAppointments([]);
@@ -127,13 +129,10 @@ export default function AccountPage() {
       }
 
       setOwner(ownerProfile as DbOwnerProfile);
-
-      // Предположим, что owner_id в pets и appointments = owner_profiles.id
-      // TODO: если у тебя там user_id или другой FK — поправь eq(...)
-      const ownerId = (ownerProfile as any).id;
+      const ownerId = (ownerProfile as any).id; // TODO: подправить под свою схему
 
       // 3. Питомцы
-      const { data: petsData, error: petsErr } = await supabase
+      const { data: petsData, error: petsErr } = await client
         .from("pets")
         .select("id, name, species")
         .eq("owner_id", ownerId)
@@ -146,8 +145,8 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи (appointments)
-      const { data: apptsData, error: apptsErr } = await supabase
+      // 4. Записи
+      const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
           `
@@ -170,8 +169,8 @@ export default function AccountPage() {
         setAppointments((apptsData ?? []) as DbAppointment[]);
       }
 
-      // 5. Документы (appointment_documents + join appointments для pet_name)
-      const { data: docsData, error: docsErr } = await supabase
+      // 5. Документы
+      const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select(
           `
@@ -204,7 +203,6 @@ export default function AccountPage() {
 
   // ==== Деривативы ====
 
-  // Варианты питомцев для фильтра записей
   const appointmentPets = useMemo(
     () => Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
     [appointments]
@@ -221,7 +219,6 @@ export default function AccountPage() {
     [appointments, apptPetFilter, apptStatusFilter]
   );
 
-  // Питомцы для фильтра документов
   const docPets = useMemo(
     () =>
       Array.from(
@@ -247,12 +244,13 @@ export default function AccountPage() {
 
   // ==== UI ====
 
-  // Если пользователь не авторизован
   if (!loading && role === "guest") {
     return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50.min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
-          <h1 className="text-xl font-semibold">Личный кабинет доступен только авторизованным пользователям</h1>
+          <h1 className="text-xl font-semibold">
+            Личный кабинет доступен только авторизованным пользователям
+          </h1>
           <p className="text-sm text-gray-600">
             Пожалуйста, войдите или зарегистрируйтесь, чтобы увидеть свои записи и документы.
           </p>
@@ -271,7 +269,7 @@ export default function AccountPage() {
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-10">
         {/* Заголовок */}
-        <header className="flex flex-col md:flex-row md:items.end justify-between gap-4">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold">Личный кабинет</h1>
             <p className="text-gray-600 text-sm mt-1">
@@ -280,7 +278,7 @@ export default function AccountPage() {
           </div>
           <Link
             href="/booking"
-            className="rounded-xl px-4.py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Записаться на консультацию
           </Link>
@@ -298,9 +296,8 @@ export default function AccountPage() {
 
         {/* Профиль и питомцы */}
         <section className="grid md:grid-cols-3 gap-4">
-          {/* Профиль */}
           <div className="md:col-span-2 rounded-2xl border bg-white p-4 space-y-2">
-            <h2 className="font-semibold text.base">Профиль</h2>
+            <h2 className="font-semibold text-base">Профиль</h2>
             {owner ? (
               <div className="text-sm space-y-1">
                 <div className="text-gray-600">
@@ -328,7 +325,6 @@ export default function AccountPage() {
             </p>
           </div>
 
-          {/* Питомцы */}
           <div className="rounded-2xl border bg-white p-4 space-y-2">
             <h2 className="font-semibold text-base">Ваши питомцы</h2>
             {pets.length === 0 && (
@@ -351,14 +347,13 @@ export default function AccountPage() {
           </div>
         </section>
 
-        {/* Мои записи + фильтры */}
+        {/* Мои записи */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Мои записи</h2>
-            {/* Фильтры */}
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptPetFilter}
                 onChange={(e) => setApptPetFilter(e.target.value)}
               >
@@ -403,7 +398,7 @@ export default function AccountPage() {
                     <th className="py-2 pr-3 text-left font-normal">Врач</th>
                     <th className="py-2 pr-3 text-left font-normal">Услуга</th>
                     <th className="py-2 pr-3 text-left font-normal">Статус</th>
-                    <th className="py-2 text-left.font-normal" />
+                    <th className="py-2 text-left font-normal" />
                   </tr>
                 </thead>
                 <tbody>
@@ -416,9 +411,9 @@ export default function AccountPage() {
           )}
         </section>
 
-        {/* Документы + фильтры */}
+        {/* Документы */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex flex-col.sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Документы</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
@@ -435,7 +430,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
@@ -469,7 +464,7 @@ export default function AccountPage() {
   );
 }
 
-/* ===== Строка записи (кликабельная) ===== */
+/* ===== Строка записи ===== */
 
 function AppointmentRow({ a }: { a: DbAppointment }) {
   const statusColor =
@@ -506,7 +501,7 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
       <td className="py-2 pr-3">{a.service_name || "—"}</td>
       <td className="py-2 pr-3">
         <span
-          className={`inline-flex.items-center rounded-full px-2 py-0.5 ${statusColor}`}
+          className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusColor}`}
         >
           {a.status}
         </span>
