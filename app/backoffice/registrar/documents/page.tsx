@@ -59,8 +59,8 @@ type KindFilter = "all" | "owner" | "pet";
 // bucket в Supabase Storage – тот же, что и в блоках клиента/питомца
 const STORAGE_BUCKET = "onlyvet-docs";
 
-// Справочники типов документов
-const OWNER_DOC_TYPES = [
+// Справочники типов документов (как string[], без as const)
+const OWNER_DOC_TYPES: string[] = [
   "Договор на оказание услуг",
   "Долгосрочный договор / абонемент",
   "Акт выполненных работ",
@@ -70,9 +70,9 @@ const OWNER_DOC_TYPES = [
   "Согласие на обработку мед. данных",
   "Заявление / претензия",
   "Иное",
-] as const;
+];
 
-const PET_DOC_TYPES = [
+const PET_DOC_TYPES: string[] = [
   "Заключение врача / консультация",
   "Результат лабораторного анализа",
   "Результат инструментального исследования (УЗИ/рентген/КТ/ЭХО)",
@@ -81,7 +81,7 @@ const PET_DOC_TYPES = [
   "Вакцинация / ветпаспорт / чипирование",
   "Направление",
   "Иное",
-] as const;
+];
 
 // Все возможные типы для фильтра «Тип документа» – статически, а не из БД
 const typeOptions: string[] = Array.from(
@@ -469,7 +469,7 @@ export default function DocumentsCenterPage() {
           <div className="grid gap-3 text-[11px] md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <div className="text-gray-500">Принадлежность</div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex_wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setKindFilter("all")}
@@ -657,12 +657,9 @@ export default function DocumentsCenterPage() {
                                   {t}
                                 </option>
                               ))}
-                              {!typeList.includes(editType) &&
-                                editType && (
-                                  <option value={editType}>
-                                    {editType}
-                                  </option>
-                                )}
+                              {!typeList.includes(editType) && editType && (
+                                <option value={editType}>{editType}</option>
+                              )}
                             </select>
                             <div className="mt-1 text-[10px] text-gray-500">
                               {isOwnerDoc
