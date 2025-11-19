@@ -21,7 +21,14 @@ export type InvoiceWithPayments = {
 export async function getOwnerInvoices(
   ownerId: number
 ): Promise<InvoiceWithPayments[]> {
-  const { data, error } = await supabase
+  const client = supabase;
+
+  if (!client) {
+    // для фронта это маловероятно, но TS теперь доволен
+    throw new Error("Supabase client is not initialized");
+  }
+
+  const { data, error } = await client
     .from("invoices")
     .select(
       `
