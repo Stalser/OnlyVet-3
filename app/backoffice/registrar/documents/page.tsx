@@ -624,21 +624,14 @@ export default function DocumentsCenterPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="rounded-xl border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-              >
-                Сбросить фильтры
-              </button>
-              <Link
-                href="/backoffice/registrar/clients"
-                className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-              >
-                Добавить документ
-              </Link>
-            </div>
+           <div className="flex flex-wrap gap-2">
+  <Link
+    href="/backoffice/registrar/clients"
+    className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+  >
+    Добавить документ
+  </Link>
+</div>
           </div>
 
           <div className="overflow-x-auto">
