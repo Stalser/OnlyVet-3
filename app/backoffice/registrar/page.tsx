@@ -111,7 +111,7 @@ export default async function RegistrarDashboardPage() {
           </div>
         </section>
 
-        {/* Документация клиентов и питомцев */}
+                {/* Документация и финансы клиентов и питомцев */}
         <section className="grid gap-4 md:grid-cols-3">
           <Link
             href="/backoffice/registrar/documents"
@@ -121,6 +121,17 @@ export default async function RegistrarDashboardPage() {
             <p className="mt-1 text-xs text-gray-500">
               Все договоры, согласия, анализы, заключения и другие документы
               клиентов и питомцев в одном месте.
+            </p>
+          </Link>
+
+          <Link
+            href="/backoffice/registrar/finance"
+            className="rounded-2xl border bg-white p-4 hover:border-emerald-500 transition-colors block"
+          >
+            <h2 className="text-sm font-semibold">Финансы</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Счета, оплаты и статусы по консультациям и услугам клиентов.
+              Центр финансовой работы регистратуры.
             </p>
           </Link>
         </section>
