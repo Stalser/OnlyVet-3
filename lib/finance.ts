@@ -76,7 +76,8 @@ export async function getOwnerInvoices(
 
 /**
  * Простой сценарий: создаём счёт с одной позицией “ручного” описания и суммой.
- * Дальше можно будет усложнить (привязка к приёму, услугам и т.п.).
+ * Вставляет запись в invoices + одну позицию в invoice_items.
+ * Статус ставим "final" (финальный выставленный счёт), под твой ENUM invoice_status.
  */
 export async function createSimpleInvoiceForOwner(params: {
   ownerId: number;
@@ -100,7 +101,7 @@ export async function createSimpleInvoiceForOwner(params: {
     .from("invoices")
     .insert({
       owner_id: params.ownerId,
-      status: "issued",
+      status: "final", // <-- важно: значение из enum invoice_status
       total_amount: amount,
       currency: "RUB",
       notes: params.notes ?? null,
