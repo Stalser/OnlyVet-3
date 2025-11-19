@@ -18,9 +18,12 @@ type InvoiceRow = {
   notes: string | null;
 };
 
-type KindFilter = "all" | "owner" | "pet"; // на будущее, если захотим разделять
+type SearchOwner = {
+  user_id: number;
+  full_name: string | null;
+};
 
-const STORAGE_BUCKET = "onlyvet-docs"; // пока не используем, но оставляем на будущее
+const STORAGE_BUCKET = "onlyvet-docs"; // на будущее, если будем прикреплять файлы к счетам
 
 export default function FinanceCenterPage() {
   const [rows, setRows] = useState<InvoiceRow[]>([]);
@@ -38,10 +41,19 @@ export default function FinanceCenterPage() {
 
   // форма создания счёта
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newOwnerId, setNewOwnerId] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newNotes, setNewNotes] = useState("");
+
+  // выбор клиента через поиск
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [ownerSearchResults, setOwnerSearchResults] = useState<SearchOwner[]>([]);
+  const [searchingOwners, setSearchingOwners] = useState(false);
+  const [selectedOwner, setSelectedOwner] = useState<{
+    id: number;
+    name: string | null;
+  } | null>(null);
+
   const [savingInvoice, setSavingInvoice] = useState(false);
 
   // ===== ЗАГРУЗКА ВСЕХ СЧЁТОВ =====
@@ -59,7 +71,6 @@ export default function FinanceCenterPage() {
     setActionError(null);
 
     try {
-      // 1. Считаем все счета
       const { data: invData, error: invError } = await client
         .from("invoices")
         .select(
@@ -71,7 +82,6 @@ export default function FinanceCenterPage() {
 
       const invoices = (invData || []) as any[];
 
-      // 2. Подбираем владельцев
       const ownerIds = Array.from(
         new Set<number>(
           invoices
@@ -193,15 +203,75 @@ export default function FinanceCenterPage() {
     0
   );
 
-  // ===== СОЗДАНИЕ СЧЁТА ИЗ FINANCE CENTER =====
+  // ===== ПОИСК КЛИЕНТА ДЛЯ СОЗДАНИЯ СЧЁТА =====
+
+  const handleOwnerSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    setActionError(null);
+
+    const client = supabase;
+    if (!client) {
+      setActionError("Supabase недоступен на клиенте.");
+      return;
+    }
+
+    const q = ownerSearch.trim();
+    if (!q) {
+      setOwnerSearchResults([]);
+      return;
+    }
+
+    setSearchingOwners(true);
+    try {
+      const { data, error } = await client
+        .from("owner_profiles")
+        .select("user_id, full_name")
+        .ilike("full_name", `%${q}%`)
+        .order("full_name", { ascending: true })
+        .limit(15);
+
+      if (error) throw error;
+
+      setOwnerSearchResults(
+        (data as { user_id: number; full_name: string | null }[]) || []
+      );
+    } catch (err: any) {
+      console.error("handleOwnerSearch error", err);
+      setActionError(
+        err?.message ||
+          "Не удалось выполнить поиск клиента. Попробуйте ещё раз."
+      );
+    } finally {
+      setSearchingOwners(false);
+    }
+  };
+
+  const handleSelectOwner = (owner: SearchOwner) => {
+    setSelectedOwner({
+      id: owner.user_id,
+      name: owner.full_name,
+    });
+    setOwnerSearchResults([]);
+    setOwnerSearch(owner.full_name || String(owner.user_id));
+    setActionError(null);
+  };
+
+  const handleResetSelectedOwner = () => {
+    setSelectedOwner(null);
+    setOwnerSearch("");
+    setOwnerSearchResults([]);
+  };
+
+  // ===== СОЗДАНИЕ СЧЁТА =====
 
   const handleCreateInvoice = async (e: FormEvent) => {
     e.preventDefault();
     setActionError(null);
 
-    const ownerIdNum = Number(newOwnerId);
-    if (!Number.isInteger(ownerIdNum) || ownerIdNum <= 0) {
-      setActionError("Укажите корректный ID клиента (целое положительное число).");
+    if (!selectedOwner) {
+      setActionError(
+        "Сначала выберите клиента через поиск и подтвердите выбор."
+      );
       return;
     }
 
@@ -220,17 +290,18 @@ export default function FinanceCenterPage() {
 
     try {
       await createSimpleInvoiceForOwner({
-        ownerId: ownerIdNum,
+        ownerId: selectedOwner.id,
         description: newDescription.trim(),
         amount: amountNum,
         notes: newNotes.trim() || null,
       });
 
-      // перезагружаем список счётов
       await fetchInvoices();
 
       // сбрасываем форму
-      setNewOwnerId("");
+      setSelectedOwner(null);
+      setOwnerSearch("");
+      setOwnerSearchResults([]);
       setNewDescription("");
       setNewAmount("");
       setNewNotes("");
@@ -340,20 +411,90 @@ export default function FinanceCenterPage() {
                 onSubmit={handleCreateInvoice}
                 className="mt-2 grid gap-2 text-[11px] md:grid-cols-2"
               >
-                <div>
+                {/* Поиск и выбор клиента */}
+                <div className="md:col-span-2">
                   <label className="mb-1 block text-gray-500">
-                    ID клиента <span className="text-red-500">*</span>
+                    Клиент <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newOwnerId}
-                    onChange={(e) => setNewOwnerId(e.target.value)}
-                    className="w-full rounded-xl border px-3 py-1.5"
-                    placeholder="Например: 4 (ID из картотеки клиентов)"
-                  />
+
+                  {selectedOwner ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white px-3 py-1.5">
+                      <div>
+                        <div className="text-[11px] font-semibold text-gray-800">
+                          {selectedOwner.name || "Без имени"}
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                          ID клиента: {selectedOwner.id}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleResetSelectedOwner}
+                        className="rounded-xl border px-2 py-1 text-[10px] text-gray-700 hover:bg-gray-50"
+                      >
+                        Сменить клиента
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <form
+                        onSubmit={handleOwnerSearch}
+                        className="flex flex-wrap items-center gap-2"
+                      >
+                        <input
+                          type="text"
+                          value={ownerSearch}
+                          onChange={(e) => setOwnerSearch(e.target.value)}
+                          className="flex-1 min-w-[160px] rounded-xl border px-3 py-1.5"
+                          placeholder="Начните вводить ФИО клиента…"
+                        />
+                        <button
+                          type="submit"
+                          disabled={searchingOwners}
+                          className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                        >
+                          {searchingOwners ? "Ищем…" : "Найти"}
+                        </button>
+                      </form>
+
+                      {ownerSearchResults.length > 0 && (
+                        <div className="rounded-xl border bg-white p-2 max-h-48 overflow-y-auto">
+                          <div className="mb-1 text-[10px] text-gray-500">
+                            Найдено клиентов: {ownerSearchResults.length}. Выберите
+                            нужного:
+                          </div>
+                          <ul className="space-y-1">
+                            {ownerSearchResults.map((o) => (
+                              <li key={o.user_id}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectOwner(o)}
+                                  className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left text-[11px] hover:bg-emerald-50"
+                                >
+                                  <span>{o.full_name || "Без имени"}</span>
+                                  <span className="text-[10px] text-gray-500">
+                                    ID: {o.user_id}
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {ownerSearchResults.length === 0 &&
+                        ownerSearch.trim().length > 0 &&
+                        !searchingOwners && (
+                          <div className="text-[10px] text-gray-400">
+                            Клиенты по этому запросу не найдены. Уточните ФИО или
+                            проверьте картотеку клиентов.
+                          </div>
+                        )}
+                    </div>
+                  )}
                 </div>
 
+                {/* Сумма */}
                 <div>
                   <label className="mb-1 block text-gray-500">
                     Сумма счёта (RUB) <span className="text-red-500">*</span>
@@ -369,7 +510,8 @@ export default function FinanceCenterPage() {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                {/* Описание */}
+                <div>
                   <label className="mb-1 block text-gray-500">
                     Описание счёта <span className="text-red-500">*</span>
                   </label>
@@ -378,10 +520,11 @@ export default function FinanceCenterPage() {
                     value={newDescription}
                     onChange={(e) => setNewDescription(e.target.value)}
                     className="w-full rounded-xl border px-3 py-1.5"
-                    placeholder="Например: Консультация + анализы"
+                    placeholder="Например: Консультация терапевта + анализы"
                   />
                 </div>
 
+                {/* Заметки */}
                 <div className="md:col-span-2">
                   <label className="mb-1 block text-gray-500">
                     Служебные заметки
@@ -553,7 +696,7 @@ export default function FinanceCenterPage() {
                               В карточку клиента →
                             </Link>
                           )}
-                          {/* позже здесь появится "Открыть счёт" */}
+                          {/* позже: отдельная страница/модалка для счёта */}
                         </td>
                       </tr>
                     );
