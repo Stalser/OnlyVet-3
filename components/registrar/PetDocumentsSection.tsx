@@ -24,6 +24,12 @@ const PET_DOCUMENT_TYPES = [
   "Иное",
 ] as const;
 
+// определяем, файл ли это из нашего Supabase-хранилища
+function isInternalFile(url: string | null | undefined) {
+  if (!url) return false;
+  return url.includes("/storage/v1/object/public/onlyvet-docs/");
+}
+
 export function PetDocumentsSection({ petId, canManage = false }: Props) {
   const [docs, setDocs] = useState<PetDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,8 +330,8 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
         <div>
           <h2 className="text-base font-semibold">Документы питомца</h2>
           <p className="text-[11px] text-gray-500">
-            Медицинские документы по этому животному: заключения, анализы, УЗИ,
-            выписки, операции и т.д.
+            Медицинские документы по этому животному: заключения, анализы,
+            УЗИ, выписки, операции и т.д.
           </p>
         </div>
         <span className="text-[11px] text-gray-500">
@@ -406,6 +412,7 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
                           ? new Date(d.created_at).toLocaleString("ru-RU")
                           : "—";
                         const isEditing = editingId === d.id;
+                        const isFile = isInternalFile(d.file_url);
 
                         if (isEditing && canManage) {
                           return (
@@ -497,6 +504,7 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
                                   href={d.file_url}
                                   target="_blank"
                                   rel="noreferrer"
+                                  title={d.file_url}
                                   className="text-emerald-700 hover:underline"
                                 >
                                   {d.title || "Документ"}
@@ -507,8 +515,10 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
                                 </span>
                               )}
                               {d.file_url && (
-                                <div className="text-[10px] text-gray-500">
-                                  Файл: {d.file_url}
+                                <div className="text-[10px] text-gray-400">
+                                  {isFile
+                                    ? "Тип: файл (хранилище)"
+                                    : "Тип: ссылка"}
                                 </div>
                               )}
                             </td>
@@ -522,14 +532,30 @@ export function PetDocumentsSection({ petId, canManage = false }: Props) {
                             </td>
                             <td className="px-2 py-2 align-top text-right space-y-1">
                               {d.file_url && (
-                                <a
-                                  href={d.file_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
-                                >
-                                  Открыть / скачать
-                                </a>
+                                <>
+                                  {isFile ? (
+                                    <a
+                                      href={d.file_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title={d.file_url}
+                                      download
+                                      className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                    >
+                                      Открыть файл
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={d.file_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title={d.file_url}
+                                      className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                    >
+                                      Перейти по ссылке
+                                    </a>
+                                  )}
+                                </>
                               )}
                               {canManage && (
                                 <>
