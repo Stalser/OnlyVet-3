@@ -99,10 +99,12 @@ export default function DocumentsCenterPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // фильтры
+  // фильтры (по колонкам)
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [titleFilter, setTitleFilter] = useState<string>("");
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const [petFilter, setPetFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
@@ -115,8 +117,6 @@ export default function DocumentsCenterPage() {
   const [editNotes, setEditNotes] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // ====== ЗАГРУЗКА ВСЕХ ДОКУМЕНТОВ ======
 
   useEffect(() => {
     let ignore = false;
@@ -265,6 +265,16 @@ export default function DocumentsCenterPage() {
 
   // ===== ВСПОМОГАТЕЛЬНЫЕ ДЕЙСТВИЯ =====
 
+  const resetFilters = () => {
+    setKindFilter("all");
+    setTypeFilter("all");
+    setTitleFilter("");
+    setOwnerFilter("");
+    setPetFilter("");
+    setDateFrom("");
+    setDateTo("");
+  };
+
   const startEditRow = (row: UnifiedDocRow) => {
     setEditingId(row.id);
     setEditingKind(row.kind);
@@ -391,6 +401,25 @@ export default function DocumentsCenterPage() {
 
     if (typeFilter !== "all" && r.type !== typeFilter) return false;
 
+    if (titleFilter.trim()) {
+      const q = titleFilter.trim().toLowerCase();
+      const haystack =
+        (r.title || "").toLowerCase() +
+        " " +
+        (r.notes || "").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
+    if (ownerFilter.trim()) {
+      const q = ownerFilter.trim().toLowerCase();
+      if (!(r.ownerName || "").toLowerCase().includes(q)) return false;
+    }
+
+    if (petFilter.trim()) {
+      const q = petFilter.trim().toLowerCase();
+      if (!(r.petName || "").toLowerCase().includes(q)) return false;
+    }
+
     if (dateFrom) {
       const fromTs = new Date(dateFrom).getTime();
       const createdTs = new Date(r.created_at).getTime();
@@ -403,25 +432,10 @@ export default function DocumentsCenterPage() {
       if (createdTs > endOfDay) return false;
     }
 
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      const haystack =
-        (r.title || "").toLowerCase() +
-        " " +
-        (r.type || "").toLowerCase() +
-        " " +
-        (r.notes || "").toLowerCase() +
-        " " +
-        (r.ownerName || "").toLowerCase() +
-        " " +
-        (r.petName || "").toLowerCase();
-      if (!haystack.includes(q)) return false;
-    }
-
     return true;
   });
 
-  // Пока делаем одну страницу, без реальной пагинации
+  // пока без реальной разбивки, вся выборка = одна страница
   const page = 1;
   const totalPages = 1;
   const visibleRows = filteredRows;
@@ -437,7 +451,7 @@ export default function DocumentsCenterPage() {
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         {/* ШАПКА */}
-        <header className="flex items-center justify_between">
+        <header className="flex items-center justify-between">
           <div>
             <Link
               href="/backoffice/registrar"
@@ -468,150 +482,165 @@ export default function DocumentsCenterPage() {
           </section>
         )}
 
-        {/* ФИЛЬТРЫ */}
+        {/* ТАБЛИЦА ДОКУМЕНТОВ + ФИЛЬТРЫ КАК У "КЛИЕНТОВ" */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <h2 className="text-sm font-semibold">Фильтры</h2>
-          <div className="grid gap-3 text-[11px] md:grid-cols-2 lg:grid-cols-3">
+          {/* Заголовок + счётчик + кнопки справа */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="text-gray-500">Принадлежность</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setKindFilter("all")}
-                  className={`rounded-xl border px-3 py-1.5 ${
-                    kindFilter === "all"
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  Все
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setKindFilter("owner")}
-                  className={`rounded-xl border px-3 py-1.5 ${
-                    kindFilter === "owner"
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  Документы клиента
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setKindFilter("pet")}
-                  className={`rounded-xl border px-3 py-1.5 ${
-                    kindFilter === "pet"
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  Документы питомца
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-gray-500">Тип документа</label>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full rounded-xl border px-3 py-1.5"
-              >
-                <option value="all">Все типы</option>
-                {typeOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-gray-500">Поиск по тексту</label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border px-3 py-1.5"
-                placeholder="Название, клиент, питомец, пометки…"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-gray-500">Дата с</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded-xl border px-3 py-1.5"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-gray-500">Дата по</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded-xl border px-3 py-1.5"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-gray-500">Быстрые действия</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setKindFilter("all");
-                    setTypeFilter("all");
-                    setSearchQuery("");
-                    setDateFrom("");
-                    setDateTo("");
-                  }}
-                  className="rounded-xl border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50"
-                >
-                  Сбросить фильтры
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ТАБЛИЦА ДОКУМЕНТОВ */}
-        <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">Все документы</h2>
-
-            <div className="text-[11px] text-gray-500">
-              {loading ? (
-                <>Загрузка…</>
-              ) : (
-                <>
+              <h2 className="text-sm font-semibold">Все документы</h2>
+              {!loading && (
+                <div className="text-[11px] text-gray-500">
                   Показано{" "}
                   <span className="font-semibold">
                     {visibleRows.length}
                   </span>{" "}
                   из{" "}
                   <span className="font-semibold">{rows.length}</span>{" "}
-                  документов.
-                </>
+                  документов. Страница {page} из {totalPages}.
+                </div>
               )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-xl border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+              >
+                Сбросить фильтры
+              </button>
+              <Link
+                href="/backoffice/registrar/clients"
+                className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+              >
+                Добавить документ
+              </Link>
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-[11px]">
               <thead>
+                {/* Шапка */}
                 <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
-                  <th className="px-2 py-2">Тип</th>
-                  <th className="px-2 py-2">Название</th>
-                  <th className="px-2 py-2">Клиент</th>
-                  <th className="px-2 py-2">Питомец</th>
-                  <th className="px-2 py-2">Дата</th>
-                  <th className="px-2 py-2 text-right">Действия</th>
+                  <th className="px-2 py-2">ТИП</th>
+                  <th className="px-2 py-2">НАЗВАНИЕ</th>
+                  <th className="px-2 py-2">КЛИЕНТ</th>
+                  <th className="px-2 py-2">ПИТОМЕЦ</th>
+                  <th className="px-2 py-2">ДАТА</th>
+                  <th className="px-2 py-2 text-right">ДЕЙСТВИЯ</th>
+                </tr>
+                {/* Строка фильтров по колонкам */}
+                <tr className="border-b bg-white text-[11px] text-gray-700">
+                  {/* Тип + принадлежность */}
+                  <th className="px-2 py-2 align-top">
+                    <div className="space-y-1">
+                      <select
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value)}
+                        className="w-full rounded-xl border px-2 py-1"
+                      >
+                        <option value="all">Все типы</option>
+                        {typeOptions.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setKindFilter("all")}
+                          className={`flex-1 rounded-xl border px-2 py-0.5 ${
+                            kindFilter === "all"
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                              : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Все
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setKindFilter("owner")}
+                          className={`flex-1 rounded-xl border px-2 py-0.5 ${
+                            kindFilter === "owner"
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                              : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Клиент
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setKindFilter("pet")}
+                          className={`flex-1 rounded-xl border px-2 py-0.5 ${
+                            kindFilter === "pet"
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                              : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Питомец
+                        </button>
+                      </div>
+                    </div>
+                  </th>
+
+                  {/* Название */}
+                  <th className="px-2 py-2 align-top">
+                    <input
+                      type="text"
+                      value={titleFilter}
+                      onChange={(e) => setTitleFilter(e.target.value)}
+                      placeholder="Название / пометки…"
+                      className="w-full rounded-xl border px-2 py-1"
+                    />
+                  </th>
+
+                  {/* Клиент */}
+                  <th className="px-2 py-2 align-top">
+                    <input
+                      type="text"
+                      value={ownerFilter}
+                      onChange={(e) => setOwnerFilter(e.target.value)}
+                      placeholder="ФИО клиента…"
+                      className="w-full rounded-xl border px-2 py-1"
+                    />
+                  </th>
+
+                  {/* Питомец */}
+                  <th className="px-2 py-2 align-top">
+                    <input
+                      type="text"
+                      value={petFilter}
+                      onChange={(e) => setPetFilter(e.target.value)}
+                      placeholder="Имя питомца…"
+                      className="w-full rounded-xl border px-2 py-1"
+                    />
+                  </th>
+
+                  {/* Дата */}
+                  <th className="px-2 py-2 align-top">
+                    <div className="space-y-1">
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="w-full rounded-xl border px-2 py-1"
+                      />
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="w-full rounded-xl border px-2 py-1"
+                      />
+                    </div>
+                  </th>
+
+                  {/* Действия – фильтра нет */}
+                  <th className="px-2 py-2" />
                 </tr>
               </thead>
+
               <tbody>
                 {loading ? (
                   <tr>
@@ -868,7 +897,7 @@ export default function DocumentsCenterPage() {
             </table>
           </div>
 
-          {/* “подвал” как в Клиентах: страница 1 из 1 и кнопки навигации */}
+          {/* “подвал” как в Клиентах */}
           {!loading && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
               <div>
@@ -896,4 +925,11 @@ export default function DocumentsCenterPage() {
       </main>
     </RoleGuard>
   );
+}
+
+function formatDateTime(iso: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU");
 }
