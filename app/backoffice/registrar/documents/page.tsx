@@ -54,13 +54,41 @@ type PetRow = {
   name: string | null;
 };
 
-// Фильтры
 type KindFilter = "all" | "owner" | "pet";
 
-// имя bucket'а, как в Client/PetDocumentsSection
+// bucket в Supabase Storage – тот же, что и в блоках клиента/питомца
 const STORAGE_BUCKET = "onlyvet-docs";
 
-// определяем, наш ли это файл из Supabase Storage
+// Справочники типов документов
+const OWNER_DOC_TYPES = [
+  "Договор на оказание услуг",
+  "Долгосрочный договор / абонемент",
+  "Акт выполненных работ",
+  "Информированное согласие",
+  "Согласие на операцию / анестезию",
+  "Согласие на обработку персональных данных",
+  "Согласие на обработку мед. данных",
+  "Заявление / претензия",
+  "Иное",
+] as const;
+
+const PET_DOC_TYPES = [
+  "Заключение врача / консультация",
+  "Результат лабораторного анализа",
+  "Результат инструментального исследования (УЗИ/рентген/КТ/ЭХО)",
+  "Протокол операции / наркозный лист",
+  "Выписка из стационара",
+  "Вакцинация / ветпаспорт / чипирование",
+  "Направление",
+  "Иное",
+] as const;
+
+// Все возможные типы для фильтра «Тип документа» – статически, а не из БД
+const typeOptions: string[] = Array.from(
+  new Set<string>([...OWNER_DOC_TYPES, ...PET_DOC_TYPES])
+);
+
+// проверяем, является ли URL файлом из нашего Supabase-хранилища
 function isInternalFile(url: string | null | undefined) {
   if (!url) return false;
   return url.includes(`/storage/v1/object/public/${STORAGE_BUCKET}/`);
@@ -87,30 +115,6 @@ export default function DocumentsCenterPage() {
   const [editNotes, setEditNotes] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // списки типов для подсказок при редактировании
-  const OWNER_DOC_TYPES = [
-    "Договор на оказание услуг",
-    "Долгосрочный договор / абонемент",
-    "Акт выполненных работ",
-    "Информированное согласие",
-    "Согласие на операцию / анестезию",
-    "Согласие на обработку персональных данных",
-    "Согласие на обработку мед. данных",
-    "Заявление / претензия",
-    "Иное",
-  ];
-
-  const PET_DOC_TYPES = [
-    "Заключение врача / консультация",
-    "Результат лабораторного анализа",
-    "Результат инструментального исследования (УЗИ/рентген/КТ/ЭХО)",
-    "Протокол операции / наркозный лист",
-    "Выписка из стационара",
-    "Вакцинация / ветпаспорт / чипирование",
-    "Направление",
-    "Иное",
-  ];
 
   // ====== ЗАГРУЗКА ВСЕХ ДОКУМЕНТОВ ======
 
@@ -382,8 +386,6 @@ export default function DocumentsCenterPage() {
 
   // ===== ПРИМЕНЕНИЕ ФИЛЬТРОВ =====
 
-  const typeOptions = Array.from(new Set(rows.map((r) => r.type))).sort();
-
   const filteredRows = rows.filter((r) => {
     if (kindFilter !== "all" && r.kind !== kindFilter) return false;
 
@@ -573,36 +575,59 @@ export default function DocumentsCenterPage() {
 
         {/* ТАБЛИЦА ДОКУМЕНТОВ */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">Все документы</h2>
-            {loading && (
-              <span className="text-[11px] text-gray-500">
-                Загрузка…
-              </span>
-            )}
+
+            <div className="text-[11px] text-gray-500">
+              {loading ? (
+                <>Загрузка…</>
+              ) : (
+                <>
+                  Показано{" "}
+                  <span className="font-semibold">
+                    {filteredRows.length}
+                  </span>{" "}
+                  из{" "}
+                  <span className="font-semibold">{rows.length}</span>{" "}
+                  документов.
+                </>
+              )}
+            </div>
           </div>
 
-          {!loading && filteredRows.length === 0 && (
-            <p className="text-[11px] text-gray-500">
-              Документов, удовлетворяющих текущим фильтрам, нет.
-            </p>
-          )}
-
-          {!loading && filteredRows.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-[11px]">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
-                    <th className="px-2 py-2">Тип</th>
-                    <th className="px-2 py-2">Название</th>
-                    <th className="px-2 py-2">Клиент</th>
-                    <th className="px-2 py-2">Питомец</th>
-                    <th className="px-2 py-2">Дата</th>
-                    <th className="px-2 py-2 text-right">Действия</th>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-[11px]">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
+                  <th className="px-2 py-2">Тип</th>
+                  <th className="px-2 py-2">Название</th>
+                  <th className="px-2 py-2">Клиент</th>
+                  <th className="px-2 py-2">Питомец</th>
+                  <th className="px-2 py-2">Дата</th>
+                  <th className="px-2 py-2 text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-2 py-6 text-center text-[11px] text-gray-400"
+                    >
+                      Загрузка документов…
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row) => {
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-2 py-6 text-center text-[11px] text-gray-400"
+                    >
+                      Документов, удовлетворяющих текущим фильтрам, нет.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((row) => {
                     const isEditing =
                       editingId === row.id && editingKind === row.kind;
                     const isOwnerDoc = row.kind === "owner";
@@ -610,10 +635,15 @@ export default function DocumentsCenterPage() {
 
                     if (isEditing) {
                       const typeList =
-                        row.kind === "owner" ? OWNER_DOC_TYPES : PET_DOC_TYPES;
+                        row.kind === "owner"
+                          ? OWNER_DOC_TYPES
+                          : PET_DOC_TYPES;
 
                       return (
-                        <tr key={`${row.kind}-${row.id}`} className="border-b">
+                        <tr
+                          key={`${row.kind}-${row.id}`}
+                          className="border-b"
+                        >
                           <td className="px-2 py-2 align-top">
                             <select
                               value={editType}
@@ -627,9 +657,12 @@ export default function DocumentsCenterPage() {
                                   {t}
                                 </option>
                               ))}
-                              {!typeList.includes(editType) && editType && (
-                                <option value={editType}>{editType}</option>
-                              )}
+                              {!typeList.includes(editType) &&
+                                editType && (
+                                  <option value={editType}>
+                                    {editType}
+                                  </option>
+                                )}
                             </select>
                             <div className="mt-1 text-[10px] text-gray-500">
                               {isOwnerDoc
@@ -827,11 +860,11 @@ export default function DocumentsCenterPage() {
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       </main>
     </RoleGuard>
