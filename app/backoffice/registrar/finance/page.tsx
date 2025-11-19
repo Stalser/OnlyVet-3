@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { supabase } from "@/lib/supabaseClient";
-
-type DocKind = "owner" | "pet";
+import { createSimpleInvoiceForOwner } from "@/lib/finance";
 
 type InvoiceRow = {
   id: number;
@@ -19,16 +18,16 @@ type InvoiceRow = {
   notes: string | null;
 };
 
-type KindFilter = "all" | "owner" | "pet";
+type KindFilter = "all" | "owner" | "pet"; // на будущее, если захотим разделять
 
-const STORAGE_BUCKET = "onlyvet-docs"; // на будущее, если будем показывать файлы
+const STORAGE_BUCKET = "onlyvet-docs"; // пока не используем, но оставляем на будущее
 
 export default function FinanceCenterPage() {
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // фильтры
+  // фильтры (глобальные)
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -37,88 +36,90 @@ export default function FinanceCenterPage() {
   // ошибки действий
   const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let ignore = false;
+  // форма создания счёта
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newOwnerId, setNewOwnerId] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [savingInvoice, setSavingInvoice] = useState(false);
 
-    async function loadAll() {
-      setLoading(true);
-      setLoadError(null);
-      setActionError(null);
+  // ===== ЗАГРУЗКА ВСЕХ СЧЁТОВ =====
 
-      const client = supabase;
-      if (!client) {
-        setLoadError("Supabase недоступен на клиенте.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        // 1. Считываем все счета
-        const { data: invData, error: invError } = await client
-          .from("invoices")
-          .select(
-            "id, owner_id, status, created_at, total_amount, currency, notes"
-          )
-          .order("created_at", { ascending: false });
-
-        if (invError) throw invError;
-
-        const invoices = (invData || []) as any[];
-
-        // 2. Подбираем владельцев
-        const ownerIds = Array.from(
-          new Set<number>(
-            invoices
-              .map((i) => i.owner_id)
-              .filter((id: number | null) => id != null)
-          )
-        );
-
-        let owners: { user_id: number; full_name: string | null }[] = [];
-        if (ownerIds.length > 0) {
-          const { data: ownersData, error: ownersError } = await client
-            .from("owner_profiles")
-            .select("user_id, full_name")
-            .in("user_id", ownerIds);
-
-          if (ownersError) throw ownersError;
-          owners =
-            (ownersData as { user_id: number; full_name: string | null }[]) ||
-            [];
-        }
-
-        const ownerMap = new Map<number, string | null>();
-        owners.forEach((o) => ownerMap.set(o.user_id, o.full_name));
-
-        const unified: InvoiceRow[] = invoices.map((inv) => ({
-          id: inv.id,
-          ownerId: inv.owner_id ?? null,
-          ownerName:
-            (inv.owner_id != null ? ownerMap.get(inv.owner_id) : null) || null,
-          status: inv.status,
-          created_at: inv.created_at,
-          total_amount: Number(inv.total_amount ?? 0),
-          currency: inv.currency || "RUB",
-          notes: inv.notes ?? null,
-        }));
-
-        if (!ignore) {
-          setRows(unified);
-        }
-      } catch (e) {
-        console.error("loadAll invoices error", e);
-        if (!ignore) {
-          setLoadError("Не удалось загрузить список счетов.");
-        }
-      } finally {
-        if (!ignore) setLoading(false);
-      }
+  const fetchInvoices = async () => {
+    const client = supabase;
+    if (!client) {
+      setLoadError("Supabase недоступен на клиенте.");
+      setLoading(false);
+      return;
     }
 
-    loadAll();
-    return () => {
-      ignore = true;
-    };
+    setLoading(true);
+    setLoadError(null);
+    setActionError(null);
+
+    try {
+      // 1. Считаем все счета
+      const { data: invData, error: invError } = await client
+        .from("invoices")
+        .select(
+          "id, owner_id, status, created_at, total_amount, currency, notes"
+        )
+        .order("created_at", { ascending: false });
+
+      if (invError) throw invError;
+
+      const invoices = (invData || []) as any[];
+
+      // 2. Подбираем владельцев
+      const ownerIds = Array.from(
+        new Set<number>(
+          invoices
+            .map((i) => i.owner_id)
+            .filter((id: number | null) => id != null)
+        )
+      );
+
+      let owners: { user_id: number; full_name: string | null }[] = [];
+      if (ownerIds.length > 0) {
+        const { data: ownersData, error: ownersError } = await client
+          .from("owner_profiles")
+          .select("user_id, full_name")
+          .in("user_id", ownerIds);
+
+        if (ownersError) throw ownersError;
+        owners =
+          (ownersData as { user_id: number; full_name: string | null }[]) ||
+          [];
+      }
+
+      const ownerMap = new Map<number, string | null>();
+      owners.forEach((o) => ownerMap.set(o.user_id, o.full_name));
+
+      const unified: InvoiceRow[] = invoices.map((inv) => ({
+        id: inv.id,
+        ownerId: inv.owner_id ?? null,
+        ownerName:
+          (inv.owner_id != null ? ownerMap.get(inv.owner_id) : null) || null,
+        status: inv.status,
+        created_at: inv.created_at,
+        total_amount: Number(inv.total_amount ?? 0),
+        currency: inv.currency || "RUB",
+        notes: inv.notes ?? null,
+      }));
+
+      setRows(unified);
+    } catch (e) {
+      console.error("loadAll invoices error", e);
+      setLoadError("Не удалось загрузить список счетов.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetFilters = () => {
@@ -127,6 +128,8 @@ export default function FinanceCenterPage() {
     setDateFrom("");
     setDateTo("");
   };
+
+  // ===== ФИЛЬТРАЦИЯ =====
 
   const filteredRows = rows.filter((r) => {
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
@@ -190,6 +193,58 @@ export default function FinanceCenterPage() {
     0
   );
 
+  // ===== СОЗДАНИЕ СЧЁТА ИЗ FINANCE CENTER =====
+
+  const handleCreateInvoice = async (e: FormEvent) => {
+    e.preventDefault();
+    setActionError(null);
+
+    const ownerIdNum = Number(newOwnerId);
+    if (!Number.isInteger(ownerIdNum) || ownerIdNum <= 0) {
+      setActionError("Укажите корректный ID клиента (целое положительное число).");
+      return;
+    }
+
+    if (!newDescription.trim()) {
+      setActionError("Укажите описание счёта.");
+      return;
+    }
+
+    const amountNum = Number(newAmount.replace(",", "."));
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      setActionError("Сумма счёта должна быть положительным числом.");
+      return;
+    }
+
+    setSavingInvoice(true);
+
+    try {
+      await createSimpleInvoiceForOwner({
+        ownerId: ownerIdNum,
+        description: newDescription.trim(),
+        amount: amountNum,
+        notes: newNotes.trim() || null,
+      });
+
+      // перезагружаем список счётов
+      await fetchInvoices();
+
+      // сбрасываем форму
+      setNewOwnerId("");
+      setNewDescription("");
+      setNewAmount("");
+      setNewNotes("");
+      setShowCreateForm(false);
+    } catch (err: any) {
+      console.error("handleCreateInvoice error", err);
+      setActionError(
+        err?.message || "Не удалось создать счёт. Проверьте данные."
+      );
+    } finally {
+      setSavingInvoice(false);
+    }
+  };
+
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
@@ -207,7 +262,7 @@ export default function FinanceCenterPage() {
             </h1>
             <p className="text-sm text-gray-500">
               Счета за консультации и услуги, статусы оплат и сводка по
-              клиентам. Пока режим только просмотра, без редактирования.
+              клиентам.
             </p>
           </div>
           <RegistrarHeader />
@@ -225,9 +280,9 @@ export default function FinanceCenterPage() {
           </section>
         )}
 
-        {/* СВОДКА + ФИЛЬТРЫ ПО ВЕРХУ ТАБЛИЦЫ */}
+        {/* СЧЕТА КЛИЕНТОВ */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          {/* Заголовок + счётчик + кнопки справа */}
+          {/* Заголовок + сводка + кнопки справа */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               <h2 className="text-sm font-semibold">Счета клиентов</h2>
@@ -239,9 +294,19 @@ export default function FinanceCenterPage() {
                   </span>{" "}
                   из{" "}
                   <span className="font-semibold">{rows.length}</span>{" "}
-                  счетов. Страница {page} из {totalPages}.
+                  счетов. Страница 1 из 1.
                 </div>
               )}
+              <div className="text-[11px] text-gray-500">
+                Всего по счетам:{" "}
+                <span className="font-semibold">
+                  {totalAmount.toLocaleString("ru-RU", {
+                    style: "currency",
+                    currency: "RUB",
+                    maximumFractionDigits: 0,
+                  })}
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -252,22 +317,108 @@ export default function FinanceCenterPage() {
               >
                 Сбросить фильтры
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateForm((v) => !v);
+                  setActionError(null);
+                }}
+                className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+              >
+                {showCreateForm ? "Свернуть" : "Создать счёт"}
+              </button>
             </div>
           </div>
 
-          <div className="grid gap-2 text-[11px] md:grid-cols-3">
-            <div className="rounded-xl border bg-gray-50 px-3 py-2">
-              <div className="text-gray-500">Всего по счетам</div>
-              <div className="text-lg font-semibold">
-                {totalAmount.toLocaleString("ru-RU", {
-                  style: "currency",
-                  currency: "RUB",
-                  maximumFractionDigits: 0,
-                })}
-              </div>
-            </div>
-          </div>
+          {/* ФОРМА СОЗДАНИЯ СЧЁТА */}
+          {showCreateForm && (
+            <div className="mt-2 rounded-xl border bg-gray-50 p-3">
+              <h3 className="text-xs font-semibold text-gray-700">
+                Создать новый счёт
+              </h3>
+              <form
+                onSubmit={handleCreateInvoice}
+                className="mt-2 grid gap-2 text-[11px] md:grid-cols-2"
+              >
+                <div>
+                  <label className="mb-1 block text-gray-500">
+                    ID клиента <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newOwnerId}
+                    onChange={(e) => setNewOwnerId(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-1.5"
+                    placeholder="Например: 4 (ID из картотеки клиентов)"
+                  />
+                </div>
 
+                <div>
+                  <label className="mb-1 block text-gray-500">
+                    Сумма счёта (RUB) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={newAmount}
+                    onChange={(e) => setNewAmount(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-1.5"
+                    placeholder="Например: 3500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-gray-500">
+                    Описание счёта <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-1.5"
+                    placeholder="Например: Консультация + анализы"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-gray-500">
+                    Служебные заметки
+                  </label>
+                  <textarea
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-1.5"
+                    rows={2}
+                    placeholder="Например: счёт за приём от 19.11.2025, оплатить до..."
+                  />
+                </div>
+
+                <div className="md:col-span-2 flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setActionError(null);
+                    }}
+                    className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingInvoice}
+                    className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {savingInvoice ? "Создаю…" : "Создать счёт"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ТАБЛИЦА СЧЁТОВ */}
           <div className="overflow-x-auto">
             <table className="min-w-full text-[11px]">
               <thead>
@@ -280,9 +431,9 @@ export default function FinanceCenterPage() {
                   <th className="px-2 py-2">Примечания</th>
                   <th className="px-2 py-2 text-right">Действия</th>
                 </tr>
-                {/* строка фильтров по колонкам, аналогично "Клиенты" */}
+                {/* строка фильтров по колонкам */}
                 <tr className="border-b bg-white text-[11px] text-gray-700">
-                  <th className="px-2 py-2 align-top"></th>
+                  <th className="px-2 py-2 align-top" />
                   <th className="px-2 py-2 align-top">
                     <div className="space-y-1">
                       <input
@@ -322,9 +473,9 @@ export default function FinanceCenterPage() {
                       <option value="cancelled">Отменённые</option>
                     </select>
                   </th>
-                  <th className="px-2 py-2 align-top"></th>
-                  <th className="px-2 py-2 align-top"></th>
-                  <th className="px-2 py-2 align-top"></th>
+                  <th className="px-2 py-2 align-top" />
+                  <th className="px-2 py-2 align-top" />
+                  <th className="px-2 py-2 align-top" />
                 </tr>
               </thead>
               <tbody>
@@ -415,9 +566,7 @@ export default function FinanceCenterPage() {
           {/* “подвал” как в Клиентах */}
           {!loading && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
-              <div>
-                Страница {page} из {totalPages}.
-              </div>
+              <div>Страница 1 из 1.</div>
               <div className="flex gap-2">
                 <button
                   type="button"
