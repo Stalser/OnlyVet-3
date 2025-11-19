@@ -59,7 +59,7 @@ type KindFilter = "all" | "owner" | "pet";
 // bucket в Supabase Storage – тот же, что и в блоках клиента/питомца
 const STORAGE_BUCKET = "onlyvet-docs";
 
-// Справочники типов документов (как string[], без as const)
+// Справочники типов документов
 const OWNER_DOC_TYPES: string[] = [
   "Договор на оказание услуг",
   "Долгосрочный договор / абонемент",
@@ -83,7 +83,7 @@ const PET_DOC_TYPES: string[] = [
   "Иное",
 ];
 
-// Все возможные типы для фильтра «Тип документа» – статически, а не из БД
+// Все возможные типы для фильтра «Тип документа»
 const typeOptions: string[] = Array.from(
   new Set<string>([...OWNER_DOC_TYPES, ...PET_DOC_TYPES])
 );
@@ -421,6 +421,11 @@ export default function DocumentsCenterPage() {
     return true;
   });
 
+  // Пока делаем одну страницу, без реальной пагинации
+  const page = 1;
+  const totalPages = 1;
+  const visibleRows = filteredRows;
+
   const formatDateTime = (iso: string) => {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -432,7 +437,7 @@ export default function DocumentsCenterPage() {
     <RoleGuard allowed={["registrar", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         {/* ШАПКА */}
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify_between">
           <div>
             <Link
               href="/backoffice/registrar"
@@ -469,7 +474,7 @@ export default function DocumentsCenterPage() {
           <div className="grid gap-3 text-[11px] md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <div className="text-gray-500">Принадлежность</div>
-              <div className="flex flex_wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setKindFilter("all")}
@@ -585,7 +590,7 @@ export default function DocumentsCenterPage() {
                 <>
                   Показано{" "}
                   <span className="font-semibold">
-                    {filteredRows.length}
+                    {visibleRows.length}
                   </span>{" "}
                   из{" "}
                   <span className="font-semibold">{rows.length}</span>{" "}
@@ -617,7 +622,7 @@ export default function DocumentsCenterPage() {
                       Загрузка документов…
                     </td>
                   </tr>
-                ) : filteredRows.length === 0 ? (
+                ) : visibleRows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6}
@@ -627,7 +632,7 @@ export default function DocumentsCenterPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map((row) => {
+                  visibleRows.map((row) => {
                     const isEditing =
                       editingId === row.id && editingKind === row.kind;
                     const isOwnerDoc = row.kind === "owner";
@@ -862,6 +867,31 @@ export default function DocumentsCenterPage() {
               </tbody>
             </table>
           </div>
+
+          {/* “подвал” как в Клиентах: страница 1 из 1 и кнопки навигации */}
+          {!loading && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
+              <div>
+                Страница {page} из {totalPages}.
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled
+                  className="rounded-xl border px-3 py-1.5 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300"
+                >
+                  Назад
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="rounded-xl border px-3 py-1.5 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300"
+                >
+                  Вперёд
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </RoleGuard>
