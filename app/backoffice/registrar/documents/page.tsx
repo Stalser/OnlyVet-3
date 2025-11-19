@@ -57,6 +57,15 @@ type PetRow = {
 // Фильтры
 type KindFilter = "all" | "owner" | "pet";
 
+// имя bucket'а, как в Client/PetDocumentsSection
+const STORAGE_BUCKET = "onlyvet-docs";
+
+// определяем, наш ли это файл из Supabase Storage
+function isInternalFile(url: string | null | undefined) {
+  if (!url) return false;
+  return url.includes(`/storage/v1/object/public/${STORAGE_BUCKET}/`);
+}
+
 export default function DocumentsCenterPage() {
   const [rows, setRows] = useState<UnifiedDocRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +88,7 @@ export default function DocumentsCenterPage() {
   const [savingEdit, setSavingEdit] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // вспомогательные наборы типов (для списков)
+  // списки типов для подсказок при редактировании
   const OWNER_DOC_TYPES = [
     "Договор на оказание услуг",
     "Долгосрочный договор / абонемент",
@@ -130,7 +139,6 @@ export default function DocumentsCenterPage() {
             );
 
         if (ownerDocsError) throw ownerDocsError;
-
         const ownerDocs = (ownerDocsData || []) as OwnerDocRaw[];
 
         // 2. Документы питомцев
@@ -141,12 +149,12 @@ export default function DocumentsCenterPage() {
           );
 
         if (petDocsError) throw petDocsError;
-
         const petDocs = (petDocsData || []) as PetDocRaw[];
 
-        // Собираем все ownerId и petId
+        // Собираем ID
         const ownerIds = new Set<number>();
         ownerDocs.forEach((d) => ownerIds.add(d.owner_id));
+
         const petIds = new Set<number>();
         petDocs.forEach((d) => petIds.add(d.pet_id));
 
@@ -226,17 +234,16 @@ export default function DocumentsCenterPage() {
           });
         }
 
-        // сортировка — новые сверху
         unified.sort((a, b) => {
           const da = new Date(a.created_at).getTime();
           const db = new Date(b.created_at).getTime();
-          return db - da;
+          return db - da; // новые сверху
         });
 
         if (!ignore) {
           setRows(unified);
         }
-      } catch (e: any) {
+      } catch (e) {
         console.error("loadAll documents error", e);
         if (!ignore) {
           setLoadError("Не удалось загрузить общий список документов.");
@@ -252,7 +259,7 @@ export default function DocumentsCenterPage() {
     };
   }, []);
 
-  // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+  // ===== ВСПОМОГАТЕЛЬНЫЕ ДЕЙСТВИЯ =====
 
   const startEditRow = (row: UnifiedDocRow) => {
     setEditingId(row.id);
@@ -315,11 +322,7 @@ export default function DocumentsCenterPage() {
         prev
           .map((r) =>
             r.id === editingId && r.kind === editingKind
-              ? {
-                  ...r,
-                  ...payload,
-                  // created_at не меняем, только обновляем в базе updated_at
-                }
+              ? { ...r, ...payload }
               : r
           )
           .sort((a, b) => {
@@ -393,10 +396,9 @@ export default function DocumentsCenterPage() {
     }
 
     if (dateTo) {
-      const toTs = new Date(dateTo).getTime();
       const createdTs = new Date(r.created_at).getTime();
-      // включительно
-      if (createdTs > new Date(dateTo + "T23:59:59").getTime()) return false;
+      const endOfDay = new Date(dateTo + "T23:59:59").getTime();
+      if (createdTs > endOfDay) return false;
     }
 
     const q = searchQuery.trim().toLowerCase();
@@ -604,12 +606,11 @@ export default function DocumentsCenterPage() {
                     const isEditing =
                       editingId === row.id && editingKind === row.kind;
                     const isOwnerDoc = row.kind === "owner";
+                    const isFile = isInternalFile(row.file_url);
 
                     if (isEditing) {
                       const typeList =
-                        row.kind === "owner"
-                          ? OWNER_DOC_TYPES
-                          : PET_DOC_TYPES;
+                        row.kind === "owner" ? OWNER_DOC_TYPES : PET_DOC_TYPES;
 
                       return (
                         <tr key={`${row.kind}-${row.id}`} className="border-b">
@@ -630,6 +631,11 @@ export default function DocumentsCenterPage() {
                                 <option value={editType}>{editType}</option>
                               )}
                             </select>
+                            <div className="mt-1 text-[10px] text-gray-500">
+                              {isOwnerDoc
+                                ? "Документ клиента"
+                                : "Документ питомца"}
+                            </div>
                           </td>
                           <td className="px-2 py-2 align-top">
                             <input
@@ -652,9 +658,29 @@ export default function DocumentsCenterPage() {
                           </td>
                           <td className="px-2 py-2 align-top text-gray-700">
                             {row.ownerName || "—"}
+                            {row.ownerId && (
+                              <div>
+                                <Link
+                                  href={`/backoffice/registrar/clients/${row.ownerId}`}
+                                  className="text-[10px] text-emerald-700 hover:underline"
+                                >
+                                  Открыть клиента
+                                </Link>
+                              </div>
+                            )}
                           </td>
                           <td className="px-2 py-2 align-top text-gray-700">
                             {row.petName || "—"}
+                            {row.petId && (
+                              <div>
+                                <Link
+                                  href={`/backoffice/registrar/pets/${row.petId}`}
+                                  className="text-[10px] text-emerald-700 hover:underline"
+                                >
+                                  Открыть питомца
+                                </Link>
+                              </div>
+                            )}
                           </td>
                           <td className="px-2 py-2 align-top text-gray-500">
                             {formatDateTime(row.created_at)}
@@ -700,6 +726,11 @@ export default function DocumentsCenterPage() {
                           <div className="mt-1 text-[11px] text-gray-700">
                             {row.type || "—"}
                           </div>
+                          {row.file_url && (
+                            <div className="mt-1 text-[10px] text-gray-400">
+                              {isFile ? "Файл (хранилище)" : "Ссылка"}
+                            </div>
+                          )}
                         </td>
                         <td className="px-2 py-2 align-top">
                           {row.file_url ? (
@@ -707,6 +738,7 @@ export default function DocumentsCenterPage() {
                               href={row.file_url}
                               target="_blank"
                               rel="noreferrer"
+                              title={row.file_url}
                               className="text-emerald-700 hover:underline"
                             >
                               {row.title || "Документ"}
@@ -753,14 +785,30 @@ export default function DocumentsCenterPage() {
                         </td>
                         <td className="px-2 py-2 align-top text-right space-y-1">
                           {row.file_url && (
-                            <a
-                              href={row.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
-                            >
-                              Открыть / скачать
-                            </a>
+                            <>
+                              {isFile ? (
+                                <a
+                                  href={row.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title={row.file_url}
+                                  download
+                                  className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                >
+                                  Открыть файл
+                                </a>
+                              ) : (
+                                <a
+                                  href={row.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title={row.file_url}
+                                  className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                                >
+                                  Перейти по ссылке
+                                </a>
+                              )}
+                            </>
                           )}
                           <button
                             type="button"
