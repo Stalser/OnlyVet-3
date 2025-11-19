@@ -1,18 +1,22 @@
-// components/registrar/ClientFinanceSection.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import type { InvoiceWithPayments } from "@/lib/finance";
-import { getOwnerInvoices } from "@/lib/finance";
+import { getOwnerInvoices, type InvoiceWithPayments } from "@/lib/finance";
 
 type Props = {
   ownerId: number;
+  /** Может ли текущий пользователь управлять финансами (создание/редактирование счетов). */
   canManage?: boolean;
 };
 
 function getPaidAmount(invoice: InvoiceWithPayments): number {
   return (invoice.payments || [])
-    .filter((p) => p.status === "successful" || p.status === "paid")
+    .filter(
+      (p) =>
+        p.status === "successful" ||
+        p.status === "paid" ||
+        p.status === "completed"
+    )
     .reduce((sum, p) => sum + (p.amount || 0), 0);
 }
 
@@ -34,7 +38,10 @@ function statusLabel(status: string) {
     case "partial":
       return { text: "Частично оплачен", color: "bg-amber-100 text-amber-700" };
     case "cancelled":
-      return { text: "Отменён", color: "bg-red-100 text-red-700 line-through" };
+      return {
+        text: "Отменён",
+        color: "bg-red-100 text-red-700 line-through",
+      };
     default:
       return { text: status || "—", color: "bg-gray-100 text-gray-700" };
   }
@@ -99,12 +106,14 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-3">
+      {/* ШАПКА БЛОКА */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Финансы клиента</h2>
           <p className="text-[11px] text-gray-500">
-            Счета и оплаты по всем консультациям и услугам. На следующем шаге
-            добавим создание и редактирование счетов.
+            Счета и оплаты по всем консультациям и услугам клиента. Здесь пока
+            только просмотр; создание и редактирование счетов добавим на
+            следующем шаге.
           </p>
         </div>
         {canManage && (
@@ -120,7 +129,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
         )}
       </div>
 
-      {/* Сводка */}
+      {/* СВОДКА */}
       <div className="grid gap-2 text-[11px] md:grid-cols-3">
         <div className="rounded-xl border bg-gray-50 px-3 py-2">
           <div className="text-gray-500">Всего выставлено</div>
@@ -154,7 +163,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
         </div>
       </div>
 
-      {/* Фильтр по статусу */}
+      {/* ФИЛЬТР ПО СТАТУСУ */}
       {!loading && invoices.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           <span className="text-gray-500">Фильтр по статусу:</span>
@@ -194,14 +203,14 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
         </div>
       )}
 
-      {/* Ошибки */}
+      {/* ОШИБКИ */}
       {errorText && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
           {errorText}
         </div>
       )}
 
-      {/* Таблица счетов */}
+      {/* ТАБЛИЦА СЧЁТОВ */}
       {!loading && (
         <div className="overflow-x-auto">
           <table className="min-w-full text-[11px]">
@@ -280,9 +289,11 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
                       <td className="px-2 py-2 align-top text-right space-y-1">
                         <button
                           type="button"
-                          className "block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                          className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
                           onClick={() => {
-                            alert(`Открытие счёта #${inv.id} сделаем позже.`);
+                            alert(
+                              `Открытие подробностей счёта #${inv.id} добавим на следующем шаге.`
+                            );
                           }}
                         >
                           Открыть
@@ -294,6 +305,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
               )}
             </tbody>
           </table>
+
           {!loading && filteredInvoices.length > 0 && (
             <div className="mt-2 text-[10px] text-gray-500">
               Всего счетов: {invoices.length}. Отфильтровано:{" "}
