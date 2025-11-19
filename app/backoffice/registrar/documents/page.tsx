@@ -99,14 +99,17 @@ export default function DocumentsCenterPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // фильтры (по колонкам)
+  // ГЛОБАЛЬНЫЕ ФИЛЬТРЫ (верхний блок)
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [searchAll, setSearchAll] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+
+  // ФИЛЬТРЫ ПО КОЛОНКАМ (строка под шапкой таблицы)
   const [titleFilter, setTitleFilter] = useState<string>("");
   const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [petFilter, setPetFilter] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
 
   // редактирование
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -268,6 +271,7 @@ export default function DocumentsCenterPage() {
   const resetFilters = () => {
     setKindFilter("all");
     setTypeFilter("all");
+    setSearchAll("");
     setTitleFilter("");
     setOwnerFilter("");
     setPetFilter("");
@@ -397,10 +401,38 @@ export default function DocumentsCenterPage() {
   // ===== ПРИМЕНЕНИЕ ФИЛЬТРОВ =====
 
   const filteredRows = rows.filter((r) => {
+    // глобальные фильтры
     if (kindFilter !== "all" && r.kind !== kindFilter) return false;
-
     if (typeFilter !== "all" && r.type !== typeFilter) return false;
 
+    if (searchAll.trim()) {
+      const q = searchAll.trim().toLowerCase();
+      const haystack =
+        (r.title || "").toLowerCase() +
+        " " +
+        (r.type || "").toLowerCase() +
+        " " +
+        (r.notes || "").toLowerCase() +
+        " " +
+        (r.ownerName || "").toLowerCase() +
+        " " +
+        (r.petName || "").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
+    if (dateFrom) {
+      const fromTs = new Date(dateFrom).getTime();
+      const createdTs = new Date(r.created_at).getTime();
+      if (createdTs < fromTs) return false;
+    }
+
+    if (dateTo) {
+      const createdTs = new Date(r.created_at).getTime();
+      const endOfDay = new Date(dateTo + "T23:59:59").getTime();
+      if (createdTs > endOfDay) return false;
+    }
+
+    // фильтры по колонкам
     if (titleFilter.trim()) {
       const q = titleFilter.trim().toLowerCase();
       const haystack =
@@ -420,22 +452,9 @@ export default function DocumentsCenterPage() {
       if (!(r.petName || "").toLowerCase().includes(q)) return false;
     }
 
-    if (dateFrom) {
-      const fromTs = new Date(dateFrom).getTime();
-      const createdTs = new Date(r.created_at).getTime();
-      if (createdTs < fromTs) return false;
-    }
-
-    if (dateTo) {
-      const createdTs = new Date(r.created_at).getTime();
-      const endOfDay = new Date(dateTo + "T23:59:59").getTime();
-      if (createdTs > endOfDay) return false;
-    }
-
     return true;
   });
 
-  // пока без реальной разбивки, вся выборка = одна страница
   const page = 1;
   const totalPages = 1;
   const visibleRows = filteredRows;
@@ -482,7 +501,111 @@ export default function DocumentsCenterPage() {
           </section>
         )}
 
-        {/* ТАБЛИЦА ДОКУМЕНТОВ + ФИЛЬТРЫ КАК У "КЛИЕНТОВ" */}
+        {/* ВЕРХНИЙ БЛОК "ФИЛЬТРЫ" — как раньше */}
+        <section className="rounded-2xl border bg-white p-4 space-y-3">
+          <h2 className="text-sm font-semibold">Фильтры</h2>
+          <div className="grid gap-3 text-[11px] md:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-1">
+              <div className="text-gray-500">Принадлежность</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setKindFilter("all")}
+                  className={`rounded-xl border px-3 py-1.5 ${
+                    kindFilter === "all"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Все
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKindFilter("owner")}
+                  className={`rounded-xl border px-3 py-1.5 ${
+                    kindFilter === "owner"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Документы клиента
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKindFilter("pet")}
+                  className={`rounded-xl border px-3 py-1.5 ${
+                    kindFilter === "pet"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Документы питомца
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-gray-500">Тип документа</label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="w-full rounded-xl border px-3 py-1.5"
+              >
+                <option value="all">Все типы</option>
+                {typeOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-gray-500">Поиск по тексту</label>
+              <input
+                type="text"
+                value={searchAll}
+                onChange={(e) => setSearchAll(e.target.value)}
+                className="w-full rounded-xl border px-3 py-1.5"
+                placeholder="Название, клиент, питомец, пометки…"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-gray-500">Дата с</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full rounded-xl border px-3 py-1.5"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-gray-500">Дата по</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full rounded-xl border px-3 py-1.5"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-gray-500">Быстрые действия</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="rounded-xl border border-emerald-600 px-3 py-1.5 text-gray-700 hover:bg-emerald-50"
+                >
+                  Сбросить фильтры
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* БЛОК "ВСЕ ДОКУМЕНТЫ" — как Клиенты + фильтры по колонкам */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           {/* Заголовок + счётчик + кнопки справа */}
           <div className="flex flex-wrap items-center justify-between gap-3">
