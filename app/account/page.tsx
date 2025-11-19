@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type AuthRole = "guest" | "user" | "staff";
 
 type DbOwnerProfile = {
-  id: number; // TODO: или user_id, если так в БД
+  id: number; // или user_id, если так в БД
   full_name: string | null;
   phone: string | null;
   telegram?: string | null;
@@ -22,7 +22,11 @@ type DbPet = {
   species: string | null;
 };
 
-type AppointmentStatus = "запрошена" | "подтверждена" | "завершена" | "отменена";
+type AppointmentStatus =
+  | "запрошена"
+  | "подтверждена"
+  | "завершена"
+  | "отменена";
 
 type DbAppointment = {
   id: string;
@@ -43,8 +47,9 @@ type DbDocument = {
   created_at: string;
   appointment_id: string | null;
   appointments?: {
+    owner_id: number;
     pet_name: string;
-  } | null;
+  }[];
 };
 
 export default function AccountPage() {
@@ -71,7 +76,6 @@ export default function AccountPage() {
   );
 
   useEffect(() => {
-    // Если supabase не сконфигурирован
     if (!supabase) {
       setError("Supabase не сконфигурирован (нет env-переменных).");
       setLoading(false);
@@ -84,7 +88,7 @@ export default function AccountPage() {
       setLoading(true);
       setError(null);
 
-      // 1. Текущий пользователь (из Auth)
+      // 1. Текущий пользователь
       const { data: userData, error: userErr } = await client.auth.getUser();
 
       if (userErr) {
@@ -105,7 +109,7 @@ export default function AccountPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. owner_profiles
+      // 2. Профиль владельца
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
         .select("id, full_name, phone, telegram, email, auth_id")
@@ -129,7 +133,7 @@ export default function AccountPage() {
       }
 
       setOwner(ownerProfile as DbOwnerProfile);
-      const ownerId = (ownerProfile as any).id; // TODO: подправить под свою схему
+      const ownerId = (ownerProfile as any).id; // при необходимости поменять на user_id
 
       // 3. Питомцы
       const { data: petsData, error: petsErr } = await client
@@ -145,7 +149,7 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи
+      // 4. Записи (appointments)
       const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
@@ -224,7 +228,7 @@ export default function AccountPage() {
       Array.from(
         new Set(
           docs
-            .map((d) => d.appointments?.pet_name)
+            .map((d) => d.appointments?.[0]?.pet_name)
             .filter((x): x is string => Boolean(x))
         )
       ),
@@ -234,7 +238,7 @@ export default function AccountPage() {
   const filteredDocs = useMemo(
     () =>
       docs.filter((d) => {
-        const petName = d.appointments?.pet_name;
+        const petName = d.appointments?.[0]?.pet_name;
         if (docPetFilter !== "all" && petName !== docPetFilter) return false;
         if (docTypeFilter !== "all" && d.type !== docTypeFilter) return false;
         return true;
@@ -246,7 +250,7 @@ export default function AccountPage() {
 
   if (!loading && role === "guest") {
     return (
-      <main className="bg-slate-50.min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <h1 className="text-xl font-semibold">
             Личный кабинет доступен только авторизованным пользователям
@@ -256,7 +260,7 @@ export default function AccountPage() {
           </p>
           <Link
             href="/auth/login"
-            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="inline-block.mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Войти
           </Link>
@@ -413,7 +417,7 @@ export default function AccountPage() {
 
         {/* Документы */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
-          <div className="flex flex-col.sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Документы</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
@@ -526,7 +530,11 @@ function DocumentRow({ doc }: { doc: DbDocument }) {
     month: "2-digit",
     year: "2-digit",
   });
-  const petName = doc.appointments?.pet_name ?? "Питомец не указан";
+
+  const petName =
+    doc.appointments && doc.appointments.length > 0
+      ? doc.appointments[0].pet_name
+      : "Питомец не указан";
 
   return (
     <li className="rounded-xl border p-3 bg-gray-50 flex justify-between items-center">
