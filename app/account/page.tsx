@@ -1,92 +1,277 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
 
-import {
-  appointments,
-  currentUserId,
-  type Appointment,
-} from "../../lib/appointments";
+type AuthRole = "guest" | "user" | "staff";
 
-import {
-  mockMedicalDocs,
-  type MedicalDocument,
-} from "../../lib/medicalDocs";
+type DbOwnerProfile = {
+  id: number;           // TODO: или user_id, если так в БД
+  full_name: string | null;
+  phone: string | null;
+  telegram?: string | null;
+  email?: string | null;
+  auth_id?: string | null; // uuid из auth.users
+};
+
+type DbPet = {
+  id: number;
+  name: string;
+  species: string | null;
+};
+
+type AppointmentStatus = "запрошена" | "подтверждена" | "завершена" | "отменена";
+
+type DbAppointment = {
+  id: string;
+  // TODO: подставь реальные имена полей по своей схеме
+  starts_at: string;           // timestamptz
+  pet_name: string;
+  species: string | null;
+  doctor_name: string | null;  // если нет — потом заменим на join с doctors
+  service_name: string | null; // если нет — можно тянуть из services_catalog
+  status: AppointmentStatus;
+};
+
+type DocumentType = "conclusion" | "analysis" | "contract" | "other";
+
+type DbDocument = {
+  id: string;
+  title: string;
+  type: DocumentType;
+  created_at: string;
+  appointment_id: string | null;
+  appointments?: {
+    pet_name: string;
+  } | null;
+};
 
 export default function AccountPage() {
-  // Записи текущего пользователя
-  const myAppointments = useMemo(
-    () => appointments.filter((a) => a.userId === currentUserId),
-    []
-  );
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<AuthRole>("guest");
 
-  // Питомцы (для профиля)
-  const pets = useMemo(() => {
-    const map = new Map<string, { name: string; species: string }>();
-    myAppointments.forEach((a) => {
-      const key = `${a.petName}-${a.species}`;
-      if (!map.has(key)) {
-        map.set(key, { name: a.petName, species: a.species });
-      }
-    });
-    return Array.from(map.values());
-  }, [myAppointments]);
+  const [owner, setOwner] = useState<DbOwnerProfile | null>(null);
+  const [pets, setPets] = useState<DbPet[]>([]);
+  const [appointments, setAppointments] = useState<DbAppointment[]>([]);
+  const [docs, setDocs] = useState<DbDocument[]>([]);
 
-  // Документы
-  const myDocs = useMemo<MedicalDocument[]>(
-    () => mockMedicalDocs,
-    []
-  );
+  const [error, setError] = useState<string | null>(null);
 
   // Фильтры для записей
   const [apptPetFilter, setApptPetFilter] = useState<string>("all");
   const [apptStatusFilter, setApptStatusFilter] = useState<
-    Appointment["status"] | "all"
+    AppointmentStatus | "all"
   >("all");
 
+  // Фильтры для документов
+  const [docPetFilter, setDocPetFilter] = useState<string>("all");
+  const [docTypeFilter, setDocTypeFilter] = useState<DocumentType | "all">(
+    "all"
+  );
+
+  useEffect(() => {
+    if (!supabase) {
+      setError("Supabase не сконфигурирован (нет env-переменных).");
+      setLoading(false);
+      return;
+    }
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+
+      // 1. Текущий пользователь (из Auth)
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr) {
+        setError("Ошибка получения пользователя");
+        setLoading(false);
+        return;
+      }
+
+      const user = userData.user;
+      if (!user) {
+        setRole("guest");
+        setLoading(false);
+        return;
+      }
+
+      // роль из user_metadata, как в Navbar
+      const metaRole =
+        (user.user_metadata?.role as AuthRole | undefined) ?? "user";
+      setRole(metaRole === "staff" ? "staff" : "user");
+
+      // 2. Ищем owner_profile, привязанный к auth.users.id
+      const { data: ownerProfile, error: ownerErr } = await supabase
+        .from("owner_profiles")
+        // TODO: если у тебя поле называется по-другому, например auth_id → поправь
+        .select("id, full_name, phone, telegram, email, auth_id")
+        .eq("auth_id", user.id)
+        .maybeSingle();
+
+      if (ownerErr) {
+        console.error(ownerErr);
+        setError("Ошибка получения профиля владельца");
+        setLoading(false);
+        return;
+      }
+
+      if (!ownerProfile) {
+        // Владельца ещё нет в картотеке
+        setOwner(null);
+        setPets([]);
+        setAppointments([]);
+        setDocs([]);
+        setLoading(false);
+        return;
+      }
+
+      setOwner(ownerProfile as DbOwnerProfile);
+
+      // Предположим, что owner_id в pets и appointments = owner_profiles.id
+      // TODO: если у тебя там user_id или другой FK — поправь eq(...)
+      const ownerId = (ownerProfile as any).id;
+
+      // 3. Питомцы
+      const { data: petsData, error: petsErr } = await supabase
+        .from("pets")
+        .select("id, name, species")
+        .eq("owner_id", ownerId)
+        .order("name", { ascending: true });
+
+      if (petsErr) {
+        console.error(petsErr);
+        setError("Ошибка загрузки питомцев");
+      } else {
+        setPets((petsData ?? []) as DbPet[]);
+      }
+
+      // 4. Записи (appointments)
+      const { data: apptsData, error: apptsErr } = await supabase
+        .from("appointments")
+        .select(
+          `
+          id,
+          starts_at,
+          pet_name,
+          species,
+          status,
+          doctor_name,
+          service_name
+        `
+        )
+        .eq("owner_id", ownerId)
+        .order("starts_at", { ascending: false });
+
+      if (apptsErr) {
+        console.error(apptsErr);
+        setError("Ошибка загрузки записей");
+      } else {
+        setAppointments((apptsData ?? []) as DbAppointment[]);
+      }
+
+      // 5. Документы (appointment_documents + join appointments для pet_name)
+      const { data: docsData, error: docsErr } = await supabase
+        .from("appointment_documents")
+        .select(
+          `
+          id,
+          title,
+          type,
+          created_at,
+          appointment_id,
+          appointments!inner (
+            owner_id,
+            pet_name
+          )
+        `
+        )
+        .eq("appointments.owner_id", ownerId)
+        .order("created_at", { ascending: false });
+
+      if (docsErr) {
+        console.error(docsErr);
+        setError("Ошибка загрузки документов");
+      } else {
+        setDocs((docsData ?? []) as DbDocument[]);
+      }
+
+      setLoading(false);
+    };
+
+    load();
+  }, []);
+
+  // ==== Деривативы ====
+
+  // Варианты питомцев для фильтра записей
   const appointmentPets = useMemo(
-    () => Array.from(new Set(myAppointments.map((a) => a.petName))),
-    [myAppointments]
+    () => Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
+    [appointments]
   );
 
   const filteredAppointments = useMemo(
     () =>
-      myAppointments.filter((a) => {
-        if (apptPetFilter !== "all" && a.petName !== apptPetFilter) return false;
+      appointments.filter((a) => {
+        if (apptPetFilter !== "all" && a.pet_name !== apptPetFilter) return false;
         if (apptStatusFilter !== "all" && a.status !== apptStatusFilter)
           return false;
         return true;
       }),
-    [myAppointments, apptPetFilter, apptStatusFilter]
+    [appointments, apptPetFilter, apptStatusFilter]
   );
 
-  // Фильтры для документов
-  const [docPetFilter, setDocPetFilter] = useState<string>("all");
-  const [docTypeFilter, setDocTypeFilter] = useState<
-    MedicalDocument["type"] | "all"
-  >("all");
-
+  // Питомцы для фильтра документов
   const docPets = useMemo(
-    () => Array.from(new Set(myDocs.map((d) => d.petName))),
-    [myDocs]
+    () =>
+      Array.from(
+        new Set(
+          docs
+            .map((d) => d.appointments?.pet_name)
+            .filter((x): x is string => Boolean(x))
+        )
+      ),
+    [docs]
   );
 
   const filteredDocs = useMemo(
     () =>
-      myDocs.filter((d) => {
-        if (docPetFilter !== "all" && d.petName !== docPetFilter) return false;
+      docs.filter((d) => {
+        const petName = d.appointments?.pet_name;
+        if (docPetFilter !== "all" && petName !== docPetFilter) return false;
         if (docTypeFilter !== "all" && d.type !== docTypeFilter) return false;
         return true;
       }),
-    [myDocs, docPetFilter, docTypeFilter]
+    [docs, docPetFilter, docTypeFilter]
   );
+
+  // ==== UI ====
+
+  // Если пользователь не авторизован
+  if (!loading && role === "guest") {
+    return (
+      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <h1 className="text-xl font-semibold">Личный кабинет доступен только авторизованным пользователям</h1>
+          <p className="text-sm text-gray-600">
+            Пожалуйста, войдите или зарегистрируйтесь, чтобы увидеть свои записи и документы.
+          </p>
+          <Link
+            href="/auth/login"
+            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+          >
+            Войти
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-10">
         {/* Заголовок */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <header className="flex flex-col md:flex-row md:items.end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold">Личный кабинет</h1>
             <p className="text-gray-600 text-sm mt-1">
@@ -95,35 +280,51 @@ export default function AccountPage() {
           </div>
           <Link
             href="/booking"
-            className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="rounded-xl px-4.py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Записаться на консультацию
           </Link>
         </header>
 
+        {/* Ошибка / лоадер */}
+        {loading && (
+          <p className="text-xs text-gray-500">Загружаем ваши данные…</p>
+        )}
+        {error && (
+          <p className="text-xs text-red-600">
+            {error}
+          </p>
+        )}
+
         {/* Профиль и питомцы */}
         <section className="grid md:grid-cols-3 gap-4">
           {/* Профиль */}
           <div className="md:col-span-2 rounded-2xl border bg-white p-4 space-y-2">
-            <h2 className="font-semibold text-base">Профиль</h2>
-            <div className="text-sm">
-              <div className="text-gray-600">
-                <span className="text-xs text-gray-500">Имя: </span>
-                Иванова Анна Сергеевна
+            <h2 className="font-semibold text.base">Профиль</h2>
+            {owner ? (
+              <div className="text-sm space-y-1">
+                <div className="text-gray-600">
+                  <span className="text-xs text-gray-500">Имя: </span>
+                  {owner.full_name || "—"}
+                </div>
+                <div className="text-gray-600">
+                  <span className="text-xs text-gray-500">Email: </span>
+                  {owner.email || "—"}
+                </div>
+                <div className="text-gray-600">
+                  <span className="text-xs text-gray-500">
+                    Телефон/Telegram:
+                  </span>{" "}
+                  {owner.telegram || owner.phone || "—"}
+                </div>
               </div>
-              <div className="text-gray-600">
-                <span className="text-xs text-gray-500">Email: </span>
-                user@example.com
-              </div>
-              <div className="text-gray-600">
-                <span className="text-xs text-gray-500">
-                  Телефон/Telegram:
-                </span>{" "}
-                @username / +7 900 000-00-00
-              </div>
-            </div>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Профиль ещё не заполнен. После первой консультации мы создадим вашу карточку автоматически.
+              </p>
+            )}
             <p className="text-[11px] text-gray-400">
-              Позже эти данные будут подставляться автоматически из вашей регистрации.
+              Позже эти данные будут подставляться автоматически из вашей регистрации и обращения в клинику.
             </p>
           </div>
 
@@ -138,9 +339,11 @@ export default function AccountPage() {
             {pets.length > 0 && (
               <ul className="text-xs space-y-1">
                 {pets.map((p) => (
-                  <li key={`${p.name}-${p.species}`}>
+                  <li key={p.id}>
                     {p.name}{" "}
-                    <span className="text-gray-500">({p.species})</span>
+                    <span className="text-gray-500">
+                      ({p.species || "вид не указан"})
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -155,7 +358,7 @@ export default function AccountPage() {
             {/* Фильтры */}
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
                 value={apptPetFilter}
                 onChange={(e) => setApptPetFilter(e.target.value)}
               >
@@ -171,13 +374,14 @@ export default function AccountPage() {
                 className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptStatusFilter}
                 onChange={(e) =>
-                  setApptStatusFilter(e.target.value as any)
+                  setApptStatusFilter(e.target.value as AppointmentStatus | "all")
                 }
               >
                 <option value="all">Все статусы</option>
                 <option value="запрошена">Запрошена</option>
                 <option value="подтверждена">Подтверждена</option>
                 <option value="завершена">Завершена</option>
+                <option value="отменена">Отменена</option>
               </select>
             </div>
           </div>
@@ -196,10 +400,10 @@ export default function AccountPage() {
                     <th className="py-2 pr-3 text-left font-normal">Дата</th>
                     <th className="py-2 pr-3 text-left font-normal">Время</th>
                     <th className="py-2 pr-3 text-left font-normal">Питомец</th>
-                    <th className="py-2 pr-3.text-left font-normal">Врач</th>
-                    <th className="py-2 pr-3.text-left font-normal">Услуга</th>
-                    <th className="py-2 pr-3.text-left font-normal">Статус</th>
-                    <th className="py-2 text-left font-normal" />
+                    <th className="py-2 pr-3 text-left font-normal">Врач</th>
+                    <th className="py-2 pr-3 text-left font-normal">Услуга</th>
+                    <th className="py-2 pr-3 text-left font-normal">Статус</th>
+                    <th className="py-2 text-left.font-normal" />
                   </tr>
                 </thead>
                 <tbody>
@@ -233,7 +437,9 @@ export default function AccountPage() {
               <select
                 className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
                 value={docTypeFilter}
-                onChange={(e) => setDocTypeFilter(e.target.value as any)}
+                onChange={(e) =>
+                  setDocTypeFilter(e.target.value as DocumentType | "all")
+                }
               >
                 <option value="all">Все типы</option>
                 <option value="conclusion">Заключения</option>
@@ -265,7 +471,7 @@ export default function AccountPage() {
 
 /* ===== Строка записи (кликабельная) ===== */
 
-function AppointmentRow({ a }: { a: Appointment }) {
+function AppointmentRow({ a }: { a: DbAppointment }) {
   const statusColor =
     a.status === "подтверждена"
       ? "text-emerald-700 bg-emerald-50"
@@ -275,18 +481,32 @@ function AppointmentRow({ a }: { a: Appointment }) {
       ? "text-gray-700 bg-gray-50"
       : "text-red-700 bg-red-50";
 
+  const date = new Date(a.starts_at);
+  const dateLabel = date.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+  const timeLabel = date.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   return (
     <tr className="border-b border-gray-50 hover:bg-slate-50">
-      <td className="py-2 pr-3">{a.date}</td>
-      <td className="py-2 pr-3">{a.time}</td>
+      <td className="py-2 pr-3">{dateLabel}</td>
+      <td className="py-2 pr-3">{timeLabel}</td>
       <td className="py-2 pr-3">
-        {a.petName} <span className="text-gray-500">({a.species})</span>
+        {a.pet_name}{" "}
+        <span className="text-gray-500">
+          ({a.species || "вид не указан"})
+        </span>
       </td>
-      <td className="py-2 pr-3">{a.doctorName}</td>
-      <td className="py-2 pr-3">{a.serviceName}</td>
+      <td className="py-2 pr-3">{a.doctor_name || "—"}</td>
+      <td className="py-2 pr-3">{a.service_name || "—"}</td>
       <td className="py-2 pr-3">
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusColor}`}
+          className={`inline-flex.items-center rounded-full px-2 py-0.5 ${statusColor}`}
         >
           {a.status}
         </span>
@@ -305,24 +525,25 @@ function AppointmentRow({ a }: { a: Appointment }) {
 
 /* ===== Строка документа ===== */
 
-function DocumentRow({ doc }: { doc: MedicalDocument }) {
-  const dateLabel = new Date(doc.createdAt).toLocaleDateString("ru-RU", {
+function DocumentRow({ doc }: { doc: DbDocument }) {
+  const dateLabel = new Date(doc.created_at).toLocaleDateString("ru-RU", {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
   });
+  const petName = doc.appointments?.pet_name ?? "Питомец не указан";
 
   return (
     <li className="rounded-xl border p-3 bg-gray-50 flex justify-between items-center">
       <div>
         <div className="font-medium">{doc.title}</div>
         <div className="text-gray-500 text-[11px]">
-          {doc.petName} • {dateLabel}
+          {petName} • {dateLabel}
         </div>
       </div>
 
       <Link
-        href={`/account/appointment/${doc.appointmentId}`}
+        href={`/account/appointment/${doc.appointment_id}`}
         className="text-[11px] text-blue-600 underline underline-offset-2"
       >
         Открыть приём
