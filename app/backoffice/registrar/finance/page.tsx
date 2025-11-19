@@ -23,8 +23,6 @@ type SearchOwner = {
   full_name: string | null;
 };
 
-const STORAGE_BUCKET = "onlyvet-docs"; // на будущее, если будем прикреплять файлы к счетам
-
 export default function FinanceCenterPage() {
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -206,11 +204,9 @@ export default function FinanceCenterPage() {
     (sum, r) => sum + (r.total_amount || 0),
     0
   );
+    // ===== ПОИСК КЛИЕНТА ДЛЯ СОЗДАНИЯ СЧЁТА =====
 
-  // ===== ПОИСК КЛИЕНТА ДЛЯ СОЗДАНИЯ СЧЁТА =====
-
-  const handleOwnerSearch = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleOwnerSearchClick = async () => {
     setActionError(null);
 
     const client = supabase;
@@ -441,10 +437,7 @@ export default function FinanceCenterPage() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <form
-                        onSubmit={handleOwnerSearch}
-                        className="flex flex-wrap items-center gap-2"
-                      >
+                      <div className="flex flex-wrap items-center gap-2">
                         <input
                           type="text"
                           value={ownerSearch}
@@ -453,13 +446,14 @@ export default function FinanceCenterPage() {
                           placeholder="Начните вводить ФИО клиента…"
                         />
                         <button
-                          type="submit"
+                          type="button"
+                          onClick={handleOwnerSearchClick}
                           disabled={searchingOwners}
                           className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
                         >
                           {searchingOwners ? "Ищем…" : "Найти"}
                         </button>
-                      </form>
+                      </div>
 
                       {ownerSearchResults.length > 0 && (
                         <div className="rounded-xl border bg-white p-2 max-h-48 overflow-y-auto">
