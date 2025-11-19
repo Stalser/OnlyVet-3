@@ -1,3 +1,4 @@
+// components/registrar/ClientFinanceSection.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,7 +7,6 @@ import { getOwnerInvoices } from "@/lib/finance";
 
 type Props = {
   ownerId: number;
-  /** Может ли пользователь управлять финансами (создавать/редактировать счета). Пока используем только для показа кнопки. */
   canManage?: boolean;
 };
 
@@ -49,7 +49,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
     "all"
   );
 
-  use effect(() => {
+  useEffect(() => {
     let ignore = false;
 
     async function load() {
@@ -61,7 +61,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
           setInvoices(data);
         }
       } catch (e) {
-        console.error(e);
+        console.error("getOwnerInvoices error", e);
         if (!ignore) {
           setErrorText("Не удалось загрузить финансовые данные клиента.");
         }
@@ -91,17 +91,20 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
     (sum, inv) => sum + (inv.total_amount || 0),
     0
   );
-  const totalPaid = invoices.reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+  const totalPaid = invoices.reduce(
+    (sum, inv) => sum + getPaidAmount(inv),
+    0
+  );
   const totalOutstanding = totalAmount - totalPaid;
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">Финансы клиента</h2>
+          <h2 className="text-sm font-semibold">Финансы клиента</h2>
           <p className="text-[11px] text-gray-500">
-            Счета и оплаты по всем консультациям и услугам. Позже здесь будет
-            интерфейс выставления и редактирования счетов.
+            Счета и оплаты по всем консультациям и услугам. На следующем шаге
+            добавим создание и редактирование счетов.
           </p>
         </div>
         {canManage && (
@@ -109,8 +112,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
             type="button"
             className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
             onClick={() => {
-              // пока заглушка — в следующем шаге сделаем реальный интерфейс создания счёта
-              alert("Создание счёта будет добавлено на следующем шаге.");
+              alert("Создание счёта добавим на следующем шаге.");
             }}
           >
             Создать счёт
@@ -120,7 +122,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
 
       {/* Сводка */}
       <div className="grid gap-2 text-[11px] md:grid-cols-3">
-        <div className="rounded-xl border bg-gray-50 px 3 py-2">
+        <div className="rounded-xl border bg-gray-50 px-3 py-2">
           <div className="text-gray-500">Всего выставлено</div>
           <div className="text-lg font-semibold">
             {totalAmount.toLocaleString("ru-RU", {
@@ -152,7 +154,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
         </div>
       </div>
 
-      {/* Фильтры по статусу */}
+      {/* Фильтр по статусу */}
       {!loading && invoices.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           <span className="text-gray-500">Фильтр по статусу:</span>
@@ -170,7 +172,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
           <button
             type="button"
             onClick={() => setStatusFilter("unpaid")}
-            className={`rounded-full px-3 py=ax-2 border ${
+            className={`rounded-full px-3 py-1 border ${
               statusFilter === "unpaid"
                 ? "bg-amber-500 text-white border-amber-500"
                 : "border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -183,7 +185,7 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
             onClick={() => setStatusFilter("paid")}
             className={`rounded-full px-3 py-1 border ${
               statusFilter === "paid"
-                ? "bg-emerald-600 text-white border-emerald-600"
+                ? "bg-emerald-600 text-white border-emerald-700"
                 : "border-gray-300 text-gray-700 hover:bg-gray-50"
             }`}
           >
@@ -205,13 +207,13 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
           <table className="min-w-full text-[11px]">
             <thead>
               <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
-                <th className="px-2 py-lfs">№</th>
+                <th className="px-2 py-2">№</th>
                 <th className="px-2 py-2">Дата</th>
                 <th className="px-2 py-2">Статус</th>
                 <th className="px-2 py-2">Сумма</th>
                 <th className="px-2 py-2">Оплачено</th>
                 <th className="px-2 py-2">Задолженность</th>
-                <th className="px 2 py-2 text-right">Действия</th>
+                <th className="px-2 py-2 text-right">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -278,17 +280,13 @@ export function ClientFinanceSection({ ownerId, canManage = false }: Props) {
                       <td className="px-2 py-2 align-top text-right space-y-1">
                         <button
                           type="button"
-                          className="block w-full text-left text-[11px] text-emerald-700 hover:underline"
+                          className "block w-full text-left text-[11px] text-emerald-700 hover:underline"
                           onClick={() => {
-                            // сюда потом повесим переход на Finance Center / модал
-                            alert(
-                              `Открытие подробностей счёта #${inv.id} добавим на следующем шаге.`
-                            );
+                            alert(`Открытие счёта #${inv.id} сделаем позже.`);
                           }}
                         >
                           Открыть
                         </button>
-                        {/* в будущем: кнопки "Отметить оплату", "Отменить" и т.п. */}
                       </td>
                     </tr>
                   );
