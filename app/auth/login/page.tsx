@@ -1,4 +1,3 @@
-// app/auth/login/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -6,8 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-type UserRole = "client" | "vet" | "registrar" | "admin";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,7 +37,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1. Логинимся по email + пароль
       const { data, error: signInErr } = await client.auth.signInWithPassword({
         email,
         password,
@@ -60,27 +56,9 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Берём роли пользователя из таблицы user_roles
-      const { data: rolesData, error: rolesErr } = await client
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-
-      if (rolesErr) {
-        console.error("ROLES ERROR", rolesErr);
-        // если не смогли прочитать роли — считаем клиентом
-        router.push("/account");
-        return;
-      }
-
-      const roles = (rolesData ?? []) as { role: UserRole }[];
-
-      const hasStaffRole = roles.some((r) =>
-        ["registrar", "vet", "admin"].includes(r.role)
-      );
-
-      // 3. Решаем, куда вести
-      if (hasStaffRole) {
+      // 👇 ВРЕМЕННАЯ ЛОГИКА:
+      // вкладка решает, куда отправить после успешного входа
+      if (tab === "staff") {
         router.push("/staff");
       } else {
         router.push("/account");
@@ -99,11 +77,11 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold text-center">Вход в OnlyVet</h1>
 
         <p className="text-center text-xs text-gray-600">
-          Войдите как клиент или как сотрудник. Регистраторы и врачи тоже
-          используют вход по паролю.
+          Войдите как клиент или как сотрудник. Для разработки доступ к
+          интерфейсу сотрудника определяется выбранной вкладкой.
         </p>
 
-        {/* Табы — пока чисто визуальные, логика строится на user_roles */}
+        {/* Табы Пользователь / Сотрудник */}
         <div className="flex border rounded-xl overflow-hidden text-xs">
           <button
             type="button"
@@ -174,11 +152,12 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[11px] text-gray-500">
-          После входа доступ определяется автоматически по вашему профилю и
-          ролям в системе.
+          После входа вы будете перенаправлены либо в личный кабинет, либо в
+          интерфейс сотрудника в зависимости от выбранной вкладки. Это
+          временное поведение для разработки.
         </p>
 
-        <p className="text-center text-xs.text-gray-600 mt-3">
+        <p className="text-center text-xs text-gray-600 mt-3">
           Нет аккаунта?{" "}
           <Link
             href="/auth/register"
