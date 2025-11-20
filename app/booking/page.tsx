@@ -140,7 +140,7 @@ export default function BookingPage() {
       setLoading(false);
     };
 
-    init();
+    void init();
   }, [client]);
 
   // При выборе существующего питомца подставляем его кличку и вид
@@ -185,7 +185,9 @@ export default function BookingPage() {
     }
 
     if (!agreePersonalData || !agreeOffer) {
-      setError("Чтобы записаться, необходимо согласиться с условиями и обработкой персональных данных.");
+      setError(
+        "Чтобы записаться, необходимо согласиться с условиями и обработкой персональных данных.",
+      );
       return;
     }
 
@@ -256,14 +258,14 @@ export default function BookingPage() {
       if (apptErr) {
         console.error(apptErr);
         setError(
-          "Не удалось создать запись на консультацию: " + apptErr.message
+          "Не удалось создать запись на консультацию: " + apptErr.message,
         );
         setSubmitting(false);
         return;
       }
 
       setSuccess(
-        "Заявка на консультацию отправлена. Мы свяжемся с вами для подтверждения времени."
+        "Заявка на консультацию отправлена. Мы свяжемся с вами для подтверждения времени.",
       );
       setComplaint("");
     } catch (err: any) {
@@ -389,7 +391,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+7 900 000-00-00 или @username"
@@ -445,7 +447,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
                     placeholder="Кот, собака, хорёк…"
@@ -462,7 +464,7 @@ export default function BookingPage() {
                   Кратко опишите проблему
                 </label>
                 <textarea
-                  className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
                   value={complaint}
                   onChange={(e) => setComplaint(e.target.value)}
                   placeholder="Когда началось, какие симптомы, какие лекарства уже давали…"
@@ -483,12 +485,11 @@ export default function BookingPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600">
-                    Предпочтительное время{" "}
-                    <span className="text-red-500">*</span>
+                    Предпочтительное время <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="time"
-                    className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
                   />
