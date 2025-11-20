@@ -14,6 +14,11 @@ type AppointmentStatus =
   | "завершена"
   | "отменена";
 
+type DbOwnerProfile = {
+  user_id: number;
+  auth_id: string | null;
+};
+
 type DbAppointmentDetail = {
   id: string;
   owner_id: number;
@@ -21,9 +26,6 @@ type DbAppointmentDetail = {
   species: string | null;
   starts_at: string;
   status: AppointmentStatus;
-  doctor_name: string | null;
-  service_name: string | null;
-  // TODO: если есть отдельные поля в БД (complaint, notes, etc.) — добавить сюда
 };
 
 type DocumentType = "conclusion" | "analysis" | "contract" | "other";
@@ -40,8 +42,8 @@ type DbAppointmentDocument = {
 export default function AppointmentDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [role, setRole] = useState<AuthRole>("guest");
 
+  const [role, setRole] = useState<AuthRole>("guest");
   const [loading, setLoading] = useState(true);
   const [appointment, setAppointment] = useState<DbAppointmentDetail | null>(
     null
@@ -89,10 +91,10 @@ export default function AppointmentDetailPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Находим owner_profile, чтобы знать, к кому принадлежат записи
+      // 2. Ищем owner_profile по auth_id (как в /account)
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
-        .select("id, auth_id")
+        .select("user_id, auth_id")
         .eq("auth_id", user.id)
         .maybeSingle();
 
@@ -109,11 +111,11 @@ export default function AppointmentDetailPage() {
         return;
       }
 
-      const ownerId = (ownerProfile as any).id; // если у тебя user_id — поменяй здесь и в eq ниже
-
+      const ownerRow = ownerProfile as DbOwnerProfile;
+      const ownerId = ownerRow.user_id;
       const appointmentId = params.id;
 
-      // 3. Грузим сам приём и проверяем, что он принадлежит этому owner
+      // 3. Грузим приём и проверяем, что он принадлежит этому owner
       const { data: apptData, error: apptErr } = await client
         .from("appointments")
         .select(
@@ -123,9 +125,7 @@ export default function AppointmentDetailPage() {
           pet_name,
           species,
           starts_at,
-          status,
-          doctor_name,
-          service_name
+          status
         `
         )
         .eq("id", appointmentId)
@@ -147,7 +147,7 @@ export default function AppointmentDetailPage() {
 
       setAppointment(apptData as DbAppointmentDetail);
 
-      // 4. Документы этого приёма
+      // 4. Документы по этому приёму
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select("id, title, type, created_at, summary, file_url")
@@ -167,7 +167,7 @@ export default function AppointmentDetailPage() {
     load();
   }, [client, params.id]);
 
-  // Неавторизованный
+  // Неавторизован
   if (!loading && role === "guest") {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center">
@@ -187,8 +187,9 @@ export default function AppointmentDetailPage() {
     );
   }
 
-  const statusBadge = (status: AppointmentStatus) => {
-    const base = "inline-flex items-center rounded-full px-2 py-0.5 text-[11px]";
+  const statusBadgeClass = (status: AppointmentStatus) => {
+    const base =
+      "inline-flex items-center rounded-full px-2 py-0.5 text-[11px]";
     if (status === "подтверждена")
       return `${base} text-emerald-700 bg-emerald-50`;
     if (status === "запрошена")
@@ -200,21 +201,23 @@ export default function AppointmentDetailPage() {
 
   const formatDateTime = (iso: string) => {
     const d = new Date(iso);
-    const dateLabel = d.toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    });
-    const timeLabel = d.toLocaleTimeString("ru-RU", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    return { dateLabel, timeLabel };
+    return {
+      date: d.toLocaleDateString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      }),
+      time: d.toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
   };
 
   return (
     <main className="bg-slate-50 min-h-screen py-10">
       <div className="container max-w-3xl space-y-6">
+        {/* Назад */}
         <button
           type="button"
           onClick={() => router.push("/account")}
@@ -246,8 +249,9 @@ export default function AppointmentDetailPage() {
                     ID: {appointment.id}
                   </p>
                 </div>
-                <div className="flex flex-col.items-end gap-1">
-                  <span className={statusBadge(appointment.status)}>
+
+                <div className="flex flex-col items-end gap-1">
+                  <span className={statusBadgeClass(appointment.status)}>
                     {appointment.status}
                   </span>
                   <DateTimeLabel iso={appointment.starts_at} />
@@ -266,21 +270,22 @@ export default function AppointmentDetailPage() {
                 </div>
                 <div>
                   <div className="text-gray-500">Врач</div>
-                  <div>{appointment.doctor_name || "Будет назначен"}</div>
+                  <div>—</div>
                 </div>
                 <div>
                   <div className="text-gray-500">Услуга</div>
-                  <div>{appointment.service_name || "Консультация онлайн"}</div>
+                  <div>—</div>
                 </div>
               </div>
             </section>
 
-            {/* TODO: блок с жалобой / описанием */}
+            {/* Пока заглушка под жалобы/анамнез */}
             <section className="rounded-2xl border bg-white p-4 space-y-2">
               <h2 className="font-semibold text-sm">Описание проблемы</h2>
               <p className="text-xs text-gray-500">
-                Описание жалоб и анамнеза будет отображаться здесь, когда мы
-                добавим соответствующее поле в базе данных (complaint / reason).
+                Здесь в будущем будет отображаться описание жалоб, анамнез и
+                другая информация по приёму. Сейчас это поле ещё не хранится в
+                базе.
               </p>
             </section>
 
