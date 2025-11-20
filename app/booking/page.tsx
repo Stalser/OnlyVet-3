@@ -5,11 +5,18 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type AuthRole = "guest" | "user" | "staff";
+
 type DbOwnerProfile = {
-  id: number;            // или user_id, если так в БД
+  user_id: number;
   full_name: string | null;
-  phone: string | null;
-  auth_id?: string | null;
+  auth_id: string | null;
+};
+
+type DbPet = {
+  id: number;
+  name: string;
+  species: string | null;
 };
 
 export default function BookingPage() {
@@ -18,26 +25,32 @@ export default function BookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState<AuthRole>("guest");
+
+  // Владелец
+  const [ownerProfile, setOwnerProfile] = useState<DbOwnerProfile | null>(null);
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(""); // пока просто поле формы, в БД ещё не кладём
+
+  // Питомцы
+  const [existingPets, setExistingPets] = useState<DbPet[]>([]);
+  const [selectedPetId, setSelectedPetId] = useState<"new" | number>("new");
   const [petName, setPetName] = useState("");
   const [species, setSpecies] = useState("");
+
+  // Проблема + время
   const [complaint, setComplaint] = useState("");
-  const [date, setDate] = useState("");   // YYYY-MM-DD
-  const [time, setTime] = useState("");   // HH:MM
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  // Если supabase вообще не настроен
   if (!supabase) {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <h1 className="text-xl font-semibold">Ошибка конфигурации</h1>
           <p className="text-sm text-gray-600">
-            Supabase не сконфигурирован. Проверьте переменные окружения
-            <code className="mx-1">NEXT_PUBLIC_SUPABASE_URL</code> и
-            <code className="mx-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+            Supabase не сконфигурирован. Проверьте переменные окружения.
           </p>
         </div>
       </main>
@@ -68,26 +81,55 @@ export default function BookingPage() {
       }
 
       setIsLoggedIn(true);
+      const metaRole =
+        (user.user_metadata?.role as AuthRole | undefined) ?? "user";
+      setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Пытаемся найти owner_profile, чтобы предзаполнить данные
-      const { data: ownerProfile, error: ownerErr } = await client
+      // 2. Ищем owner_profiles по auth_id
+      const { data: ownerRow, error: ownerErr } = await client
         .from("owner_profiles")
-        .select("id, full_name, phone, auth_id")
+        .select("user_id, full_name, auth_id")
         .eq("auth_id", user.id)
         .maybeSingle();
 
+      let ownerId: number | null = null;
+
       if (ownerErr) {
         console.error(ownerErr);
-        // Не критично, просто не будет предзаполнения
-      } else if (ownerProfile) {
-        const o = ownerProfile as DbOwnerProfile;
-        if (o.full_name) setFullName(o.full_name);
-        if (o.phone) setPhone(o.phone);
+        setError("Ошибка при поиске профиля владельца");
+        setLoading(false);
+        return;
       }
 
-      // дефолт — сегодня + ближайшие полчаса
+      if (ownerRow) {
+        const o = ownerRow as DbOwnerProfile;
+        setOwnerProfile(o);
+        ownerId = o.user_id;
+        if (o.full_name) setFullName(o.full_name);
+      } else {
+        // профиля ещё нет — создадим при первой записи, а пока просто используем имя из формы
+        setOwnerProfile(null);
+      }
+
+      // 3. Если есть ownerId — подгружаем питомцев
+      if (ownerId !== null) {
+        const { data: petsData, error: petsErr } = await client
+          .from("pets")
+          .select("id, name, species")
+          .eq("owner_id", ownerId)
+          .order("name", { ascending: true });
+
+        if (petsErr) {
+          console.error(petsErr);
+          // не критично — просто не будет списка питомцев
+        } else {
+          setExistingPets((petsData ?? []) as DbPet[]);
+        }
+      }
+
+      // 4. Дата/время по умолчанию
       const now = new Date();
-      const isoDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+      const isoDate = now.toISOString().slice(0, 10);
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
 
@@ -100,6 +142,20 @@ export default function BookingPage() {
     init();
   }, [client]);
 
+  // При выборе существующего питомца подставляем его данные
+  useEffect(() => {
+    if (selectedPetId === "new") {
+      // не трогаем введённые вручную значения
+      return;
+    }
+
+    const pet = existingPets.find((p) => p.id === selectedPetId);
+    if (pet) {
+      setPetName(pet.name);
+      setSpecies(pet.species || "");
+    }
+  }, [selectedPetId, existingPets]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -110,20 +166,25 @@ export default function BookingPage() {
       return;
     }
 
-    if (!fullName.trim() || !phone.trim() || !petName.trim() || !species.trim()) {
-      setError("Пожалуйста, заполните данные владельца и питомца.");
+    if (!fullName.trim()) {
+      setError("Пожалуйста, укажите ФИО владельца.");
+      return;
+    }
+
+    if (!petName.trim() || !species.trim()) {
+      setError("Пожалуйста, укажите питомца: кличку и вид.");
       return;
     }
 
     if (!date || !time) {
-      setError("Пожалуйста, укажите желаемую дату и время.");
+      setError("Пожалуйста, укажите желаемые дату и время.");
       return;
     }
 
     setSubmitting(true);
 
     try {
-      // 1. Ещё раз получаем пользователя для надёжности
+      // 1. Проверяем текущего пользователя
       const { data: userData, error: userErr } = await client.auth.getUser();
       if (userErr || !userData.user) {
         setError("Не удалось определить пользователя. Попробуйте войти заново.");
@@ -133,31 +194,25 @@ export default function BookingPage() {
       const user = userData.user;
 
       // 2. Ищем или создаём owner_profile
-      const { data: existingOwner, error: ownerErr } = await client
-        .from("owner_profiles")
-        .select("id, full_name, phone, auth_id")
-        .eq("auth_id", user.id)
-        .maybeSingle();
+      let ownerId: number | null = null;
 
-      let ownerId: number;
-
-      if (ownerErr) {
-        console.error(ownerErr);
-        setError("Ошибка при поиске профиля владельца");
-        setSubmitting(false);
-        return;
-      }
-
-      if (!existingOwner) {
-        // Создаём новую карточку владельца
+      if (ownerProfile) {
+        ownerId = ownerProfile.user_id;
+        // при желании можно обновить full_name
+        if (ownerProfile.full_name !== fullName) {
+          await client
+            .from("owner_profiles")
+            .update({ full_name: fullName })
+            .eq("user_id", ownerProfile.user_id);
+        }
+      } else {
         const { data: inserted, error: insertErr } = await client
           .from("owner_profiles")
           .insert({
             full_name: fullName,
-            phone,
             auth_id: user.id,
           })
-          .select("id")
+          .select("user_id, full_name, auth_id")
           .single();
 
         if (insertErr || !inserted) {
@@ -167,17 +222,22 @@ export default function BookingPage() {
           return;
         }
 
-        ownerId = (inserted as any).id;
-      } else {
-        ownerId = (existingOwner as any).id;
-        // при желании можно обновить ФИО/телефон, если они изменились
+        const o = inserted as DbOwnerProfile;
+        setOwnerProfile(o);
+        ownerId = o.user_id;
       }
 
-      // 3. Формируем дату/время
+      if (ownerId === null) {
+        setError("Не удалось определить владельца.");
+        setSubmitting(false);
+        return;
+      }
+
+      // 3. Дата/время
       const startsAt = new Date(`${date}T${time}:00`);
       const startsIso = startsAt.toISOString();
 
-      // 4. Создаём запись (appointment)
+      // 4. Создаём appointment
       const { error: apptErr } = await client.from("appointments").insert({
         owner_id: ownerId,
         user_id: user.id,
@@ -185,7 +245,7 @@ export default function BookingPage() {
         species,
         starts_at: startsIso,
         status: "запрошена",
-        // complaint / description и т.п. можно будет добавить, когда определим точные поля
+        // complaint мы пока не храним отдельно — добавим колонку позже
       });
 
       if (apptErr) {
@@ -195,21 +255,22 @@ export default function BookingPage() {
         return;
       }
 
-      setSuccess("Заявка на консультацию отправлена. Мы свяжемся с вами для подтверждения времени.");
-      // Можно почистить только часть полей
+      setSuccess(
+        "Заявка на консультацию отправлена. Мы свяжемся с вами для подтверждения времени."
+      );
       setComplaint("");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Произошла непредвиденная ошибка при записи.");
+      setError("Произошла ошибка при записи: " + err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Если пользователь не залогинен
+  // Если не залогинен
   if (!loading && !isLoggedIn) {
     return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50 min-h-screen flex items-center justify-center py-10">
         <div className="text-center space-y-3 max-w-md">
           <h1 className="text-2xl font-semibold">Запись на консультацию</h1>
           <p className="text-sm text-gray-600">
@@ -241,7 +302,8 @@ export default function BookingPage() {
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold">Запись на онлайн-консультацию</h1>
           <p className="text-sm text-gray-600">
-            Заполните данные о себе и питомце. Мы подберём свободного врача и подтвердим время консультации.
+            Заполните данные о себе и питомце. Мы подберём свободного врача и
+            подтвердим время консультации.
           </p>
         </header>
 
@@ -276,7 +338,7 @@ export default function BookingPage() {
             onSubmit={handleSubmit}
             className="rounded-2xl border bg-white p-4 space-y-4"
           >
-            {/* Блок владельца */}
+            {/* Владелец */}
             <section className="space-y-2">
               <h2 className="font-semibold text-base">Владелец</h2>
               <div className="grid gap-3">
@@ -307,9 +369,34 @@ export default function BookingPage() {
               </div>
             </section>
 
-            {/* Блок питомца */}
+            {/* Питомец */}
             <section className="space-y-2">
               <h2 className="font-semibold text-base">Питомец</h2>
+
+              {existingPets.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">
+                    Выберите питомца или укажите нового
+                  </label>
+                  <select
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    value={selectedPetId === "new" ? "new" : String(selectedPetId)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "new") setSelectedPetId("new");
+                      else setSelectedPetId(Number(v));
+                    }}
+                  >
+                    <option value="new">Новый питомец</option>
+                    {existingPets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.species || "вид не указан"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600">Кличка</label>
@@ -325,7 +412,7 @@ export default function BookingPage() {
                   <label className="text-xs text-gray-600">Вид</label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2.text-sm outline-none focus:ring-1 focus:ring-black"
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
                     placeholder="Кот, собака, хорёк…"
@@ -367,7 +454,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="time"
-                    className="w-full rounded-xl.border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
                   />
@@ -379,7 +466,7 @@ export default function BookingPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900.disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {submitting ? "Отправляем заявку..." : "Записаться"}
               </button>
