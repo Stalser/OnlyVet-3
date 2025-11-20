@@ -31,7 +31,7 @@ export default function BookingPage() {
   // Владелец
   const [ownerProfile, setOwnerProfile] = useState<DbOwnerProfile | null>(null);
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState(""); // пока просто поле формы, в БД ещё не кладём
+  const [phone, setPhone] = useState("");
 
   // Питомцы
   const [existingPets, setExistingPets] = useState<DbPet[]>([]);
@@ -39,7 +39,7 @@ export default function BookingPage() {
   const [petName, setPetName] = useState("");
   const [species, setSpecies] = useState("");
 
-  // Проблема + время
+  // Проблема и время
   const [complaint, setComplaint] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -85,7 +85,7 @@ export default function BookingPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Ищем owner_profiles по auth_id
+      // 2. Ищем owner_profile по auth_id
       const { data: ownerRow, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, full_name, auth_id")
@@ -107,11 +107,10 @@ export default function BookingPage() {
         ownerId = o.user_id;
         if (o.full_name) setFullName(o.full_name);
       } else {
-        // профиля ещё нет — создадим при первой записи, а пока просто используем имя из формы
         setOwnerProfile(null);
       }
 
-      // 3. Если есть ownerId — подгружаем питомцев
+      // 3. Если есть профиль — подтягиваем питомцев
       if (ownerId !== null) {
         const { data: petsData, error: petsErr } = await client
           .from("pets")
@@ -121,7 +120,6 @@ export default function BookingPage() {
 
         if (petsErr) {
           console.error(petsErr);
-          // не критично — просто не будет списка питомцев
         } else {
           setExistingPets((petsData ?? []) as DbPet[]);
         }
@@ -142,13 +140,9 @@ export default function BookingPage() {
     init();
   }, [client]);
 
-  // При выборе существующего питомца подставляем его данные
+  // При выборе существующего питомца — подставляем его данные
   useEffect(() => {
-    if (selectedPetId === "new") {
-      // не трогаем введённые вручную значения
-      return;
-    }
-
+    if (selectedPetId === "new") return;
     const pet = existingPets.find((p) => p.id === selectedPetId);
     if (pet) {
       setPetName(pet.name);
@@ -184,7 +178,6 @@ export default function BookingPage() {
     setSubmitting(true);
 
     try {
-      // 1. Проверяем текущего пользователя
       const { data: userData, error: userErr } = await client.auth.getUser();
       if (userErr || !userData.user) {
         setError("Не удалось определить пользователя. Попробуйте войти заново.");
@@ -193,12 +186,12 @@ export default function BookingPage() {
       }
       const user = userData.user;
 
-      // 2. Ищем или создаём owner_profile
+      // 1. Ищем/создаём owner_profile
       let ownerId: number | null = null;
 
       if (ownerProfile) {
         ownerId = ownerProfile.user_id;
-        // при желании можно обновить full_name
+
         if (ownerProfile.full_name !== fullName) {
           await client
             .from("owner_profiles")
@@ -233,24 +226,25 @@ export default function BookingPage() {
         return;
       }
 
-      // 3. Дата/время
+      // 2. Дата/время
       const startsAt = new Date(`${date}T${time}:00`);
       const startsIso = startsAt.toISOString();
 
-      // 4. Создаём appointment
+      // 3. Создаём appointment
       const { error: apptErr } = await client.from("appointments").insert({
         owner_id: ownerId,
-        user_id: user.id,
         pet_name: petName,
         species,
         starts_at: startsIso,
         status: "запрошена",
-        // complaint мы пока не храним отдельно — добавим колонку позже
+        // TODO: позже добавим услугу, врача, complaint и т.п.
       });
 
       if (apptErr) {
         console.error(apptErr);
-        setError("Не удалось создать запись на консультацию");
+        setError(
+          "Не удалось создать запись на консультацию: " + apptErr.message
+        );
         setSubmitting(false);
         return;
       }
@@ -275,7 +269,6 @@ export default function BookingPage() {
           <h1 className="text-2xl font-semibold">Запись на консультацию</h1>
           <p className="text-sm text-gray-600">
             Чтобы записаться на онлайн-консультацию, войдите в личный кабинет.
-            Так мы сможем сохранить вашу историю, питомцев и документы.
           </p>
           <div className="flex justify-center gap-3 mt-2">
             <Link
@@ -286,7 +279,7 @@ export default function BookingPage() {
             </Link>
             <Link
               href="/auth/register"
-              className="rounded-xl px-4 py-2 border border-gray-300 text-sm font-medium hover:bg-gray-50"
+              className="rounded-xl px-4 py-2 border border-gray-300 text-sm.font-medium hover:bg-gray-50"
             >
               Регистрация
             </Link>
@@ -299,6 +292,16 @@ export default function BookingPage() {
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container max-w-2xl space-y-6">
+        {/* Назад в ЛК */}
+        <div>
+          <Link
+            href="/account"
+            className="text-xs text-gray-600 hover:text-black underline underline-offset-2"
+          >
+            ← Назад в личный кабинет
+          </Link>
+        </div>
+
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold">Запись на онлайн-консультацию</h1>
           <p className="text-sm text-gray-600">
@@ -412,7 +415,7 @@ export default function BookingPage() {
                   <label className="text-xs text-gray-600">Вид</label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-gray-200 px-3.py-2.text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
                     placeholder="Кот, собака, хорёк…"
@@ -454,7 +457,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="time"
-                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
                   />
@@ -466,7 +469,7 @@ export default function BookingPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900.disabled:opacity-60 disabled:cursor-not-allowed"
+                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-60.disabled:cursor-not-allowed"
               >
                 {submitting ? "Отправляем заявку..." : "Записаться"}
               </button>
