@@ -8,12 +8,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type AuthRole = "guest" | "user" | "staff";
 
 type DbOwnerProfile = {
-  id: number; // или user_id, если так в БД
+  user_id: number;             // ключ владельца в БД
   full_name: string | null;
-  phone: string | null;
-  telegram?: string | null;
-  email?: string | null;
-  auth_id?: string | null; // uuid из auth.users
+  auth_id: string | null;      // uuid из auth.users
 };
 
 type DbPet = {
@@ -30,11 +27,11 @@ type AppointmentStatus =
 
 type DbAppointment = {
   id: string;
-  starts_at: string; // timestamptz
+  starts_at: string;
   pet_name: string;
   species: string | null;
-  doctor_name: string | null; // если нет — потом заменим на join с doctors
-  service_name: string | null; // если нет — можно тянуть из services_catalog
+  doctor_name: string | null;
+  service_name: string | null;
   status: AppointmentStatus;
 };
 
@@ -46,7 +43,6 @@ type DbDocument = {
   type: DocumentType;
   created_at: string;
   appointment_id: string | null;
-  // Supabase вернёт массив appointments!inner(...)
   appointments?: {
     owner_id: number;
     pet_name: string;
@@ -61,16 +57,13 @@ export default function AccountPage() {
   const [pets, setPets] = useState<DbPet[]>([]);
   const [appointments, setAppointments] = useState<DbAppointment[]>([]);
   const [docs, setDocs] = useState<DbDocument[]>([]);
-
   const [error, setError] = useState<string | null>(null);
 
-  // Фильтры для записей
   const [apptPetFilter, setApptPetFilter] = useState<string>("all");
   const [apptStatusFilter, setApptStatusFilter] = useState<
     AppointmentStatus | "all"
   >("all");
 
-  // Фильтры для документов
   const [docPetFilter, setDocPetFilter] = useState<string>("all");
   const [docTypeFilter, setDocTypeFilter] = useState<DocumentType | "all">(
     "all"
@@ -91,7 +84,6 @@ export default function AccountPage() {
 
       // 1. Текущий пользователь
       const { data: userData, error: userErr } = await client.auth.getUser();
-
       if (userErr) {
         console.error(userErr);
         setError("Ошибка получения пользователя");
@@ -110,10 +102,10 @@ export default function AccountPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Профиль владельца
+      // 2. Профиль владельца (по auth_id)
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
-        .select("id, full_name, phone, telegram, email, auth_id")
+        .select("user_id, full_name, auth_id")
         .eq("auth_id", user.id)
         .maybeSingle();
 
@@ -125,6 +117,7 @@ export default function AccountPage() {
       }
 
       if (!ownerProfile) {
+        // профиля пока нет — покажем заглушки
         setOwner(null);
         setPets([]);
         setAppointments([]);
@@ -133,8 +126,9 @@ export default function AccountPage() {
         return;
       }
 
-      setOwner(ownerProfile as DbOwnerProfile);
-      const ownerId = (ownerProfile as any).id; // при необходимости поменять на user_id
+      const ownerRow = ownerProfile as DbOwnerProfile;
+      setOwner(ownerRow);
+      const ownerId = ownerRow.user_id;
 
       // 3. Питомцы
       const { data: petsData, error: petsErr } = await client
@@ -174,7 +168,7 @@ export default function AccountPage() {
         setAppointments((apptsData ?? []) as DbAppointment[]);
       }
 
-      // 5. Документы (appointment_documents + join appointments)
+      // 5. Документы (по приёмам этого владельца)
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select(
@@ -197,7 +191,6 @@ export default function AccountPage() {
         console.error(docsErr);
         setError("Ошибка загрузки документов");
       } else {
-        // TS ругается на несовпадение типов → явно говорим, что знаем, что делаем
         setDocs(((docsData ?? []) as unknown) as DbDocument[]);
       }
 
@@ -207,7 +200,7 @@ export default function AccountPage() {
     load();
   }, []);
 
-  // ==== Деривативы ====
+  // ===== производные =====
 
   const appointmentPets = useMemo(
     () => Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
@@ -248,12 +241,12 @@ export default function AccountPage() {
     [docs, docPetFilter, docTypeFilter]
   );
 
-  // ==== UI ====
+  // ===== UI =====
 
   if (!loading && role === "guest") {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-3">
+        <div className="text-center.space-y-3">
           <h1 className="text-xl font-semibold">
             Личный кабинет доступен только авторизованным пользователям
           </h1>
@@ -262,7 +255,7 @@ export default function AccountPage() {
           </p>
           <Link
             href="/auth/login"
-            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="inline-block mt-2.rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Войти
           </Link>
@@ -273,7 +266,7 @@ export default function AccountPage() {
 
   return (
     <main className="bg-slate-50 min-h-screen py-12">
-      <div className="container space-y-10">
+      <div className="container.space-y-10">
         {/* Заголовок */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -290,7 +283,6 @@ export default function AccountPage() {
           </Link>
         </header>
 
-        {/* Ошибка / лоадер */}
         {loading && (
           <p className="text-xs text-gray-500">Загружаем ваши данные…</p>
         )}
@@ -310,25 +302,15 @@ export default function AccountPage() {
                   <span className="text-xs text-gray-500">Имя: </span>
                   {owner.full_name || "—"}
                 </div>
-                <div className="text-gray-600">
-                  <span className="text-xs text-gray-500">Email: </span>
-                  {owner.email || "—"}
-                </div>
-                <div className="text-gray-600">
-                  <span className="text-xs text-gray-500">
-                    Телефон/Telegram:
-                  </span>{" "}
-                  {owner.telegram || owner.phone || "—"}
-                </div>
+                <p className="text-[11px] text-gray-400">
+                  Позже здесь появятся контакты и другие данные из вашей регистрации.
+                </p>
               </div>
             ) : (
               <p className="text-xs text-gray-500">
                 Профиль ещё не заполнен. После первой консультации мы создадим вашу карточку автоматически.
               </p>
             )}
-            <p className="text-[11px] text-gray-400">
-              Позже эти данные будут подставляться автоматически из вашей регистрации и обращения в клинику.
-            </p>
           </div>
 
           <div className="rounded-2xl border bg-white p-4 space-y-2">
@@ -357,7 +339,7 @@ export default function AccountPage() {
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Мои записи</h2>
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="flex flex-wrap gap-2.text-xs">
               <select
                 className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptPetFilter}
@@ -372,7 +354,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl.border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
                 value={apptStatusFilter}
                 onChange={(e) =>
                   setApptStatusFilter(e.target.value as AppointmentStatus | "all")
@@ -423,7 +405,7 @@ export default function AccountPage() {
             <h2 className="font-semibold text-base">Документы</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
                 value={docPetFilter}
                 onChange={(e) => setDocPetFilter(e.target.value)}
               >
@@ -436,7 +418,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
@@ -470,7 +452,7 @@ export default function AccountPage() {
   );
 }
 
-/* ===== Строка записи ===== */
+/* ===== строка записи ===== */
 
 function AppointmentRow({ a }: { a: DbAppointment }) {
   const statusColor =
@@ -479,7 +461,7 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
       : a.status === "запрошена"
       ? "text-amber-700 bg-amber-50"
       : a.status === "завершена"
-      ? "text-gray-700 bg-gray-50"
+      ? "text-gray-700 bg-граy-50"
       : "text-red-700 bg-red-50";
 
   const date = new Date(a.starts_at);
@@ -524,7 +506,7 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
   );
 }
 
-/* ===== Строка документа ===== */
+/* ===== строка документа ===== */
 
 function DocumentRow({ doc }: { doc: DbDocument }) {
   const dateLabel = new Date(doc.created_at).toLocaleDateString("ru-RU", {
