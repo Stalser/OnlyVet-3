@@ -166,4 +166,4 @@ export default function LoginPage() {
       </div>
     </main>
   );
-}  Я вернул этот код
+}
