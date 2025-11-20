@@ -36,11 +36,10 @@ export default function LoginPage() {
         return;
       }
 
-      // После логина бэкенд сам решает, кто перед нами (роль)
       router.push("/");
       router.refresh();
     } catch {
-      setError("Ошибка сети");
+      setError("Ошибка сети. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -49,18 +48,20 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f5f6f7] px-4">
       <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-lg p-8">
-
         <h1 className="text-2xl font-semibold text-center mb-2">
           Вход в OnlyVet
         </h1>
 
         <p className="text-center text-gray-500 text-sm mb-6">
-          Введите свои учётные данные для доступа.
+          Введите свои учётные данные для входа в систему.
         </p>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="block mb-1 text-sm text-gray-700" htmlFor="email">
+            <label
+              className="block mb-1 text-sm text-gray-700"
+              htmlFor="email"
+            >
               E-mail
             </label>
             <input
@@ -74,7 +75,10 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm text-gray-700" htmlFor="password">
+            <label
+              className="block mb-1 text-sm text-gray-700"
+              htmlFor="password"
+            >
               Пароль
             </label>
             <input
@@ -88,7 +92,9 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="text-red-500 text-sm text-center">{error}</p>
+            <p className="text-red-500 text-sm text-center">
+              {error}
+            </p>
           )}
 
           <button
@@ -101,7 +107,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-gray-500 text-xs mt-4">
-          После входа доступ определяется автоматически по вашему профилю.
+          Под этим входом могут авторизоваться все пользователи системы.
         </p>
 
         <p className="text-center text-sm mt-3">
