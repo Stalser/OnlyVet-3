@@ -166,4 +166,4 @@ export default function LoginPage() {
       </div>
     </main>
   );
-}  - Это -app/auth/login/page.tsx ... Не забывай, полностью готовый код пишем в другом чате в этом же проекте по команде.
+}
