@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type UserRole = "client" | "vet" | "registrar" | "admin";
-
 export default function LoginPage() {
   const router = useRouter();
 
@@ -39,7 +37,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1. Логинимся по email + пароль
       const { data, error: signInErr } = await client.auth.signInWithPassword({
         email,
         password,
@@ -59,37 +56,9 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Читаем роли пользователя из user_roles
-      const { data: rolesData, error: rolesErr } = await client
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-
-      if (rolesErr) {
-        console.error("ROLES ERROR", rolesErr);
-      }
-
-      const roles = (rolesData ?? []) as { role: UserRole }[];
-
-      const hasVet = roles.some((r) => r.role === "vet");
-      const hasRegistrar = roles.some((r) => r.role === "registrar");
-      const hasAdmin = roles.some((r) => r.role === "admin");
-
-      // 3. Решаем, куда отправить
-      // Приоритет: админ/регистратор/вет → интерфейсы сотрудников
-      if (hasRegistrar) {
-        // Интерфейс регистратуры
-        router.push("/backoffice/registrar");
-      } else if (hasVet) {
-        // Интерфейс врача
-        router.push("/staff");
-      } else if (hasAdmin) {
-        // Временное поведение для админа — тоже в backoffice
-        router.push("/backoffice/registrar");
-      } else {
-        // Обычный клиент
-        router.push("/account");
-      }
+      // 👉 ВСЕГДА после успешного входа идём на /auth/after-login,
+      // а там уже по user_roles решаем куда пускать
+      router.push("/auth/after-login");
     } catch (err: any) {
       console.error("LOGIN UNKNOWN ERROR", err);
       setError("Ошибка при входе: " + (err?.message ?? "неизвестная ошибка"));
@@ -108,7 +77,7 @@ export default function LoginPage() {
           автоматически по данным в системе.
         </p>
 
-        {/* Табы Пользователь / Сотрудник (визуальные) */}
+        {/* Табы Пользователь / Сотрудник (визуальные, пока без логики) */}
         <div className="flex border rounded-xl overflow-hidden text-xs">
           <button
             type="button"
