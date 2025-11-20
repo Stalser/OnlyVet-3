@@ -8,9 +8,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type AuthRole = "guest" | "user" | "staff";
 
 type DbOwnerProfile = {
-  user_id: number;             // ключ владельца в БД
+  user_id: number;
   full_name: string | null;
-  auth_id: string | null;      // uuid из auth.users
+  auth_id: string | null;
 };
 
 type DbPet = {
@@ -59,11 +59,13 @@ export default function AccountPage() {
   const [docs, setDocs] = useState<DbDocument[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Фильтры для записей
   const [apptPetFilter, setApptPetFilter] = useState<string>("all");
   const [apptStatusFilter, setApptStatusFilter] = useState<
     AppointmentStatus | "all"
   >("all");
 
+  // Фильтры для документов
   const [docPetFilter, setDocPetFilter] = useState<string>("all");
   const [docTypeFilter, setDocTypeFilter] = useState<DocumentType | "all">(
     "all"
@@ -102,7 +104,7 @@ export default function AccountPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Профиль владельца (по auth_id)
+      // 2. Профиль владельца по auth_id
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, full_name, auth_id")
@@ -117,7 +119,7 @@ export default function AccountPage() {
       }
 
       if (!ownerProfile) {
-        // профиля пока нет — покажем заглушки
+        // профиля ещё нет — остальные блоки просто покажут заглушки
         setOwner(null);
         setPets([]);
         setAppointments([]);
@@ -144,7 +146,7 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи (appointments)
+      // 4. Записи
       const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
@@ -168,7 +170,7 @@ export default function AccountPage() {
         setAppointments((apptsData ?? []) as DbAppointment[]);
       }
 
-      // 5. Документы (по приёмам этого владельца)
+      // 5. Документы по приёмам этого владельца
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select(
@@ -246,7 +248,7 @@ export default function AccountPage() {
   if (!loading && role === "guest") {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center">
-        <div className="text-center.space-y-3">
+        <div className="text-center space-y-3">
           <h1 className="text-xl font-semibold">
             Личный кабинет доступен только авторизованным пользователям
           </h1>
@@ -255,7 +257,7 @@ export default function AccountPage() {
           </p>
           <Link
             href="/auth/login"
-            className="inline-block mt-2.rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Войти
           </Link>
@@ -266,8 +268,8 @@ export default function AccountPage() {
 
   return (
     <main className="bg-slate-50 min-h-screen py-12">
-      <div className="container.space-y-10">
-        {/* Заголовок */}
+      <div className="container space-y-10">
+        {/* Заголовок (как было) */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold">Личный кабинет</h1>
@@ -292,27 +294,34 @@ export default function AccountPage() {
           </p>
         )}
 
-        {/* Профиль и питомцы */}
+        {/* Профиль и питомцы — вернули карточки как в твоём варианте */}
         <section className="grid md:grid-cols-3 gap-4">
+          {/* Профиль */}
           <div className="md:col-span-2 rounded-2xl border bg-white p-4 space-y-2">
             <h2 className="font-semibold text-base">Профиль</h2>
+
             {owner ? (
-              <div className="text-sm space-y-1">
+              <div className="text-sm">
                 <div className="text-gray-600">
                   <span className="text-xs text-gray-500">Имя: </span>
                   {owner.full_name || "—"}
                 </div>
-                <p className="text-[11px] text-gray-400">
-                  Позже здесь появятся контакты и другие данные из вашей регистрации.
-                </p>
+                {/* email / телефон мы позже добавим в схему и сюда подтянем */}
               </div>
             ) : (
-              <p className="text-xs text-gray-500">
-                Профиль ещё не заполнен. После первой консультации мы создадим вашу карточку автоматически.
+              <p className="text-xs text-gray-600">
+                Профиль ещё не заполнен. После первой консультации мы создадим
+                вашу карточку автоматически.
               </p>
             )}
+
+            <p className="text-[11px] text-gray-400">
+              Позже эти данные будут подставляться автоматически из вашей
+              регистрации и обращения в клинику.
+            </p>
           </div>
 
+          {/* Питомцы */}
           <div className="rounded-2xl border bg-white p-4 space-y-2">
             <h2 className="font-semibold text-base">Ваши питомцы</h2>
             {pets.length === 0 && (
@@ -335,11 +344,12 @@ export default function AccountPage() {
           </div>
         </section>
 
-        {/* Мои записи */}
+        {/* Мои записи — таблица как в твоём варианте */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Мои записи</h2>
-            <div className="flex flex-wrap gap-2.text-xs">
+
+            <div className="flex flex-wrap gap-2 text-xs">
               <select
                 className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptPetFilter}
@@ -354,7 +364,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptStatusFilter}
                 onChange={(e) =>
                   setApptStatusFilter(e.target.value as AppointmentStatus | "all")
@@ -376,7 +386,7 @@ export default function AccountPage() {
           )}
 
           {filteredAppointments.length > 0 && (
-            <div className="overflow-x-auto text-xs">
+            <div className="overflow-x-auto.text-xs">
               <table className="min-w-full">
                 <thead>
                   <tr className="text-gray-500 border-b">
@@ -384,7 +394,7 @@ export default function AccountPage() {
                     <th className="py-2 pr-3 text-left font-normal">Время</th>
                     <th className="py-2 pr-3 text-left font-normal">Питомец</th>
                     <th className="py-2 pr-3 text-left font-normal">Врач</th>
-                    <th className="py-2 pr-3 text-left font-normal">Услуга</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Услуга</th>
                     <th className="py-2 pr-3 text-left font-normal">Статус</th>
                     <th className="py-2 text-left font-normal" />
                   </tr>
@@ -399,13 +409,13 @@ export default function AccountPage() {
           )}
         </section>
 
-        {/* Документы */}
+        {/* Документы — тот же блок, только на живых данных */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Документы</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={docPetFilter}
                 onChange={(e) => setDocPetFilter(e.target.value)}
               >
@@ -418,7 +428,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
@@ -461,7 +471,7 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
       : a.status === "запрошена"
       ? "text-amber-700 bg-amber-50"
       : a.status === "завершена"
-      ? "text-gray-700 bg-граy-50"
+      ? "text-gray-700 bg-gray-50"
       : "text-red-700 bg-red-50";
 
   const date = new Date(a.starts_at);
