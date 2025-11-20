@@ -30,8 +30,6 @@ type DbAppointment = {
   starts_at: string;
   pet_name: string;
   species: string | null;
-  doctor_name: string | null;
-  service_name: string | null;
   status: AppointmentStatus;
 };
 
@@ -59,13 +57,12 @@ export default function AccountPage() {
   const [docs, setDocs] = useState<DbDocument[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Фильтры для записей
+  // фильтры
   const [apptPetFilter, setApptPetFilter] = useState<string>("all");
   const [apptStatusFilter, setApptStatusFilter] = useState<
     AppointmentStatus | "all"
   >("all");
 
-  // Фильтры для документов
   const [docPetFilter, setDocPetFilter] = useState<string>("all");
   const [docTypeFilter, setDocTypeFilter] = useState<DocumentType | "all">(
     "all"
@@ -104,7 +101,7 @@ export default function AccountPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Профиль владельца по auth_id
+      // 2. owner_profile по auth_id
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, full_name, auth_id")
@@ -119,7 +116,6 @@ export default function AccountPage() {
       }
 
       if (!ownerProfile) {
-        // профиля ещё нет — остальные блоки просто покажут заглушки
         setOwner(null);
         setPets([]);
         setAppointments([]);
@@ -146,7 +142,7 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи
+      // 4. Записи — тянем только существующие поля
       const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
@@ -155,9 +151,7 @@ export default function AccountPage() {
           starts_at,
           pet_name,
           species,
-          status,
-          doctor_name,
-          service_name
+          status
         `
         )
         .eq("owner_id", ownerId)
@@ -202,7 +196,7 @@ export default function AccountPage() {
     load();
   }, []);
 
-  // ===== производные =====
+  // производные
 
   const appointmentPets = useMemo(
     () => Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
@@ -269,7 +263,7 @@ export default function AccountPage() {
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-10">
-        {/* Заголовок (как было) */}
+        {/* Заголовок */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold">Личный кабинет</h1>
@@ -294,9 +288,8 @@ export default function AccountPage() {
           </p>
         )}
 
-        {/* Профиль и питомцы — вернули карточки как в твоём варианте */}
+        {/* Профиль и питомцы */}
         <section className="grid md:grid-cols-3 gap-4">
-          {/* Профиль */}
           <div className="md:col-span-2 rounded-2xl border bg-white p-4 space-y-2">
             <h2 className="font-semibold text-base">Профиль</h2>
 
@@ -306,7 +299,6 @@ export default function AccountPage() {
                   <span className="text-xs text-gray-500">Имя: </span>
                   {owner.full_name || "—"}
                 </div>
-                {/* email / телефон мы позже добавим в схему и сюда подтянем */}
               </div>
             ) : (
               <p className="text-xs text-gray-600">
@@ -321,7 +313,6 @@ export default function AccountPage() {
             </p>
           </div>
 
-          {/* Питомцы */}
           <div className="rounded-2xl border bg-white p-4 space-y-2">
             <h2 className="font-semibold text-base">Ваши питомцы</h2>
             {pets.length === 0 && (
@@ -344,7 +335,7 @@ export default function AccountPage() {
           </div>
         </section>
 
-        {/* Мои записи — таблица как в твоём варианте */}
+        {/* Мои записи */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Мои записи</h2>
@@ -386,7 +377,7 @@ export default function AccountPage() {
           )}
 
           {filteredAppointments.length > 0 && (
-            <div className="overflow-x-auto.text-xs">
+            <div className="overflow-x-auto text-xs">
               <table className="min-w-full">
                 <thead>
                   <tr className="text-gray-500 border-b">
@@ -394,7 +385,7 @@ export default function AccountPage() {
                     <th className="py-2 pr-3 text-left font-normal">Время</th>
                     <th className="py-2 pr-3 text-left font-normal">Питомец</th>
                     <th className="py-2 pr-3 text-left font-normal">Врач</th>
-                    <th className="py-2 pr-3 text-left.font-normal">Услуга</th>
+                    <th className="py-2 pr-3 text-left font-normal">Услуга</th>
                     <th className="py-2 pr-3 text-left font-normal">Статус</th>
                     <th className="py-2 text-left font-normal" />
                   </tr>
@@ -409,7 +400,7 @@ export default function AccountPage() {
           )}
         </section>
 
-        {/* Документы — тот же блок, только на живых данных */}
+        {/* Документы */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="font-semibold text-base">Документы</h2>
@@ -428,7 +419,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
@@ -462,8 +453,6 @@ export default function AccountPage() {
   );
 }
 
-/* ===== строка записи ===== */
-
 function AppointmentRow({ a }: { a: DbAppointment }) {
   const statusColor =
     a.status === "подтверждена"
@@ -495,8 +484,8 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
           ({a.species || "вид не указан"})
         </span>
       </td>
-      <td className="py-2 pr-3">{a.doctor_name || "—"}</td>
-      <td className="py-2 pr-3">{a.service_name || "—"}</td>
+      <td className="py-2 pr-3">—</td>
+      <td className="py-2 pr-3">—</td>
       <td className="py-2 pr-3">
         <span
           className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusColor}`}
@@ -515,8 +504,6 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
     </tr>
   );
 }
-
-/* ===== строка документа ===== */
 
 function DocumentRow({ doc }: { doc: DbDocument }) {
   const dateLabel = new Date(doc.created_at).toLocaleDateString("ru-RU", {
