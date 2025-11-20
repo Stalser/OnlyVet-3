@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type UserRole = "client" | "vet" | "registrar" | "admin";
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -37,6 +39,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // 1. Логинимся по email + пароль
       const { data, error: signInErr } = await client.auth.signInWithPassword({
         email,
         password,
@@ -56,11 +59,35 @@ export default function LoginPage() {
         return;
       }
 
-      // 👇 ВРЕМЕННАЯ ЛОГИКА:
-      // вкладка решает, куда отправить после успешного входа
-      if (tab === "staff") {
+      // 2. Читаем роли пользователя из user_roles
+      const { data: rolesData, error: rolesErr } = await client
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      if (rolesErr) {
+        console.error("ROLES ERROR", rolesErr);
+      }
+
+      const roles = (rolesData ?? []) as { role: UserRole }[];
+
+      const hasVet = roles.some((r) => r.role === "vet");
+      const hasRegistrar = roles.some((r) => r.role === "registrar");
+      const hasAdmin = roles.some((r) => r.role === "admin");
+
+      // 3. Решаем, куда отправить
+      // Приоритет: админ/регистратор/вет → интерфейсы сотрудников
+      if (hasRegistrar) {
+        // Интерфейс регистратуры
+        router.push("/backoffice/registrar");
+      } else if (hasVet) {
+        // Интерфейс врача
         router.push("/staff");
+      } else if (hasAdmin) {
+        // Временное поведение для админа — тоже в backoffice
+        router.push("/backoffice/registrar");
       } else {
+        // Обычный клиент
         router.push("/account");
       }
     } catch (err: any) {
@@ -77,11 +104,11 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold text-center">Вход в OnlyVet</h1>
 
         <p className="text-center text-xs text-gray-600">
-          Войдите как клиент или как сотрудник. Для разработки доступ к
-          интерфейсу сотрудника определяется выбранной вкладкой.
+          Войдите как клиент или как сотрудник. Роли и доступ определяются
+          автоматически по данным в системе.
         </p>
 
-        {/* Табы Пользователь / Сотрудник */}
+        {/* Табы Пользователь / Сотрудник (визуальные) */}
         <div className="flex border rounded-xl overflow-hidden text-xs">
           <button
             type="button"
@@ -152,9 +179,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[11px] text-gray-500">
-          После входа вы будете перенаправлены либо в личный кабинет, либо в
-          интерфейс сотрудника в зависимости от выбранной вкладки. Это
-          временное поведение для разработки.
+          После входа вы будете автоматически перенаправлены либо в личный
+          кабинет, либо в панель сотрудника в зависимости от вашей роли.
         </p>
 
         <p className="text-center text-xs text-gray-600 mt-3">
