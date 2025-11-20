@@ -32,6 +32,8 @@ export default function BookingPage() {
   const [ownerProfile, setOwnerProfile] = useState<DbOwnerProfile | null>(null);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [telegram, setTelegram] = useState("");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Питомцы
   const [existingPets, setExistingPets] = useState<DbPet[]>([]);
@@ -44,7 +46,7 @@ export default function BookingPage() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
-  // Галочки согласий
+  // Согласия
   const [agreePersonalData, setAgreePersonalData] = useState(false);
   const [agreeOffer, setAgreeOffer] = useState(false);
 
@@ -68,6 +70,7 @@ export default function BookingPage() {
       setLoading(true);
       setError(null);
 
+      // 1. Проверяем авторизацию
       const { data: userData, error: userErr } = await client.auth.getUser();
       if (userErr) {
         console.error(userErr);
@@ -84,11 +87,13 @@ export default function BookingPage() {
       }
 
       setIsLoggedIn(true);
+      setUserEmail(user.email ?? null);
+
       const metaRole =
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // owner_profiles по auth_id
+      // 2. owner_profiles по auth_id
       const { data: ownerRow, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, full_name, auth_id")
@@ -113,7 +118,7 @@ export default function BookingPage() {
         setOwnerProfile(null);
       }
 
-      // Питомцы
+      // 3. Питомцы этого владельца
       if (ownerId !== null) {
         const { data: petsData, error: petsErr } = await client
           .from("pets")
@@ -128,7 +133,7 @@ export default function BookingPage() {
         }
       }
 
-      // Дата/время по умолчанию
+      // 4. Дата/время по умолчанию
       const now = new Date();
       const isoDate = now.toISOString().slice(0, 10);
       const hh = String(now.getHours()).padStart(2, "0");
@@ -143,7 +148,7 @@ export default function BookingPage() {
     init();
   }, [client]);
 
-  // При выборе существующего питомца подставляем его кличку и вид
+  // При выборе существующего питомца — подставляем его данные
   useEffect(() => {
     if (selectedPetId === "new") return;
     const pet = existingPets.find((p) => p.id === selectedPetId);
@@ -158,7 +163,6 @@ export default function BookingPage() {
     setError(null);
     setSuccess(null);
 
-    // базовая валидация
     if (!isLoggedIn) {
       setError("Для записи на консультацию необходимо войти в личный кабинет.");
       return;
@@ -170,7 +174,7 @@ export default function BookingPage() {
     }
 
     if (!phone.trim()) {
-      setError("Пожалуйста, укажите телефон или Telegram.");
+      setError("Пожалуйста, укажите номер телефона.");
       return;
     }
 
@@ -185,7 +189,9 @@ export default function BookingPage() {
     }
 
     if (!agreePersonalData || !agreeOffer) {
-      setError("Чтобы записаться, необходимо согласиться с условиями и обработкой персональных данных.");
+      setError(
+        "Чтобы записаться, необходимо дать согласие на обработку данных и принять условия договора."
+      );
       return;
     }
 
@@ -200,12 +206,11 @@ export default function BookingPage() {
       }
       const user = userData.user;
 
-      // Ищем/создаём owner_profile
+      // 1. Ищем/создаём owner_profile (без телефона/телеграма пока)
       let ownerId: number | null = null;
 
       if (ownerProfile) {
         ownerId = ownerProfile.user_id;
-
         if (ownerProfile.full_name !== fullName) {
           await client
             .from("owner_profiles")
@@ -240,17 +245,18 @@ export default function BookingPage() {
         return;
       }
 
+      // 2. Дата/время
       const startsAt = new Date(`${date}T${time}:00`);
       const startsIso = startsAt.toISOString();
 
-      // создаём appointment
+      // 3. Создаём appointment
       const { error: apptErr } = await client.from("appointments").insert({
         owner_id: ownerId,
         pet_name: petName,
         species,
         starts_at: startsIso,
         status: "запрошена",
-        // TODO: позже добавим услугу, врача, complaint и т.д.
+        // TODO: complaint, телефон, Telegram, услуга, врач — в следующих итерациях добавим в схему
       });
 
       if (apptErr) {
@@ -274,7 +280,6 @@ export default function BookingPage() {
     }
   };
 
-  // удобный флаг для disabled у кнопки
   const isSubmitDisabled =
     submitting ||
     !isLoggedIn ||
@@ -287,7 +292,7 @@ export default function BookingPage() {
     !agreePersonalData ||
     !agreeOffer;
 
-  // если не залогинен
+  // Неавторизованный
   if (!loading && !isLoggedIn) {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center py-10">
@@ -347,13 +352,13 @@ export default function BookingPage() {
         )}
 
         {success && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 space-y-1">
+          <div className="rounded-xl border.border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 space-y-1">
             <p>{success}</p>
             <p>
               Вы можете следить за статусом записи в{" "}
               <Link
                 href="/account"
-                className="underline underline-offset-2 text-emerald-800"
+                className="underline underline-offset-2.text-emerald-800"
               >
                 личном кабинете
               </Link>
@@ -368,9 +373,9 @@ export default function BookingPage() {
             className="rounded-2xl border bg-white p-4 space-y-4"
           >
             {/* Владелец */}
-            <section className="space-y-2">
+            <section className="space-y-3">
               <h2 className="font-semibold text-base">Владелец</h2>
-              <div className="grid gap-3">
+              <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600">
                     ФИО владельца <span className="text-red-500">*</span>
@@ -383,185 +388,7 @@ export default function BookingPage() {
                     placeholder="Например: Иванова Анна Сергеевна"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Телефон или Telegram <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+7 900 000-00-00 или @username"
-                  />
-                </div>
-              </div>
-            </section>
 
-            {/* Питомец */}
-            <section className="space-y-2">
-              <h2 className="font-semibold text-base">Питомец</h2>
-
-              {existingPets.length > 0 && (
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Выберите питомца или укажите нового
-                  </label>
-                  <select
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={selectedPetId === "new" ? "new" : String(selectedPetId)}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === "new") setSelectedPetId("new");
-                      else setSelectedPetId(Number(v));
-                    }}
-                  >
-                    <option value="new">Новый питомец</option>
-                    {existingPets.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.species || "вид не указан"})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Кличка <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={petName}
-                    onChange={(e) => setPetName(e.target.value)}
-                    placeholder="Например: Барсик"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Вид <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={species}
-                    onChange={(e) => setSpecies(e.target.value)}
-                    placeholder="Кот, собака, хорёк…"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Проблема и время */}
-            <section className="space-y-2">
-              <h2 className="font-semibold text-base">Проблема и время</h2>
-              <div className="space-y-1">
-                <label className="text-xs text-gray-600">
-                  Кратко опишите проблему
-                </label>
-                <textarea
-                  className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
-                  value={complaint}
-                  onChange={(e) => setComplaint(e.target.value)}
-                  placeholder="Когда началось, какие симптомы, какие лекарства уже давали…"
-                />
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Предпочтительная дата <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Предпочтительное время{" "}
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="time"
-                    className="w-full.rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Согласия */}
-            <section className="space-y-2">
-              <h2 className="font-semibold text-base">Согласия</h2>
-              <div className="space-y-1 text-[11px] text-gray-600">
-                <label className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    checked={agreePersonalData}
-                    onChange={(e) => setAgreePersonalData(e.target.checked)}
-                  />
-                  <span>
-                    Я даю согласие на обработку моих персональных данных в целях
-                    записи на консультацию, оказания ветеринарных услуг и
-                    последующей связи со мной.{" "}
-                    <Link
-                      href="/docs/privacy"
-                      target="_blank"
-                      className="underline underline-offset-2"
-                    >
-                      Политика обработки персональных данных
-                    </Link>
-                    .
-                  </span>
-                </label>
-
-                <label className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    checked={agreeOffer}
-                    onChange={(e) => setAgreeOffer(e.target.checked)}
-                  />
-                  <span>
-                    Я ознакомился(лась) и соглашаюсь с условиями{" "}
-                    <Link
-                      href="/docs/offer"
-                      target="_blank"
-                      className="underline underline-offset-2"
-                    >
-                      договора-оферты на оказание онлайн-ветеринарных услуг
-                    </Link>
-                    . Записываясь на консультацию, я заключаю данный договор.
-                  </span>
-                </label>
-              </div>
-
-              <p className="text-[11px] text-gray-400">
-                Поля, отмеченные <span className="text-red-500">*</span>,
-                обязательны для заполнения. Без согласий кнопка «Записаться»
-                будет недоступна.
-              </p>
-            </section>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="submit"
-                disabled={isSubmitDisabled}
-                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {submitting ? "Отправляем заявку..." : "Записаться"}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </main>
-  );
-}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className mistaken */
