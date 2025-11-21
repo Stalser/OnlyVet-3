@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import {
-  getRegistrarAppointmentById,
-} from "@/lib/registrar";
+import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { getRegistrarAppointmentById } from "@/lib/registrar";
 import { RegistrarActions } from "@/components/registrar/RegistrarActions";
 import { RegistrarAssignSlot } from "@/components/registrar/RegistrarAssignSlot";
 
@@ -12,9 +11,7 @@ interface PageProps {
   };
 }
 
-export default async function RegistrarConsultationPage({
-  params,
-}: PageProps) {
+export default async function RegistrarConsultationPage({ params }: PageProps) {
   const appointment = await getRegistrarAppointmentById(params.id);
 
   return (
@@ -31,14 +28,13 @@ export default async function RegistrarConsultationPage({
         </div>
 
         {/* Заголовок */}
-        <header className="flex items-center justify-between">
+        <header className="flex.items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight">
               Карточка консультации
             </h1>
             <p className="text-sm text-gray-500">
-              Детальная информация по заявке и основные действия
-              регистратуры.
+              Детальная информация по заявке и основные действия регистратуры.
             </p>
           </div>
 
@@ -64,12 +60,10 @@ export default async function RegistrarConsultationPage({
           <>
             {/* ======= Блок "Основная информация" ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <h2 className="text-base font-semibold">
-                Основная информация
-              </h2>
+              <h2 className="text-base font-semibold">Основная информация</h2>
 
               {/* ID + дата */}
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
                 <div>
                   <div className="text-xs text-gray-500">ID заявки</div>
                   <div className="font-mono text-sm text-gray-900">
@@ -107,8 +101,8 @@ export default async function RegistrarConsultationPage({
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Позже здесь будет явная привязка к карточке клиента
-                      из owner_profiles.
+                      Позже здесь будет явная привязка к карточке клиента из
+                      owner_profiles.
                     </div>
                   </div>
 
@@ -125,8 +119,8 @@ export default async function RegistrarConsultationPage({
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Здесь будет ссылка на карточку питомца из таблицы
-                      pets, если pet_id присутствует.
+                      Здесь будет ссылка на карточку питомца из таблицы pets, если
+                      pet_id присутствует.
                     </div>
                   </div>
                 </div>
@@ -161,9 +155,7 @@ export default async function RegistrarConsultationPage({
                   </h3>
                   <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
                     <div>
-                      <div className="text-xs text-gray-500">
-                        Платформа
-                      </div>
+                      <div className="text-xs text-gray-500">Платформа</div>
                       <div className="font-medium text-gray-900">
                         {appointment.videoPlatform === "yandex_telemost" ||
                         !appointment.videoPlatform
@@ -185,9 +177,9 @@ export default async function RegistrarConsultationPage({
                       </div>
                     ) : (
                       <div className="text-[10px] text-gray-400">
-                        Ссылка на Телемост пока не указана. Можно добавить
-                        её, отредактировав консультацию или через
-                        интерфейс врача в будущем.
+                        Ссылка на Телемост пока не указана. Можно добавить её,
+                        отредактировав консультацию или через интерфейс врача в
+                        будущем.
                       </div>
                     )}
                   </div>
@@ -195,18 +187,31 @@ export default async function RegistrarConsultationPage({
               </div>
             </section>
 
+            {/* ======= Блок "Жалоба клиента" ======= */}
+            <section className="rounded-2xl border bg-white p-4 space-y-2">
+              <h2 className="text-base font-semibold">Жалоба / описание проблемы</h2>
+              {appointment.complaint ? (
+                <p className="text-sm text-gray-700 whitespace-pre-line">
+                  {appointment.complaint}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Жалоба клиента не указана. Позже здесь будет отображаться текст
+                  из формы записи на консультацию.
+                </p>
+              )}
+            </section>
+
             {/* ======= Блок "Действия регистратуры" ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <h2 className="text-base font-semibold">
-                Действия регистратуры
-              </h2>
+              <h2 className="text-base font-semibold">Действия регистратуры</h2>
 
               <RegistrarActions
                 appointmentId={appointment.id}
                 currentStatus={appointment.statusLabel}
               />
 
-              <div className="border-t border-gray-100 pt-4 mt-2">
+              <div className="border-t.border-gray-100 pt-4 mt-2">
                 <RegistrarAssignSlot
                   appointmentId={appointment.id}
                   doctorId={appointment.doctorId}
