@@ -61,7 +61,7 @@ export default function BookingPage() {
 
   if (!supabase) {
     return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50 min-h-screen flex.items-center justify-center">
         <div className="text-center space-y-3">
           <h1 className="text-xl font-semibold">Ошибка конфигурации</h1>
           <p className="text-sm text-gray-600">
@@ -74,6 +74,7 @@ export default function BookingPage() {
 
   const client: SupabaseClient = supabase;
 
+  // ✅ ВАЖНО: здесь была синтаксическая ошибка и лишние зависимости.
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -144,6 +145,7 @@ export default function BookingPage() {
               typeof o.extra_contacts === "string"
                 ? JSON.parse(o.extra_contacts)
                 : o.extra_contacts;
+
             const phoneCandidate =
               extra?.phone ??
               extra?.phone_main ??
@@ -155,6 +157,7 @@ export default function BookingPage() {
               extra?.tg ??
               extra?.telegram_username ??
               "";
+
             if (phoneCandidate && !phone) setPhone(String(phoneCandidate));
             if (tgCandidate && !telegram) setTelegram(String(tgCandidate));
           } catch {
@@ -197,7 +200,7 @@ export default function BookingPage() {
       setLoading(false);
     };
 
-    void init();}, [client]); 
+    void init();
   }, [client]);
 
   // При выборе существующего питомца подставляем его кличку и вид
@@ -386,7 +389,7 @@ export default function BookingPage() {
   if (!loading && !isLoggedIn) {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center py-12">
-        <div className="text-center space-y-3 max-w-md">
+        <div className="text-center.space-y-3 max-w-md">
           <h1 className="text-2xl font-semibold">Запись на консультацию</h1>
           <p className="text-sm text-gray-600">
             Чтобы записаться на онлайн-консультацию, войдите в личный кабинет.
@@ -437,7 +440,7 @@ export default function BookingPage() {
 
           {/* Статусы */}
           {loading && (
-            <p className="text-xs text-gray-500">Загружаем ваши данные…</p>
+            <p className="text-xs.text-gray-500">Загружаем ваши данные…</p>
           )}
           {error && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -543,7 +546,7 @@ export default function BookingPage() {
                     <label className="text-xs text-gray-600">Telegram</label>
                     <input
                       type="text"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl.border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={telegram}
                       onChange={(e) => setTelegram(e.target.value)}
                       placeholder="@username (по желанию)"
@@ -679,7 +682,7 @@ export default function BookingPage() {
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-gray-600">
+                    <label className="text-xs.text-gray-600">
                       Предпочтительная дата{" "}
                       <span className="text-red-500">*</span>
                     </label>
@@ -697,7 +700,7 @@ export default function BookingPage() {
                     </label>
                     <input
                       type="time"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.text-sm outline-none focus:ring-1 focus:ring-black"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
                     />
