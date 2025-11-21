@@ -6,6 +6,10 @@ import Link from "next/link";
 import { supabase } from "../../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// справочники врачей и услуг — те же, что в регистратуре
+import { doctors } from "../../../../lib/data";
+import { servicesPricing } from "../../../../lib/pricing";
+
 type AuthRole = "guest" | "user" | "staff";
 
 type AppointmentStatus =
@@ -26,6 +30,12 @@ type DbAppointmentDetail = {
   species: string | null;
   starts_at: string;
   status: AppointmentStatus;
+
+  service_code: string | null;
+  doctor_id: string | null;
+  complaint: string | null;
+  video_platform: string | null;
+  video_url: string | null;
 };
 
 type DocumentType = "conclusion" | "analysis" | "contract" | "other";
@@ -91,7 +101,7 @@ export default function AppointmentDetailPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Ищем owner_profile по auth_id (как в /account)
+      // 2. Ищем owner_profile по auth_id — как в /account
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, auth_id")
@@ -115,7 +125,7 @@ export default function AppointmentDetailPage() {
       const ownerId = ownerRow.user_id;
       const appointmentId = params.id;
 
-      // 3. Грузим приём и проверяем, что он принадлежит этому owner
+      // 3. Загружаем приём и проверяем, что он этого владельца
       const { data: apptData, error: apptErr } = await client
         .from("appointments")
         .select(
@@ -125,7 +135,12 @@ export default function AppointmentDetailPage() {
           pet_name,
           species,
           starts_at,
-          status
+          status,
+          service_code,
+          doctor_id,
+          complaint,
+          video_platform,
+          video_url
         `
         )
         .eq("id", appointmentId)
@@ -147,7 +162,7 @@ export default function AppointmentDetailPage() {
 
       setAppointment(apptData as DbAppointmentDetail);
 
-      // 4. Документы по этому приёму
+      // 4. Документы по этомy приёму
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select("id, title, type, created_at, summary, file_url")
@@ -164,13 +179,13 @@ export default function AppointmentDetailPage() {
       setLoading(false);
     };
 
-    load();
+    void load();
   }, [client, params.id]);
 
-  // Неавторизован
+  // Неавторизован — выводим аккуратную заглушку
   if (!loading && role === "guest") {
     return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50.min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <h1 className="text-xl font-semibold">Доступ ограничен</h1>
           <p className="text-sm text-gray-600">
@@ -214,6 +229,23 @@ export default function AppointmentDetailPage() {
     };
   };
 
+  const resolveDoctorName = (doctorId: string | null) => {
+    if (!doctorId) return "Не назначен";
+    const doc = doctors.find((d: any) => d.id === doctorId);
+    return doc?.name ?? "Не назначен";
+  };
+
+  const resolveServiceName = (code: string | null) => {
+    if (!code) return "Услуга не указана";
+    const service = servicesPricing.find((s: any) => s.code === code);
+    return service?.name ?? "Услуга";
+  };
+
+  const resolvePlatformLabel = (platform: string | null) => {
+    if (!platform || platform === "yandex_telemost") return "Яндекс Телемост";
+    return platform;
+  };
+
   return (
     <main className="bg-slate-50 min-h-screen py-10">
       <div className="container max-w-3xl space-y-6">
@@ -238,15 +270,18 @@ export default function AppointmentDetailPage() {
 
         {!loading && !error && appointment && (
           <>
-            {/* Шапка приёма */}
-            <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            {/* Основной блок приёма */}
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h1 className="text-lg font-semibold">
                     Приём для питомца {appointment.pet_name}
                   </h1>
                   <p className="text-xs text-gray-500">
-                    ID: {appointment.id}
+                    ID:{" "}
+                    <span className="font-mono">
+                      {appointment.id}
+                    </span>
                   </p>
                 </div>
 
@@ -258,41 +293,81 @@ export default function AppointmentDetailPage() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3 text-xs text-gray-700">
-                <div>
-                  <div className="text-gray-500">Питомец</div>
+              <div className="grid gap-4 sm:grid-cols-2 text-xs text-gray-700">
+                <div className="space-y-2">
                   <div>
-                    {appointment.pet_name}{" "}
-                    <span className="text-gray-500">
-                      ({appointment.species || "вид не указан"})
-                    </span>
+                    <div className="text-gray-500">Питомец</div>
+                    <div>
+                      {appointment.pet_name}{" "}
+                      <span className="text-gray-500">
+                        ({appointment.species || "вид не указан"})
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Формат связи</div>
+                    <div>
+                      {resolvePlatformLabel(appointment.video_platform)}
+                    </div>
+                    {appointment.video_url && (
+                      <div className="mt-1">
+                        <a
+                          href={appointment.video_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-emerald-700 hover:underline"
+                        >
+                          Открыть ссылку на консультацию
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <div className="text-gray-500">Врач</div>
-                  <div>—</div>
-                </div>
-                <div>
-                  <div className="text-gray-500">Услуга</div>
-                  <div>—</div>
+
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-gray-500">Врач</div>
+                    <div className="font-medium">
+                      {resolveDoctorName(appointment.doctor_id)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Услуга</div>
+                    <div className="font-medium">
+                      {resolveServiceName(appointment.service_code)}
+                    </div>
+                    {appointment.service_code && (
+                      <div className="text-[11px] text-gray-500">
+                        код: {appointment.service_code}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
 
-            {/* Пока заглушка под жалобы/анамнез */}
+            {/* Жалоба / описание проблемы */}
             <section className="rounded-2xl border bg-white p-4 space-y-2">
-              <h2 className="font-semibold text-sm">Описание проблемы</h2>
-              <p className="text-xs text-gray-500">
-                Здесь в будущем будет отображаться описание жалоб, анамнез и
-                другая информация по приёму. Сейчас это поле ещё не хранится в
-                базе.
-              </p>
+              <h2 className="text-sm font-semibold">
+                Жалоба / описание проблемы
+              </h2>
+              {appointment.complaint ? (
+                <p className="text-xs text-gray-700 whitespace-pre-line">
+                  {appointment.complaint}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Жалоба клиента не указана. Если вы хотите дополнить описание
+                  проблемы, сообщите об этом регистратору при подтверждении
+                  времени консультации.
+                </p>
+              )}
             </section>
 
             {/* Документы */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-sm">Документы по приёму</h2>
+                <h2 className="text-sm font-semibold">Документы по приёму</h2>
                 <span className="text-[11px] text-gray-500">
                   {docs.length > 0
                     ? `${docs.length} документ(ов)`
