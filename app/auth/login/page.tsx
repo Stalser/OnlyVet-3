@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type UserRole = "client" | "vet" | "registrar" | "admin";
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -34,9 +36,17 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // ⚠️ Не отправляем запрос, если поля пустые
+    if (!email.trim() || !password.trim()) {
+      setError("Введите e-mail и пароль.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // 1. Вход по email + пароль
       const { data, error: signInErr } = await client.auth.signInWithPassword({
         email,
         password,
@@ -56,9 +66,39 @@ export default function LoginPage() {
         return;
       }
 
-      // 👉 ВСЕГДА после успешного входа идём на /auth/after-login,
-      // а там уже по user_roles решаем куда пускать
-      router.push("/auth/after-login");
+      // 2. Читаем роли из user_roles
+      const { data: rolesData, error: rolesErr } = await client
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      if (rolesErr) {
+        console.error("LOGIN: roles error", rolesErr);
+        // Если не смогли прочитать роли — считаем клиентом
+        router.push("/account");
+        return;
+      }
+
+      const roles = (rolesData ?? []) as { role: UserRole }[];
+
+      const hasVet = roles.some((r) => r.role === "vet");
+      const hasRegistrar = roles.some((r) => r.role === "registrar");
+      const hasAdmin = roles.some((r) => r.role === "admin");
+      const hasClient = roles.some((r) => r.role === "client");
+
+      // 3. Маршрутизация по ролям
+      if (hasRegistrar) {
+        router.push("/backoffice/registrar");
+      } else if (hasVet) {
+        router.push("/staff");
+      } else if (hasAdmin) {
+        // пока админа тоже в backoffice
+        router.push("/backoffice/registrar");
+      } else if (hasClient || roles.length === 0) {
+        router.push("/account");
+      } else {
+        router.push("/account");
+      }
     } catch (err: any) {
       console.error("LOGIN UNKNOWN ERROR", err);
       setError("Ошибка при входе: " + (err?.message ?? "неизвестная ошибка"));
@@ -73,11 +113,11 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold text-center">Вход в OnlyVet</h1>
 
         <p className="text-center text-xs text-gray-600">
-          Войдите как клиент или как сотрудник. Роли и доступ определяются
-          автоматически по данным в системе.
+          Войдите как клиент или как сотрудник. Роль определяется автоматически
+          по данным в системе.
         </p>
 
-        {/* Табы Пользователь / Сотрудник (визуальные, пока без логики) */}
+        {/* Табы сейчас только визуальные, логика по ролям */}
         <div className="flex border rounded-xl overflow-hidden text-xs">
           <button
             type="button"
@@ -104,7 +144,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="rounded-xl.border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {error}
           </div>
         )}
@@ -137,7 +177,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl px-4 py-2 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-xl px-4 py-2 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60.disabled:cursor-not-allowed"
           >
             {loading
               ? "Выполняем вход..."
@@ -148,8 +188,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[11px] text-gray-500">
-          После входа вы будете автоматически перенаправлены либо в личный
-          кабинет, либо в панель сотрудника в зависимости от вашей роли.
+          После входа вы автоматически попадёте в личный кабинет или панель
+          сотрудника в зависимости от роли.
         </p>
 
         <p className="text-center text-xs text-gray-600 mt-3">
