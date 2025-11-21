@@ -13,12 +13,27 @@ export function RoleGuard({ children, allowed }: RoleGuardProps) {
   const { user, loading } = useCurrentUser();
   const router = useRouter();
 
-  // Если пользователь не залогинен — отправляем на логин
+  // 1. Если пользователь не залогинен — отправляем на логин
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/auth/login");
     }
   }, [loading, user, router]);
+
+  // 2. Если пользователь залогинен, но роль не подходит — отправляем в клиентский кабинет
+  useEffect(() => {
+    if (loading || !user) return;
+
+    const effectiveRole = (user.role ?? "client") as
+      | "client"
+      | "registrar"
+      | "vet"
+      | "admin";
+
+    if (!allowed.includes(effectiveRole)) {
+      router.replace("/account");
+    }
+  }, [loading, user, allowed, router]);
 
   if (loading) {
     return (
@@ -29,26 +44,18 @@ export function RoleGuard({ children, allowed }: RoleGuardProps) {
   }
 
   if (!user) {
+    // редирект уже запущен выше
     return null;
   }
 
-  // Базовая роль из useCurrentUser
-  let effectiveRole = (user.role ?? "client") as
+  const effectiveRole = (user.role ?? "client") as
     | "client"
     | "registrar"
     | "vet"
     | "admin";
 
-  const email = (user.email ?? "").toLowerCase();
-
-  // 💡 Временный хак: аккаунт doctor@onlyvet.com считаем врачом (vet)
-  if (email === "doctor@onlyvet.com") {
-    effectiveRole = "vet";
-  }
-
-  // Если роль не разрешена — отправляем в личный кабинет
   if (!allowed.includes(effectiveRole)) {
-    router.replace("/account");
+    // редирект уже запущен выше, здесь просто ничего не рендерим
     return null;
   }
 
