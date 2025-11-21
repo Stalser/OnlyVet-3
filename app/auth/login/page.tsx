@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type UserRole = "client" | "vet" | "registrar" | "admin";
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -34,16 +36,22 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!email.trim() || !password.trim()) {
+      setError("Введите e-mail и пароль.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // 1. Вход
       const { data, error: signInErr } = await client.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInErr) {
-        console.error("SIGN IN ERROR", signInErr);
         setError("Неверный e-mail или пароль.");
         setLoading(false);
         return;
@@ -51,17 +59,68 @@ export default function LoginPage() {
 
       const user = data.user;
       if (!user) {
-        setError("Не удалось выполнить вход. Попробуйте позже.");
+        setError("Не удалось выполнить вход.");
         setLoading(false);
         return;
       }
 
-      // 👉 ВСЕГДА после успешного входа идём на /auth/after-login,
-      // а там уже по user_roles решаем куда пускать
-      router.push("/auth/after-login");
+      // 2. Читаем роли
+      const { data: rolesData } = await client
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const roles = (rolesData ?? []) as { role: UserRole }[];
+
+      const hasVet = roles.some((r) => r.role === "vet");
+      const hasRegistrar = roles.some((r) => r.role === "registrar");
+      const hasAdmin = roles.some((r) => r.role === "admin");
+      const hasClient = roles.some((r) => r.role === "client") || roles.length === 0;
+
+      //
+      // 3. ЛОГИКА ВКЛАДОК:
+      //
+
+      // Если выбрана вкладка "Пользователь" → сотрудник входить НЕ должен
+      if (tab === "user") {
+        if (hasVet || hasRegistrar || hasAdmin) {
+          setError(
+            "Это учётная запись сотрудника. Используйте вкладку «Сотрудник»."
+          );
+          setLoading(false);
+          await client.auth.signOut();
+          return;
+        }
+      }
+
+      // Если выбрана вкладка "Сотрудник" → пользователь входить НЕ должен
+      if (tab === "staff") {
+        if (hasClient) {
+          setError("Это учётная запись клиента. Используйте вкладку «Пользователь».");
+          setLoading(false);
+          await client.auth.signOut();
+          return;
+        }
+      }
+
+      //
+      // 4. Всё ок — маршрутизация
+      //
+
+      if (hasRegistrar || hasAdmin) {
+        router.push("/backoffice/registrar");
+        return;
+      }
+
+      if (hasVet) {
+        router.push("/staff");
+        return;
+      }
+
+      router.push("/account");
     } catch (err: any) {
-      console.error("LOGIN UNKNOWN ERROR", err);
-      setError("Ошибка при входе: " + (err?.message ?? "неизвестная ошибка"));
+      console.error(err);
+      setError("Ошибка при входе.");
     } finally {
       setLoading(false);
     }
@@ -73,11 +132,10 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold text-center">Вход в OnlyVet</h1>
 
         <p className="text-center text-xs text-gray-600">
-          Войдите как клиент или как сотрудник. Роли и доступ определяются
-          автоматически по данным в системе.
+          Выберите тип входа: клиент или сотрудник.
         </p>
 
-        {/* Табы Пользователь / Сотрудник (визуальные, пока без логики) */}
+        {/* Табы */}
         <div className="flex border rounded-xl overflow-hidden text-xs">
           <button
             type="button"
@@ -90,6 +148,7 @@ export default function LoginPage() {
           >
             Пользователь
           </button>
+
           <button
             type="button"
             onClick={() => setTab("staff")}
@@ -140,7 +199,7 @@ export default function LoginPage() {
             className="w-full rounded-xl px-4 py-2 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading
-              ? "Выполняем вход..."
+              ? "Входим…"
               : tab === "staff"
               ? "Войти как сотрудник"
               : "Войти"}
@@ -148,16 +207,12 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[11px] text-gray-500">
-          После входа вы будете автоматически перенаправлены либо в личный
-          кабинет, либо в панель сотрудника в зависимости от вашей роли.
+          При входе сотрудникам и клиентам автоматически выдаётся правильный интерфейс.
         </p>
 
         <p className="text-center text-xs text-gray-600 mt-3">
           Нет аккаунта?{" "}
-          <Link
-            href="/auth/register"
-            className="underline underline-offset-2 text-blue-600"
-          >
+          <Link href="/auth/register" className="underline text-blue-600">
             Зарегистрироваться
           </Link>
         </p>
