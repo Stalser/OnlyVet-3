@@ -36,6 +36,7 @@ export default function BookingPage() {
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
+  const [noMiddleName, setNoMiddleName] = useState(false);
   const [phone, setPhone] = useState("");
   const [telegram, setTelegram] = useState("");
 
