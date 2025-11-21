@@ -6,7 +6,7 @@ import { servicesPricing } from "./pricing";
 
 /**
  * Основной тип консультации для регистратуры.
- * Теперь включает поле complaint.
+ * Включает жалобу (complaint).
  */
 export type RegistrarAppointmentRow = {
   id: string;
@@ -31,11 +31,11 @@ export type RegistrarAppointmentRow = {
   videoPlatform?: string | null;
   videoUrl?: string | null;
 
-  complaint?: string;   // ← ДОБАВЛЕНО
+  complaint?: string;
 };
 
 /**
- * Получить ОДНУ консультацию по ID.
+ * Получить одну консультацию по ID.
  */
 export async function getRegistrarAppointmentById(
   id: string
@@ -68,7 +68,6 @@ export async function getRegistrarAppointmentById(
     return null;
   }
 
-  // Форматирование дат
   let dateLabel = "—";
   if (data.starts_at) {
     const d = new Date(data.starts_at);
@@ -85,17 +84,15 @@ export async function getRegistrarAppointmentById(
     ? new Date(data.created_at).toLocaleString("ru-RU")
     : "";
 
-  // Имя врача
   const doc = doctors.find((d: any) => d.id === data.doctor_id);
   const doctorName = doc?.name ?? "Не назначен";
 
-  // Услуга
   const service = servicesPricing.find(
     (s: any) => s.code === data.service_code
   );
   const serviceName = service?.name ?? "Услуга";
 
-  // Клиент (пока пусто, подтянем позже)
+  // Пока заглушка — позже подставим реальные данные клиента
   const clientName = "Без имени";
   const clientContact = "";
 
@@ -122,12 +119,12 @@ export async function getRegistrarAppointmentById(
     videoPlatform: data.video_platform ?? null,
     videoUrl: data.video_url ?? null,
 
-    complaint: data.complaint ?? "", // ← ДОБАВЛЕНО
+    complaint: data.complaint ?? "",
   };
 }
 
 /**
- * Получить ВСЕ консультации для регистратуры.
+ * Получить все консультации для регистратуры.
  */
 export async function getRegistrarAppointments(): Promise<
   RegistrarAppointmentRow[]
@@ -210,7 +207,18 @@ export async function getRegistrarAppointments(): Promise<
       videoPlatform: row.video_platform ?? null,
       videoUrl: row.video_url ?? null,
 
-      complaint: row.complaint ?? "", // ← ДОБАВЛЕНО
+      complaint: row.complaint ?? "",
     };
   });
+}
+
+/**
+ * Получить последние N консультаций для дашборда регистратуры.
+ * Используется на главной странице /backoffice/registrar.
+ */
+export async function getRecentRegistrarAppointments(
+  limit: number = 50
+): Promise<RegistrarAppointmentRow[]> {
+  const all = await getRegistrarAppointments();
+  return all.slice(0, limit);
 }
