@@ -63,6 +63,28 @@ export default function AfterLoginPage() {
       const hasAdmin = roles.some((r) => r.role === "admin");
       const hasClient = roles.some((r) => r.role === "client");
 
+      // 2a. Если пользователь вообще не имеет строки в user_roles —
+      // автоматически создаём запись с ролью 'client'
+      if (roles.length === 0) {
+        const { error: insertErr } = await client
+          .from("user_roles")
+          .insert({
+            user_id: user.id,
+            role: "client",
+          });
+
+        if (insertErr) {
+          console.error("AFTER LOGIN: insert client role error", insertErr);
+          // Даже если вставка не удалась — всё равно пускаем как клиента
+          router.replace("/account");
+          return;
+        }
+
+        // Новому/старому пользователю создаётся явная роль client → в кабинет
+        router.replace("/account");
+        return;
+      }
+
       // 3. Маршрутизация по ролям
       if (hasRegistrar) {
         // Панель регистратора
@@ -73,8 +95,8 @@ export default function AfterLoginPage() {
       } else if (hasAdmin) {
         // Временно – в backoffice (потом сделаем /admin)
         router.replace("/backoffice/registrar");
-      } else if (hasClient || roles.length === 0) {
-        // Обычный клиент (или ролей нет)
+      } else if (hasClient) {
+        // Обычный клиент
         router.replace("/account");
       } else {
         // На всякий случай – в личный кабинет
@@ -86,7 +108,7 @@ export default function AfterLoginPage() {
   }, [client, router]);
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50">
+    <main className="min-h-screen flex.items-center justify-center bg-slate-50">
       <div className="text-center space-y-2">
         <p className="text-sm text-gray-600">Определяем ваш профиль…</p>
         {error && (
