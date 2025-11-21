@@ -454,71 +454,99 @@ export default function BookingPage() {
             className="rounded-2xl border bg-white p-4 space-y-4"
           >
             {/* Владелец */}
-            <section className="space-y-2">
-              <h2 className="font-semibold text-base">Владелец</h2>
+<section className="space-y-2">
+  <h2 className="font-semibold text-base">Владелец</h2>
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Фамилия <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Иванов"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Имя <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="Анна"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">Отчество</label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl.border border-gray-200 px-3.py-2.text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={middleName}
-                    onChange={(e) => setMiddleName(e.target.value)}
-                    placeholder="Сергеевна"
-                  />
-                </div>
-              </div>
+  {/* ФИО */}
+  <div className="grid gap-3 md:grid-cols-3">
+    {/* Фамилия */}
+    <div className="space-y-1">
+      <label className="text-xs text-gray-600">
+        Фамилия <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+        value={lastName}
+        onChange={(e) => setLastName(e.target.value)}
+        placeholder="Иванов"
+      />
+    </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">
-                    Телефон <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+7 900 000-00-00"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600">Telegram</label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                    value={telegram}
-                    onChange={(e) => setTelegram(e.target.value)}
-                    placeholder="@username (по желанию)"
-                  />
-                </div>
-              </div>
-            </section>
+    {/* Имя */}
+    <div className="space-y-1">
+      <label className="text-xs text-gray-600">
+        Имя <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+        value={firstName}
+        onChange={(e) => setFirstName(e.target.value)}
+        placeholder="Анна"
+      />
+    </div>
+
+    {/* Отчество + чекбокс "Нет отчества" */}
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <label className="text-xs text-gray-600">Отчество</label>
+        <label className="flex items-center gap-1 text-[11px] text-gray-500">
+          <input
+            type="checkbox"
+            className="rounded"
+            checked={noMiddleName}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setNoMiddleName(checked);
+              if (checked) {
+                setMiddleName("");
+              }
+            }}
+          />
+          <span>Нет отчества</span>
+        </label>
+      </div>
+      <input
+        type="text"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black disabled:bg-gray-100"
+        value={middleName}
+        onChange={(e) => setMiddleName(e.target.value)}
+        placeholder="Сергеевна"
+        disabled={noMiddleName}
+      />
+    </div>
+  </div>
+
+  {/* Контакты */}
+  <div className="grid gap-3 md:grid-cols-2">
+    {/* Телефон */}
+    <div className="space-y-1">
+      <label className="text-xs text-gray-600">
+        Телефон <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="+7 900 000-00-00"
+      />
+    </div>
+
+    {/* Telegram */}
+    <div className="space-y-1">
+      <label className="text-xs text-gray-600">Telegram</label>
+      <input
+        type="text"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+        value={telegram}
+        onChange={(e) => setTelegram(e.target.value)}
+        placeholder="@username (по желанию)"
+      />
+    </div>
+  </div>
+</section>
 
             {/* Питомец */}
             <section className="space-y-2">
