@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+// те же источники, что использует регистратура
 import { doctors } from "../../lib/data";
 import { servicesPricing } from "../../lib/pricing";
 
@@ -143,7 +145,7 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи
+      // 4. Записи (с услугой и врачом)
       const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
@@ -240,6 +242,7 @@ export default function AccountPage() {
     [docs, docPetFilter, docTypeFilter]
   );
 
+  // если гость
   if (!loading && role === "guest") {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center">
@@ -252,7 +255,7 @@ export default function AccountPage() {
           </p>
           <Link
             href="/auth/login"
-            className="inline-block mt-2 rounded-xl px-4.py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Войти
           </Link>
@@ -264,8 +267,8 @@ export default function AccountPage() {
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container space-y-10">
-        {/* Заголовок */}
-        <header className="flex.flex-col md:flex-row md:items-end justify-between gap-4">
+        {/* Заголовок + кнопка записи */}
+        <header className="space-y-3">
           <div>
             <h1 className="text-3xl font-semibold">Личный кабинет</h1>
             <p className="text-gray-600 text-sm mt-1">
@@ -274,7 +277,7 @@ export default function AccountPage() {
           </div>
           <Link
             href="/booking"
-            className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
+            className="inline-flex items-center justify-center rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
           >
             Записаться на консультацию
           </Link>
@@ -338,7 +341,7 @@ export default function AccountPage() {
             <h2 className="font-semibold text-base">Мои записи</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl.border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptPetFilter}
                 onChange={(e) => setApptPetFilter(e.target.value)}
               >
@@ -350,7 +353,7 @@ export default function AccountPage() {
                 ))}
               </select>
               <select
-                className="rounded-xl border.border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl.border border-gray-200 px-3.py-1 bg-white outline-none"
                 value={apptStatusFilter}
                 onChange={(e) =>
                   setApptStatusFilter(
@@ -368,9 +371,7 @@ export default function AccountPage() {
           </div>
 
           {filteredAppointments.length === 0 && (
-            <p className="text-xs text-gray-500">
-              Нет записей по выбранным фильтрам.
-            </p>
+            <p className="text-xs text-gray-500">Нет записей по выбранным фильтрам.</p>
           )}
 
           {filteredAppointments.length > 0 && (
@@ -382,8 +383,8 @@ export default function AccountPage() {
                     <th className="py-2 pr-3 text-left font-normal">Время</th>
                     <th className="py-2 pr-3 text-left font-normal">Питомец</th>
                     <th className="py-2 pr-3 text-left font-normal">Врач</th>
-                    <th className="py-2 pr-3 text-left font-normal">Услуга</th>
-                    <th className="py-2 pr-3.text-left font-normal">Статус</th>
+                    <th className="py-2 pr-3 text-left.font-normal">Услуга</th>
+                    <th className="py-2 pr-3 text-left font-normal">Статус</th>
                     <th className="py-2 text-left font-normal" />
                   </tr>
                 </thead>
@@ -403,7 +404,7 @@ export default function AccountPage() {
             <h2 className="font-semibold text-base">Документы</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl.border border-gray-200 px-3.py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={docPetFilter}
                 onChange={(e) => setDocPetFilter(e.target.value)}
               >
@@ -415,7 +416,7 @@ export default function AccountPage() {
                 ))}
               </select>
               <select
-                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
@@ -437,7 +438,7 @@ export default function AccountPage() {
           )}
 
           {filteredDocs.length > 0 && (
-            <ul className="text-xs.space-y-2">
+            <ul className="text-xs space-y-2">
               {filteredDocs.map((d) => (
                 <DocumentRow key={d.id} doc={d} />
               ))}
@@ -526,7 +527,7 @@ function DocumentRow({ doc }: { doc: DbDocument }) {
       : "Питомец не указан";
 
   return (
-    <li className="rounded-xl border p-3 bg-gray-50 flex.justify-between.items-center">
+    <li className="rounded-xl border p-3 bg-gray-50 flex justify-between items-center">
       <div>
         <div className="font-medium">{doc.title}</div>
         <div className="text-gray-500 text-[11px]">
