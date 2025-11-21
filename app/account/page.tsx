@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type AuthRole = "guest" | "user" | "staff";
+type UserRole = "client" | "vet" | "registrar" | "admin";
 
 type DbOwnerProfile = {
   user_id: number;
@@ -48,8 +49,10 @@ type DbDocument = {
 };
 
 export default function AccountPage() {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<AuthRole>("guest");
+  const [accessChecking, setAccessChecking] = useState(true);
 
   const [owner, setOwner] = useState<DbOwnerProfile | null>(null);
   const [pets, setPets] = useState<DbPet[]>([]);
@@ -72,6 +75,7 @@ export default function AccountPage() {
     if (!supabase) {
       setError("Supabase не сконфигурирован (нет env-переменных).");
       setLoading(false);
+      setAccessChecking(false);
       return;
     }
 
@@ -80,28 +84,59 @@ export default function AccountPage() {
     const load = async () => {
       setLoading(true);
       setError(null);
+      setAccessChecking(true);
 
       // 1. Текущий пользователь
       const { data: userData, error: userErr } = await client.auth.getUser();
-      if (userErr) {
-        console.error(userErr);
-        setError("Ошибка получения пользователя");
+      if (userErr || !userData.user) {
+        // не залогинен → на страницу логина
+        router.replace("/auth/login");
         setLoading(false);
+        setAccessChecking(false);
         return;
       }
 
       const user = userData.user;
-      if (!user) {
-        setRole("guest");
-        setLoading(false);
-        return;
+
+      // 2. Роли пользователя
+      const { data: rolesData, error: rolesErr } = await client
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      if (rolesErr) {
+        console.error("ACCOUNT: roles error", rolesErr);
+        // если не смогли прочитать роли — считаем его клиентом и продолжаем
+      } else if (rolesData) {
+        const roles = rolesData as { role: UserRole }[];
+
+        const isVet = roles.some((r) => r.role === "vet");
+        const isRegistrar = roles.some((r) => r.role === "registrar");
+        const isAdmin = roles.some((r) => r.role === "admin");
+
+        // если это не клиент — перенаправляем в соответствующий кабинет
+        if (isRegistrar) {
+          router.replace("/backoffice/registrar");
+          setLoading(false);
+          setAccessChecking(false);
+          return;
+        }
+        if (isVet) {
+          router.replace("/staff");
+          setLoading(false);
+          setAccessChecking(false);
+          return;
+        }
+        if (isAdmin) {
+          // временно админа тоже отправляем в backoffice
+          router.replace("/backoffice/registrar");
+          setLoading(false);
+          setAccessChecking(false);
+          return;
+        }
       }
 
-      const metaRole =
-        (user.user_metadata?.role as AuthRole | undefined) ?? "user";
-      setRole(metaRole === "staff" ? "staff" : "user");
-
-      // 2. owner_profile по auth_id
+      // 3. owner_profile по auth_id (только для клиентов)
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, full_name, auth_id")
@@ -112,6 +147,7 @@ export default function AccountPage() {
         console.error(ownerErr);
         setError("Ошибка получения профиля владельца");
         setLoading(false);
+        setAccessChecking(false);
         return;
       }
 
@@ -121,6 +157,7 @@ export default function AccountPage() {
         setAppointments([]);
         setDocs([]);
         setLoading(false);
+        setAccessChecking(false);
         return;
       }
 
@@ -128,7 +165,7 @@ export default function AccountPage() {
       setOwner(ownerRow);
       const ownerId = ownerRow.user_id;
 
-      // 3. Питомцы
+      // 4. Питомцы
       const { data: petsData, error: petsErr } = await client
         .from("pets")
         .select("id, name, species")
@@ -142,7 +179,7 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи — тянем только существующие поля
+      // 5. Записи
       const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
@@ -164,7 +201,7 @@ export default function AccountPage() {
         setAppointments((apptsData ?? []) as DbAppointment[]);
       }
 
-      // 5. Документы по приёмам этого владельца
+      // 6. Документы по приёмам этого владельца
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select(
@@ -191,12 +228,22 @@ export default function AccountPage() {
       }
 
       setLoading(false);
+      setAccessChecking(false);
     };
 
     load();
-  }, []);
+  }, [router]);
 
-  // производные
+  // пока проверяем доступ — показываем заглушку
+  if (accessChecking) {
+    return (
+      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+        <p className="text-sm text-gray-600">Проверяем доступ к личному кабинету…</p>
+      </main>
+    );
+  }
+
+  // ===== производные =====
 
   const appointmentPets = useMemo(
     () => Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
@@ -238,27 +285,6 @@ export default function AccountPage() {
   );
 
   // ===== UI =====
-
-  if (!loading && role === "guest") {
-    return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <h1 className="text-xl font-semibold">
-            Личный кабинет доступен только авторизованным пользователям
-          </h1>
-          <p className="text-sm text-gray-600">
-            Пожалуйста, войдите или зарегистрируйтесь, чтобы увидеть свои записи и документы.
-          </p>
-          <Link
-            href="/auth/login"
-            className="inline-block mt-2 rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
-          >
-            Войти
-          </Link>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="bg-slate-50 min-h-screen py-12">
@@ -342,7 +368,7 @@ export default function AccountPage() {
 
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl.border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptPetFilter}
                 onChange={(e) => setApptPetFilter(e.target.value)}
               >
@@ -383,7 +409,9 @@ export default function AccountPage() {
                   <tr className="text-gray-500 border-b">
                     <th className="py-2 pr-3 text-left font-normal">Дата</th>
                     <th className="py-2 pr-3 text-left font-normal">Время</th>
-                    <th className="py-2 pr-3 text-left font-normal">Питомец</th>
+                    <th className="py-2 pr-3 text-left font-normal">
+                      Питомец
+                    </th>
                     <th className="py-2 pr-3 text-left font-normal">Врач</th>
                     <th className="py-2 pr-3 text-left font-normal">Услуга</th>
                     <th className="py-2 pr-3 text-left font-normal">Статус</th>
@@ -419,7 +447,7 @@ export default function AccountPage() {
               </select>
 
               <select
-                className="rounded-xl border border-gray-200 px-3.py-1 bg-white outline-none"
+                className="rounded-xl border border-gray-200 px-3 py-1 bg.white outline-none"
                 value={docTypeFilter}
                 onChange={(e) =>
                   setDocTypeFilter(e.target.value as DocumentType | "all")
@@ -476,7 +504,7 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
 
   return (
     <tr className="border-b border-gray-50 hover:bg-slate-50">
-      <td className="py-2 pr-3">{dateLabel}</td>
+      <td className="py-2.pr-3">{dateLabel}</td>
       <td className="py-2 pr-3">{timeLabel}</td>
       <td className="py-2 pr-3">
         {a.pet_name}{" "}
@@ -518,7 +546,7 @@ function DocumentRow({ doc }: { doc: DbDocument }) {
       : "Питомец не указан";
 
   return (
-    <li className="rounded-xl border p-3 bg-gray-50 flex justify-between items-center">
+    <li className="rounded-xl border p-3 bg-gray-50 flex.justify-between items-center">
       <div>
         <div className="font-medium">{doc.title}</div>
         <div className="text-gray-500 text-[11px]">
