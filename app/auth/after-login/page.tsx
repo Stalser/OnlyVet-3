@@ -66,8 +66,8 @@ export default function AfterLoginPage() {
         if (!ownerProfile && user.email) {
           const { data: byEmail, error: byEmailErr } = await client
             .from("owner_profiles")
-            // ищем записи, где extra_contacts->>email совпадает
-            .eq("extra_contacts->>email", user.email)
+            // используем filter вместо eq для jsonb-поля
+            .filter("extra_contacts->>email", "eq", user.email)
             .maybeSingle();
 
           if (byEmailErr) {
@@ -162,7 +162,7 @@ export default function AfterLoginPage() {
   }, [client, router]);
 
   return (
-    <main className="min-h-screen flex.items-center justify-center bg-slate-50">
+    <main className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="text-center space-y-2">
         <p className="text-sm text-gray-600">Определяем ваш профиль…</p>
         {error && (
