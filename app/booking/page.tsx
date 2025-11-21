@@ -197,8 +197,8 @@ export default function BookingPage() {
       setLoading(false);
     };
 
-    void init();
-  }, [client, phone, telegram]);
+    void init();}, [client]); 
+  }, [client]);
 
   // При выборе существующего питомца подставляем его кличку и вид
   useEffect(() => {
