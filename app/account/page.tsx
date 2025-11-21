@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// подключаем такие же справочники, как в регистратуре
+import { doctors } from "../../lib/data";
+import { servicesPricing } from "../../lib/pricing";
+
 type AuthRole = "guest" | "user" | "staff";
 
 type DbOwnerProfile = {
@@ -31,6 +35,8 @@ type DbAppointment = {
   pet_name: string;
   species: string | null;
   status: AppointmentStatus;
+  service_code: string | null;
+  doctor_id: string | null;
 };
 
 type DocumentType = "conclusion" | "analysis" | "contract" | "other";
@@ -59,14 +65,12 @@ export default function AccountPage() {
 
   // фильтры
   const [apptPetFilter, setApptPetFilter] = useState<string>("all");
-  const [apptStatusFilter, setApptStatusFilter] = useState<
-    AppointmentStatus | "all"
-  >("all");
+  const [apptStatusFilter, setApptStatusFilter] =
+    useState<AppointmentStatus | "all">("all");
 
   const [docPetFilter, setDocPetFilter] = useState<string>("all");
-  const [docTypeFilter, setDocTypeFilter] = useState<DocumentType | "all">(
-    "all"
-  );
+  const [docTypeFilter, setDocTypeFilter] =
+    useState<DocumentType | "all">("all");
 
   useEffect(() => {
     if (!supabase) {
@@ -82,7 +86,7 @@ export default function AccountPage() {
       setError(null);
 
       // 1. Текущий пользователь
-      const { data: userData, error: userErr } = await client.auth.getUser();
+      const { data: userData, error: userErr } = await.client.auth.getUser();
       if (userErr) {
         console.error(userErr);
         setError("Ошибка получения пользователя");
@@ -142,7 +146,7 @@ export default function AccountPage() {
         setPets((petsData ?? []) as DbPet[]);
       }
 
-      // 4. Записи — тянем только существующие поля
+      // 4. Записи — расширяем select полями service_code и doctor_id
       const { data: apptsData, error: apptsErr } = await client
         .from("appointments")
         .select(
@@ -151,7 +155,9 @@ export default function AccountPage() {
           starts_at,
           pet_name,
           species,
-          status
+          status,
+          service_code,
+          doctor_id
         `
         )
         .eq("owner_id", ownerId)
@@ -199,14 +205,16 @@ export default function AccountPage() {
   // производные
 
   const appointmentPets = useMemo(
-    () => Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
+    () =>
+      Array.from(new Set(appointments.map((a) => a.pet_name))).filter(Boolean),
     [appointments]
   );
 
   const filteredAppointments = useMemo(
     () =>
       appointments.filter((a) => {
-        if (apptPetFilter !== "all" && a.pet_name !== apptPetFilter) return false;
+        if (apptPetFilter !== "all" && a.pet_name !== apptPetFilter)
+          return false;
         if (apptStatusFilter !== "all" && a.status !== apptStatusFilter)
           return false;
         return true;
@@ -247,7 +255,8 @@ export default function AccountPage() {
             Личный кабинет доступен только авторизованным пользователям
           </h1>
           <p className="text-sm text-gray-600">
-            Пожалуйста, войдите или зарегистрируйтесь, чтобы увидеть свои записи и документы.
+            Пожалуйста, войдите или зарегистрируйтесь, чтобы увидеть свои
+            записи и документы.
           </p>
           <Link
             href="/auth/login"
@@ -290,13 +299,13 @@ export default function AccountPage() {
 
         {/* Профиль и питомцы */}
         <section className="grid md:grid-cols-3 gap-4">
-          <div className="md:col-span-2 rounded-2xl border bg-white p-4 space-y-2">
+          <div className="md:col-span-2 rounded-2xl.border bg-white p-4 space-y-2">
             <h2 className="font-semibold text-base">Профиль</h2>
 
             {owner ? (
               <div className="text-sm">
                 <div className="text-gray-600">
-                  <span className="text-xs text-gray-500">Имя: </span>
+                  <span className="text-xs.text-gray-500">Имя: </span>
                   {owner.full_name || "—"}
                 </div>
               </div>
@@ -358,7 +367,9 @@ export default function AccountPage() {
                 className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
                 value={apptStatusFilter}
                 onChange={(e) =>
-                  setApptStatusFilter(e.target.value as AppointmentStatus | "all")
+                  setApptStatusFilter(
+                    e.target.value as AppointmentStatus | "all"
+                  )
                 }
               >
                 <option value="all">Все статусы</option>
@@ -406,7 +417,7 @@ export default function AccountPage() {
             <h2 className="font-semibold text-base">Документы</h2>
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                className="rounded-xl border border-gray-200 px-3 py-1 bg-white outline-none"
+                className="rounded-xl border.border-gray-200 px-3 py-1 bg-white outline-none"
                 value={docPetFilter}
                 onChange={(e) => setDocPetFilter(e.target.value)}
               >
@@ -454,6 +465,7 @@ export default function AccountPage() {
 }
 
 function AppointmentRow({ a }: { a: DbAppointment }) {
+  // статус
   const statusColor =
     a.status === "подтверждена"
       ? "text-emerald-700 bg-emerald-50"
@@ -463,6 +475,7 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
       ? "text-gray-700 bg-gray-50"
       : "text-red-700 bg-red-50";
 
+  // дата/время
   const date = new Date(a.starts_at);
   const dateLabel = date.toLocaleDateString("ru-RU", {
     day: "2-digit",
@@ -474,6 +487,20 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
     minute: "2-digit",
   });
 
+  // врач (по doctor_id)
+  const doctor =
+    a.doctor_id != null
+      ? doctors.find((d: any) => d.id === a.doctor_id)
+      : null;
+  const doctorName = doctor?.name ?? "—";
+
+  // услуга (по service_code)
+  const service =
+    a.service_code != null
+      ? servicesPricing.find((s: any) => s.code === a.service_code)
+      : null;
+  const serviceName = service?.name ?? "—";
+
   return (
     <tr className="border-b border-gray-50 hover:bg-slate-50">
       <td className="py-2 pr-3">{dateLabel}</td>
@@ -484,11 +511,11 @@ function AppointmentRow({ a }: { a: DbAppointment }) {
           ({a.species || "вид не указан"})
         </span>
       </td>
-      <td className="py-2 pr-3">—</td>
-      <td className="py-2 pr-3">—</td>
+      <td className="py-2 pr-3">{doctorName}</td>
+      <td className="py-2 pr-3">{serviceName}</td>
       <td className="py-2 pr-3">
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusColor}`}
+          className={`inline-flex items-center rounded-full px-2.py-0.5 ${statusColor}`}
         >
           {a.status}
         </span>
@@ -518,7 +545,7 @@ function DocumentRow({ doc }: { doc: DbDocument }) {
       : "Питомец не указан";
 
   return (
-    <li className="rounded-xl border p-3 bg-gray-50 flex justify-between items-center">
+    <li className="rounded-xl border p-3 bg-gray-50 flex.justify-between items-center">
       <div>
         <div className="font-medium">{doc.title}</div>
         <div className="text-gray-500 text-[11px]">
