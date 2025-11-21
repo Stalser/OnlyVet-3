@@ -55,36 +55,58 @@ export default function AfterLoginPage() {
           .eq("auth_id", user.id)
           .maybeSingle();
 
-        let ownerProfile = byAuth ?? null;
+        let ownerProfile: any = byAuth ?? null;
 
         if (byAuthErr) {
           console.error("AFTER LOGIN: owner by auth_id error", byAuthErr);
         }
 
-        // 2.2. Если по auth_id не нашли — пытаемся связать по email,
-        // чтобы подобрать заранее заведённую карточку из картотеки
+        // 2.2. Если по auth_id не нашли — пытаемся связать по email
         if (!ownerProfile && user.email) {
-          const { data: byEmail, error: byEmailErr } = await client
+          // Берём все профили (или можно потом ограничить по deleted_at и т.п.)
+          const { data: owners, error: ownersErr } = await client
             .from("owner_profiles")
-            // используем filter вместо eq для jsonb-поля
-            .filter("extra_contacts->>email", "eq", user.email)
-            .maybeSingle();
+            .select("user_id, full_name, auth_id, extra_contacts");
 
-          if (byEmailErr) {
-            console.error("AFTER LOGIN: owner by email error", byEmailErr);
-          }
+          if (ownersErr) {
+            console.error("AFTER LOGIN: owners load error", ownersErr);
+          } else if (owners && owners.length > 0) {
+            const emailLower = user.email.toLowerCase();
 
-          if (byEmail) {
-            // привязываем найденный профиль к auth_id
-            const { error: linkErr } = await client
-              .from("owner_profiles")
-              .update({ auth_id: user.id })
-              .eq("user_id", (byEmail as any).user_id);
+            const found = owners.find((o: any) => {
+              if (!o.extra_contacts) return false;
+              let extra: any = null;
+              try {
+                extra =
+                  typeof o.extra_contacts === "string"
+                    ? JSON.parse(o.extra_contacts)
+                    : o.extra_contacts;
+              } catch {
+                extra = null;
+              }
+              if (!extra || typeof extra !== "object") return false;
 
-            if (linkErr) {
-              console.error("AFTER LOGIN: link owner_profile error", linkErr);
-            } else {
-              ownerProfile = { ...byEmail, auth_id: user.id };
+              const candidateEmail =
+                extra.email ?? extra.mail ?? extra.email_main ?? null;
+
+              return (
+                typeof candidateEmail === "string" &&
+                candidateEmail.toLowerCase() === emailLower
+              );
+            });
+
+            if (found) {
+              // привязываем найденный профиль к auth_id
+              const { error: linkErr } = await client
+                .from("owner_profiles")
+                .update({ auth_id: user.id })
+                .eq("user_id", found.user_id);
+
+              if (linkErr) {
+                console.error("AFTER LOGIN: link owner_profile error", linkErr);
+              } else {
+                ownerProfile = { ...found, auth_id: user.id };
+              }
             }
           }
         }
@@ -141,19 +163,14 @@ export default function AfterLoginPage() {
 
       // 4. Маршрутизация по ролям
       if (hasRegistrar) {
-        // Панель регистратора
         router.replace("/backoffice/registrar");
       } else if (hasVet) {
-        // Интерфейс врача
         router.replace("/staff");
       } else if (hasAdmin) {
-        // Временно – в backoffice (потом сделаем /admin)
         router.replace("/backoffice/registrar");
       } else if (hasClient || roles.length === 0) {
-        // Обычный клиент (или ролей нет)
         router.replace("/account");
       } else {
-        // На всякий случай – в личный кабинет
         router.replace("/account");
       }
     };
