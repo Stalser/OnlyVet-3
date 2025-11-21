@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-// справочники врачей и услуг — те же, что в регистратуре
 import { doctors } from "../../../../lib/data";
 import { servicesPricing } from "../../../../lib/pricing";
 
@@ -30,12 +28,11 @@ type DbAppointmentDetail = {
   species: string | null;
   starts_at: string;
   status: AppointmentStatus;
-
-  service_code: string | null;
-  doctor_id: string | null;
-  complaint: string | null;
-  video_platform: string | null;
-  video_url: string | null;
+  service_code?: string | null;
+  doctor_id?: string | null;
+  complaint?: string | null;
+  video_platform?: string | null;
+  video_url?: string | null;
 };
 
 type DocumentType = "conclusion" | "analysis" | "contract" | "other";
@@ -63,7 +60,7 @@ export default function AppointmentDetailPage() {
 
   if (!supabase) {
     return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50.min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <h1 className="text-xl font-semibold">Ошибка конфигурации</h1>
           <p className="text-sm text-gray-600">
@@ -84,7 +81,7 @@ export default function AppointmentDetailPage() {
       // 1. Текущий пользователь
       const { data: userData, error: userErr } = await client.auth.getUser();
       if (userErr) {
-        console.error(userErr);
+        console.error("APPOINTMENT getUser error", userErr);
         setError("Ошибка проверки авторизации");
         setLoading(false);
         return;
@@ -101,7 +98,7 @@ export default function AppointmentDetailPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Ищем owner_profile по auth_id — как в /account
+      // 2. owner_profile по auth_id
       const { data: ownerProfile, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, auth_id")
@@ -109,7 +106,7 @@ export default function AppointmentDetailPage() {
         .maybeSingle();
 
       if (ownerErr) {
-        console.error(ownerErr);
+        console.error("APPOINTMENT owner error", ownerErr);
         setError("Ошибка получения профиля владельца");
         setLoading(false);
         return;
@@ -125,31 +122,16 @@ export default function AppointmentDetailPage() {
       const ownerId = ownerRow.user_id;
       const appointmentId = params.id;
 
-      // 3. Загружаем приём и проверяем, что он этого владельца
+      // 3. Приём по id
       const { data: apptData, error: apptErr } = await client
         .from("appointments")
-        .select(
-          `
-          id,
-          owner_id,
-          pet_name,
-          species,
-          starts_at,
-          status,
-          service_code,
-          doctor_id,
-          complaint,
-          video_platform,
-          video_url
-        `
-        )
+        .select("*")
         .eq("id", appointmentId)
-        .eq("owner_id", ownerId)
         .maybeSingle();
 
       if (apptErr) {
-        console.error(apptErr);
-        setError("Ошибка загрузки приёма");
+        console.error("APPOINTMENT select error", apptErr);
+        setError("Приём не найден или недоступен");
         setLoading(false);
         return;
       }
@@ -160,9 +142,18 @@ export default function AppointmentDetailPage() {
         return;
       }
 
-      setAppointment(apptData as DbAppointmentDetail);
+      const apptRow = apptData as DbAppointmentDetail;
 
-      // 4. Документы по этомy приёму
+      // защита: приём должен принадлежать этому владельцу
+      if (apptRow.owner_id !== ownerId) {
+        setError("Приём не найден или недоступен");
+        setLoading(false);
+        return;
+      }
+
+      setAppointment(apptRow);
+
+      // 4. Документы по приёму
       const { data: docsData, error: docsErr } = await client
         .from("appointment_documents")
         .select("id, title, type, created_at, summary, file_url")
@@ -170,7 +161,7 @@ export default function AppointmentDetailPage() {
         .order("created_at", { ascending: false });
 
       if (docsErr) {
-        console.error(docsErr);
+        console.error("APPOINTMENT docs error", docsErr);
         setError("Ошибка загрузки документов приёма");
       } else {
         setDocs((docsData ?? []) as DbAppointmentDocument[]);
@@ -182,12 +173,12 @@ export default function AppointmentDetailPage() {
     void load();
   }, [client, params.id]);
 
-  // Неавторизован — выводим аккуратную заглушку
+  // Неавторизован
   if (!loading && role === "guest") {
     return (
-      <main className="bg-slate-50.min-h-screen flex items-center justify-center">
+      <main className="bg-slate-50 min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
-          <h1 className="text-xl font-semibold">Доступ ограничен</h1>
+          <h1 className="text-xl.font-semibold">Доступ ограничен</h1>
           <p className="text-sm text-gray-600">
             Чтобы просматривать информацию о приёмах, войдите в личный кабинет.
           </p>
@@ -214,34 +205,19 @@ export default function AppointmentDetailPage() {
     return `${base} text-red-700 bg-red-50`;
   };
 
-  const formatDateTime = (iso: string) => {
-    const d = new Date(iso);
-    return {
-      date: d.toLocaleDateString("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "2-digit",
-      }),
-      time: d.toLocaleTimeString("ru-RU", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-  };
-
-  const resolveDoctorName = (doctorId: string | null) => {
+  const resolveDoctorName = (doctorId?: string | null) => {
     if (!doctorId) return "Не назначен";
     const doc = doctors.find((d: any) => d.id === doctorId);
     return doc?.name ?? "Не назначен";
   };
 
-  const resolveServiceName = (code: string | null) => {
+  const resolveServiceName = (code?: string | null) => {
     if (!code) return "Услуга не указана";
     const service = servicesPricing.find((s: any) => s.code === code);
     return service?.name ?? "Услуга";
   };
 
-  const resolvePlatformLabel = (platform: string | null) => {
+  const resolvePlatformLabel = (platform?: string | null) => {
     if (!platform || platform === "yandex_telemost") return "Яндекс Телемост";
     return platform;
   };
@@ -270,7 +246,7 @@ export default function AppointmentDetailPage() {
 
         {!loading && !error && appointment && (
           <>
-            {/* Основной блок приёма */}
+            {/* Основная информация по приёму */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
@@ -279,9 +255,7 @@ export default function AppointmentDetailPage() {
                   </h1>
                   <p className="text-xs text-gray-500">
                     ID:{" "}
-                    <span className="font-mono">
-                      {appointment.id}
-                    </span>
+                    <span className="font-mono">{appointment.id}</span>
                   </p>
                 </div>
 
@@ -294,22 +268,23 @@ export default function AppointmentDetailPage() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 text-xs text-gray-700">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div>
                     <div className="text-gray-500">Питомец</div>
                     <div>
-                      {appointment.pet_name}{" "}
+                      {appointment.pet_name || "Не указан"}{" "}
                       <span className="text-gray-500">
                         ({appointment.species || "вид не указан"})
                       </span>
                     </div>
                   </div>
+
                   <div>
                     <div className="text-gray-500">Формат связи</div>
-                    <div>
-                      {resolvePlatformLabel(appointment.video_platform)}
+                    <div className="font-medium text-gray-900">
+                      {resolvePlatformLabel(appointment.video_platform ?? null)}
                     </div>
-                    {appointment.video_url && (
+                    {appointment.video_url ? (
                       <div className="mt-1">
                         <a
                           href={appointment.video_url}
@@ -320,17 +295,16 @@ export default function AppointmentDetailPage() {
                           Открыть ссылку на консультацию
                         </a>
                       </div>
+                    ) : (
+                      <div className="text-[10px] text-gray-400">
+                        Ссылка на онлайн-консультацию будет добавлена
+                        регистратором или врачом.
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-gray-500">Врач</div>
-                    <div className="font-medium">
-                      {resolveDoctorName(appointment.doctor_id)}
-                    </div>
-                  </div>
+                <div className="space-y-3">
                   <div>
                     <div className="text-gray-500">Услуга</div>
                     <div className="font-medium">
@@ -342,24 +316,29 @@ export default function AppointmentDetailPage() {
                       </div>
                     )}
                   </div>
+
+                  <div>
+                    <div className="text-gray-500">Врач</div>
+                    <div className="font-medium">
+                      {resolveDoctorName(appointment.doctor_id ?? null)}
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
 
             {/* Жалоба / описание проблемы */}
             <section className="rounded-2xl border bg-white p-4 space-y-2">
-              <h2 className="text-sm font-semibold">
-                Жалоба / описание проблемы
-              </h2>
-              {appointment.complaint ? (
-                <p className="text-xs text-gray-700 whitespace-pre-line">
+              <h2 className="text-sm font-semibold">Жалоба / описание проблемы</h2>
+              {appointment.complaint && appointment.complaint.trim().length > 0 ? (
+                <p className="text-sm text-gray-700 whitespace-pre-line">
                   {appointment.complaint}
                 </p>
               ) : (
                 <p className="text-xs text-gray-500">
-                  Жалоба клиента не указана. Если вы хотите дополнить описание
-                  проблемы, сообщите об этом регистратору при подтверждении
-                  времени консультации.
+                  Описание жалобы пока не заполнено. Если вы хотите дополнить
+                  информацию, расскажите об этом врачу или регистратору во
+                  время подтверждения и приёма.
                 </p>
               )}
             </section>
