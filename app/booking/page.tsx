@@ -5,12 +5,17 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// ⚠️ используем те же источники, что и в lib/clients.ts
+import { servicesPricing } from "../../lib/pricing";
+import { doctors } from "../../lib/data";
+
 type AuthRole = "guest" | "user" | "staff";
 
 type DbOwnerProfile = {
   user_id: number;
   full_name: string | null;
   auth_id: string | null;
+  extra_contacts?: any;
 };
 
 type DbPet = {
@@ -43,6 +48,10 @@ export default function BookingPage() {
   const [complaint, setComplaint] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+
+  // Выбор услуги и врача
+  const [serviceCode, setServiceCode] = useState("");
+  const [doctorId, setDoctorId] = useState<string | "any">("any");
 
   // Галочки согласий
   const [agreePersonalData, setAgreePersonalData] = useState(false);
@@ -91,7 +100,7 @@ export default function BookingPage() {
       // owner_profiles по auth_id
       const { data: ownerRow, error: ownerErr } = await client
         .from("owner_profiles")
-        .select("user_id, full_name, auth_id")
+        .select("user_id, full_name, auth_id, extra_contacts")
         .eq("auth_id", user.id)
         .maybeSingle();
 
@@ -109,6 +118,28 @@ export default function BookingPage() {
         setOwnerProfile(o);
         ownerId = o.user_id;
         if (o.full_name) setFullName(o.full_name);
+
+        // 🔹 попробуем достать контакт из extra_contacts
+        if (o.extra_contacts) {
+          try {
+            const extra =
+              typeof o.extra_contacts === "string"
+                ? JSON.parse(o.extra_contacts)
+                : o.extra_contacts;
+            const phoneCandidate =
+              extra?.phone ??
+              extra?.phone_main ??
+              extra?.whatsapp ??
+              extra?.telegram_phone ??
+              extra?.telegram ??
+              "";
+            if (phoneCandidate && !phone) {
+              setPhone(String(phoneCandidate));
+            }
+          } catch {
+            // если extra_contacts в неожиданном формате — просто игнорируем
+          }
+        }
       } else {
         setOwnerProfile(null);
       }
@@ -137,11 +168,16 @@ export default function BookingPage() {
       setDate(isoDate);
       setTime(`${hh}:${mm}`);
 
+      // Услуга по умолчанию — первая из списка, если есть
+      if (servicesPricing.length > 0) {
+        setServiceCode(servicesPricing[0].code ?? "");
+      }
+
       setLoading(false);
     };
 
     void init();
-  }, [client]);
+  }, [client, phone]);
 
   // При выборе существующего питомца подставляем его кличку и вид
   useEffect(() => {
@@ -158,7 +194,6 @@ export default function BookingPage() {
     setError(null);
     setSuccess(null);
 
-    // базовая валидация
     if (!isLoggedIn) {
       setError("Для записи на консультацию необходимо войти в личный кабинет.");
       return;
@@ -181,6 +216,11 @@ export default function BookingPage() {
 
     if (!date || !time) {
       setError("Пожалуйста, укажите желаемые дату и время.");
+      return;
+    }
+
+    if (!serviceCode.trim()) {
+      setError("Пожалуйста, выберите услугу.");
       return;
     }
 
@@ -220,8 +260,9 @@ export default function BookingPage() {
           .insert({
             full_name: fullName,
             auth_id: user.id,
+            extra_contacts: { phone }, // лёгкая заготовка на будущее
           })
-          .select("user_id, full_name, auth_id")
+          .select("user_id, full_name, auth_id, extra_contacts")
           .single();
 
         if (insertErr || !inserted) {
@@ -245,14 +286,16 @@ export default function BookingPage() {
       const startsAt = new Date(`${date}T${time}:00`);
       const startsIso = startsAt.toISOString();
 
-      // создаём appointment
+      // создаём appointment с услугой, врачом и жалобой
       const { error: apptErr } = await client.from("appointments").insert({
         owner_id: ownerId,
         pet_name: petName,
         species,
         starts_at: startsIso,
         status: "запрошена",
-        // TODO: позже добавим услугу, врача, complaint и т.д.
+        complaint: complaint || null,
+        service_code: serviceCode || null,
+        doctor_id: doctorId === "any" ? null : doctorId,
       });
 
       if (apptErr) {
@@ -276,7 +319,6 @@ export default function BookingPage() {
     }
   };
 
-  // удобный флаг для disabled у кнопки
   const isSubmitDisabled =
     submitting ||
     !isLoggedIn ||
@@ -286,10 +328,10 @@ export default function BookingPage() {
     !species.trim() ||
     !date ||
     !time ||
+    !serviceCode.trim() ||
     !agreePersonalData ||
     !agreeOffer;
 
-  // если не залогинен
   if (!loading && !isLoggedIn) {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center py-10">
@@ -320,7 +362,6 @@ export default function BookingPage() {
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container max-w-2xl space-y-6">
-        {/* Назад */}
         <div>
           <Link
             href="/account"
@@ -371,7 +412,7 @@ export default function BookingPage() {
           >
             {/* Владелец */}
             <section className="space-y-2">
-              <h2 className="font-semibold text-base">Владелец</h2>
+              <h2 className="font-semibold text.base">Владелец</h2>
               <div className="grid gap-3">
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600">
@@ -379,7 +420,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Например: Иванова Анна Сергеевна"
@@ -410,7 +451,7 @@ export default function BookingPage() {
                     Выберите питомца или укажите нового
                   </label>
                   <select
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={selectedPetId === "new" ? "new" : String(selectedPetId)}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -435,7 +476,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={petName}
                     onChange={(e) => setPetName(e.target.value)}
                     placeholder="Например: Барсик"
@@ -447,13 +488,62 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full.rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
                     placeholder="Кот, собака, хорёк…"
                   />
                 </div>
               </div>
+            </section>
+
+            {/* Врач и услуга */}
+            <section className="space-y-2">
+              <h2 className="font-semibold text-base">Врач и услуга</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">
+                    Услуга <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    value={serviceCode}
+                    onChange={(e) => setServiceCode(e.target.value)}
+                  >
+                    <option value="">Выберите услугу</option>
+                    {servicesPricing.map((s: any) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">
+                    Предпочтительный врач
+                  </label>
+                  <select
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    value={doctorId}
+                    onChange={(e) =>
+                      setDoctorId(e.target.value as string | "any")
+                    }
+                  >
+                    <option value="any">Любой врач</option>
+                    {doctors.map((d: any) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400">
+                На этом этапе вы выбираете предпочтительную услугу и врача. Точное
+                время и запись к конкретному специалисту подтвердит
+                регистратор.
+              </p>
             </section>
 
             {/* Проблема и время */}
@@ -464,7 +554,7 @@ export default function BookingPage() {
                   Кратко опишите проблему
                 </label>
                 <textarea
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
+                  className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
                   value={complaint}
                   onChange={(e) => setComplaint(e.target.value)}
                   placeholder="Когда началось, какие симптомы, какие лекарства уже давали…"
@@ -478,7 +568,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="date"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                   />
@@ -489,7 +579,7 @@ export default function BookingPage() {
                   </label>
                   <input
                     type="time"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                    className="w-full.rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
                   />
@@ -555,7 +645,7 @@ export default function BookingPage() {
               <button
                 type="submit"
                 disabled={isSubmitDisabled}
-                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900.disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {submitting ? "Отправляем заявку..." : "Записаться"}
               </button>
