@@ -1,108 +1,110 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import { useCurrentUser } from "../lib/useCurrentUser";
+import { usePathname } from "next/navigation";
+import { useCurrentUser } from "@/lib/useCurrentUser";
+
+type StaffRole = "registrar" | "vet" | "admin" | "client";
 
 export default function Navbar() {
-  const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useCurrentUser();
 
-  const [authLabel, setAuthLabel] = useState("Вход");
-  const [authHref, setAuthHref] = useState("/auth/login");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const role: StaffRole = (user?.role as StaffRole) ?? "client";
+  const isStaff = role === "registrar" || role === "vet" || role === "admin";
 
-  // Определяем, что показывать в правом углу, в зависимости от роли
-  useEffect(() => {
-    if (loading) return;
+  // --- Куда ведёт кнопка "кабинета" ---
+  let cabinetLabel = "Личный кабинет";
+  let cabinetHref = "/account";
 
-    if (!user) {
-      setIsLoggedIn(false);
-      setAuthLabel("Вход");
-      setAuthHref("/auth/login");
-      return;
+  if (user && isStaff) {
+    cabinetLabel = "Рабочий кабинет";
+    if (role === "vet") {
+      cabinetHref = "/staff";
+    } else {
+      // registrar и admin — в кабинет регистратуры
+      cabinetHref = "/backoffice/registrar";
     }
+  }
 
-    setIsLoggedIn(true);
+  // --- Правый блок авторизации ---
+  const isLoggedIn = !!user;
 
-    switch (user.role) {
-      case "registrar":
-      case "admin":
-        setAuthLabel("Кабинет регистратуры");
-        setAuthHref("/backoffice/registrar");
-        break;
-      case "vet":
-        setAuthLabel("Кабинет врача");
-        setAuthHref("/staff");
-        break;
-      case "client":
-      default:
-        setAuthLabel("Личный кабинет");
-        setAuthHref("/account");
-        break;
-    }
-  }, [user, loading]);
-
-  const handleLogout = async () => {
-    if (!supabase) return;
-
-    await supabase.auth.signOut();
-    setIsLoggedIn(false);
-    // После выхода всегда на главную
-    router.push("/");
-  };
+  const isActive = (href: string) =>
+    pathname === href ? "text-gray-900 font-semibold" : "text-gray-600";
 
   return (
-    <header className="border-b border-gray-100 bg-white/90 backdrop-blur-sm">
-      <div className="container flex h-14 items-center justify-between gap-4">
-        {/* Лого */}
-        <Link href="/" className="font-semibold text-sm tracking-tight">
-          OnlyVet
+    <header className="border-b border-gray-100 bg-white/80 backdrop-blur">
+      <div className="container mx-auto flex items-center justify-between px-4 py-3 md:py-4">
+        {/* Логотип / бренд */}
+        <Link href="/" className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">
+            OV
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-semibold text-gray-900">
+              OnlyVet
+            </span>
+            <span className="text-[11px] text-gray-500">
+              онлайн-ветеринария
+            </span>
+          </div>
         </Link>
 
-        {/* Меню */}
-        <nav className="hidden sm:flex items-center gap-4 text-xs text-gray-700">
-          <Link href="/services" className="hover:text-black transition-colors">
+        {/* Навигация по сайту */}
+        <nav className="hidden md:flex items-center gap-6 text-sm">
+          <Link href="/services" className={isActive("/services")}>
             Услуги
           </Link>
-          <Link href="/doctors" className="hover:text-black transition-colors">
+          <Link href="/doctors" className={isActive("/doctors")}>
             Врачи
           </Link>
-          <Link href="/docs" className="hover:text-black transition-colors">
+          <Link href="/docs" className={isActive("/docs")}>
             Документы
           </Link>
         </nav>
 
-        {/* Правый блок */}
+        {/* Правый блок: кабинет / вход / запись */}
         <div className="flex items-center gap-3">
-          {/* Вход / ЛК / Кабинеты */}
-          <Link
-            href={authHref}
-            className="text-xs text-gray-700 hover:text-black underline underline-offset-2"
-          >
-            {authLabel}
-          </Link>
+          {/* Пока грузится user — просто серый текст-заглушка, чтобы не мигало */}
+          {loading ? (
+            <span className="text-xs text-gray-400">Загружаем…</span>
+          ) : (
+            <>
+              {/* Кнопка кабинета или входа */}
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    href={cabinetHref}
+                    className="text-xs md:text-sm text-gray-700 hover:text-black underline underline-offset-2"
+                  >
+                    {cabinetLabel}
+                  </Link>
+                  <Link
+                    href="/auth/logout"
+                    className="text-xs md:text-sm text-gray-500 hover:text-black"
+                  >
+                    Выйти
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/auth/login"
+                  className="text-xs md:text-sm text-gray-700 hover:text-black underline underline-offset-2"
+                >
+                  Вход
+                </Link>
+              )}
 
-          {/* Выйти — только если залогинен */}
-          {isLoggedIn && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-xs px-3 py-1.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100"
-            >
-              Выйти
-            </button>
+              {/* Кнопка "Записаться" всегда доступна */}
+              <Link
+                href="/booking"
+                className="rounded-full bg-black px-4 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-gray-900"
+              >
+                Записаться
+              </Link>
+            </>
           )}
-
-          {/* Записаться */}
-          <Link
-            href="/booking"
-            className="rounded-xl px-4 py-1.5 bg-black text-white text-xs font-medium hover:bg-gray-900"
-          >
-            Записаться
-          </Link>
         </div>
       </div>
     </header>
