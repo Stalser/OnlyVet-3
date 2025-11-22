@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type UserRole = "client" | "registrar" | "vet" | "admin";
 
@@ -14,20 +15,18 @@ export default function Navbar() {
   const isAuthed = !!user;
   const role = (user?.role ?? "client") as UserRole;
 
-  // Определяем зону по URL
-  const isRegistrarArea = pathname.startsWith("/backoffice");
-  const isVetArea = pathname.startsWith("/staff");
-  const isStaffArea = isRegistrarArea || isVetArea;
-  const isClientArea = pathname.startsWith("/account");
+  const isStaff = role === "registrar" || role === "vet" || role === "admin";
 
-  // Куда ведёт ссылка "кабинет" и как она называется
+  // Куда ведёт ссылка "кабинет"
   let dashboardHref = "/auth/login";
   let dashboardLabel = "Вход";
 
-  if (isStaffArea) {
-    dashboardHref = isVetArea ? "/staff" : "/backoffice/registrar";
+  if (isAuthed && isStaff) {
+    // сотрудник: регистратор / врач / админ
+    dashboardHref = role === "vet" ? "/staff" : "/backoffice/registrar";
     dashboardLabel = "Рабочий кабинет";
-  } else if (isClientArea || role === "client") {
+  } else if (isAuthed && !isStaff) {
+    // обычный клиент
     dashboardHref = "/account";
     dashboardLabel = "Личный кабинет";
   }
@@ -40,13 +39,14 @@ export default function Navbar() {
     }`;
 
   const handleLogout = async () => {
-    if (!supabase) return;
     try {
-      await supabase.auth.signOut();
-      // После выхода просто кидаем на главную
-      window.location.href = "/";
-    } catch (e) {
-      console.error("Logout error", e);
+      if (supabase) {
+        const client: SupabaseClient = supabase;
+        await client.auth.signOut();
+      }
+    } finally {
+      // В любом случае отправляем на страницу входа
+      window.location.href = "/auth/login";
     }
   };
 
@@ -74,12 +74,13 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Правая часть: кабинет / вход + запись + выход */}
+        {/* Правая часть */}
         <div className="flex items-center gap-4">
           {loading ? (
             <span className="text-xs text-gray-500">Загрузка…</span>
-          ) : isAuthed ? (
+          ) : (
             <>
+              {/* Личный / Рабочий кабинет / Вход */}
               <Link
                 href={dashboardHref}
                 className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
@@ -87,35 +88,24 @@ export default function Navbar() {
                 {dashboardLabel}
               </Link>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-sm text-gray-700 hover:text-gray-900"
+              {/* Кнопка "Записаться" — всегда доступна */}
+              <Link
+                href="/booking"
+                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
               >
-                Выйти
-              </button>
+                Записаться
+              </Link>
 
-              <Link
-                href="/booking"
-                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-              >
-                Записаться
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/auth/login"
-                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-              >
-                Вход
-              </Link>
-              <Link
-                href="/booking"
-                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-              >
-                Записаться
-              </Link>
+              {/* Кнопка "Выйти" только для авторизованных */}
+              {isAuthed && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-sm text-gray-600 hover:text-red-700"
+                >
+                  Выйти
+                </button>
+              )}
             </>
           )}
         </div>
