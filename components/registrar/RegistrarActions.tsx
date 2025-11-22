@@ -1,121 +1,108 @@
+// components/registrar/RegistrarActions.tsx
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-interface RegistrarActionsProps {
+type Props = {
   appointmentId: string;
   currentStatus: string;
-}
+};
 
-export function RegistrarActions({
-  appointmentId,
-  currentStatus,
-}: RegistrarActionsProps) {
-  const router = useRouter();
-  const [updating, setUpdating] = useState<null | "confirm" | "cancel">(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+type ActionStatus = "idle" | "loading" | "success" | "error";
 
-  const handleStatusChange = async (
-    newStatus: string,
-    kind: "confirm" | "cancel"
-  ) => {
-    if (!supabase) {
-      setErrorMessage("Ошибка: Supabase недоступен на клиенте.");
+export function RegistrarActions({ appointmentId, currentStatus }: Props) {
+  const [actionState, setActionState] = useState<ActionStatus>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const [statusNow, setStatusNow] = useState<string>(currentStatus);
+
+  const client: SupabaseClient | null = supabase;
+
+  const updateStatus = async (newStatus: string) => {
+    if (!client) {
+      setActionState("error");
+      setMessage("Supabase не сконфигурирован.");
       return;
     }
 
-    setUpdating(kind);
-    setErrorMessage(null);
+    setActionState("loading");
+    setMessage(null);
 
-    const { error } = await supabase
+    const { error } = await client
       .from("appointments")
       .update({ status: newStatus })
       .eq("id", appointmentId);
 
     if (error) {
-      setErrorMessage("Не удалось обновить статус. Попробуйте ещё раз.");
-      setUpdating(null);
+      console.error("RegistrarActions updateStatus error:", error);
+      setActionState("error");
+      setMessage("Не удалось обновить статус приёма.");
       return;
     }
 
-    // Обновляем данные страницы
-    router.refresh();
-    setUpdating(null);
+    setStatusNow(newStatus);
+    setActionState("success");
+    setMessage(`Статус обновлён на: "${newStatus}".`);
   };
 
-  const isConfirmed = currentStatus === "подтверждена";
-  const isCancelled = currentStatus === "отменена";
-  const isFinished = currentStatus === "завершена";
+  const handleConfirm = () => updateStatus("подтверждена");
+  const handleCancel = () => updateStatus("отменена");
+  const handleComplete = () => updateStatus("завершена");
+
+  const isLoading = actionState === "loading";
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-500">
-        Эти действия меняют статус консультации в базе данных. Позже сюда
-        добавим смену врача, времени и синхронизацию с Vetmanager.
-      </p>
-
-      {errorMessage && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2 text-xs">
         <button
           type="button"
-          onClick={() =>
-            handleStatusChange("подтверждена", "confirm")
-          }
-          disabled={updating === "confirm" || isConfirmed || isFinished}
-          className="rounded-xl border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+          onClick={handleConfirm}
+          disabled={isLoading || statusNow === "подтверждена"}
+          className="rounded-xl border border-emerald-600 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {updating === "confirm"
-            ? "Подтверждаем..."
-            : isConfirmed
-            ? "Уже подтверждена"
-            : isFinished
-            ? "Завершена"
-            : "Подтвердить консультацию"}
+          Подтвердить
         </button>
 
         <button
           type="button"
-          onClick={() =>
-            alert(
-              "Перенос / изменение времени пока работает как заглушка. Здесь будет выбор даты/времени с записью в БД и Vetmanager."
-            )
-          }
-          className="rounded-xl border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          onClick={handleCancel}
+          disabled={isLoading || statusNow === "отменена"}
+          className="rounded-xl border border-red-500 px-3 py-1.5 font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Перенести / изменить время
+          Отменить
         </button>
 
         <button
           type="button"
-          onClick={() =>
-            handleStatusChange("отменена", "cancel")
-          }
-          disabled={updating === "cancel" || isCancelled || isFinished}
-          className="rounded-xl border border-red-500 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+          onClick={handleComplete}
+          disabled={isLoading || statusNow === "завершена"}
+          className="rounded-xl border border-gray-400 px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {updating === "cancel"
-            ? "Отменяем..."
-            : isCancelled
-            ? "Уже отменена"
-            : isFinished
-            ? "Завершена"
-            : "Отменить консультацию"}
+          Отметить завершённым
         </button>
       </div>
 
-      <div className="text-[11px] text-gray-400">
-        Текущий статус:&nbsp;
-        <span className="font-medium text-gray-700">
-          {currentStatus || "неизвестен"}
+      <div className="text-[11px] text-gray-500">
+        Текущий статус:{" "}
+        <span className="font-semibold text-gray-800">
+          {statusNow || "неизвестен"}
         </span>
       </div>
+
+      {actionState !== "idle" && message && (
+        <div
+          className={`text-[11px] ${
+            actionState === "error"
+              ? "text-red-600"
+              : actionState === "success"
+              ? "text-emerald-700"
+              : "text-gray-500"
+          }`}
+        >
+          {message}
+        </div>
+      )}
     </div>
   );
 }
