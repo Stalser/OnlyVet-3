@@ -10,14 +10,17 @@ export function StaffNav() {
     { href: "/staff", label: "Кабинет врача" },
     { href: "/staff/schedule", label: "Расписание" },
     { href: "/staff/calendar", label: "Календарь" },
-    // Профиль теперь доступен
     { href: "/staff/profile", label: "Профиль" },
   ];
 
   return (
     <nav className="flex gap-6 border-b pb-3 mb-6 text-sm">
       {navItems.map((item) => {
-        const isActive = path === item.href;
+        // Для "Кабинет врача" считаем активным и /staff, и /staff/appointment/...
+        const isActive =
+          item.href === "/staff"
+            ? path === "/staff" || path.startsWith("/staff/appointment")
+            : path === item.href;
 
         return (
           <Link
