@@ -1,8 +1,10 @@
+// components/Navbar.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { supabase } from "@/lib/supabaseClient";
 
 type UserRole = "client" | "registrar" | "vet" | "admin";
 
@@ -16,7 +18,7 @@ export default function Navbar() {
   const isStaff =
     role === "registrar" || role === "vet" || role === "admin";
 
-  // Куда ведёт "кабинет"
+  // Куда ведёт кабинет
   let dashboardHref = "/account";
   if (role === "registrar" || role === "admin") {
     dashboardHref = "/backoffice/registrar";
@@ -33,22 +35,23 @@ export default function Navbar() {
         : "text-gray-600 hover:text-gray-900"
     }`;
 
+  const handleLogout = async () => {
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } finally {
+      // Принудительно сбрасываем состояние и попадаем на главную
+      window.location.href = "/";
+    }
+  };
+
   return (
     <nav className="border-b bg-white">
-      <div className="container mx-auto flex.items-center justify-between px-4 py-3">
-        {/* Логотип слева */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">
-            OV
-          </span>
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold text-gray-900">
-              OnlyVet
-            </span>
-            <span className="text-[11px] text-gray-500">
-              онлайн-ветеринария
-            </span>
-          </div>
+      <div className="container mx-auto flex items-center justify-between px-4 py-3">
+        {/* Логотип/название слева — БЕЗ OV-пилюли, как было раньше */}
+        <Link href="/" className="text-sm font-semibold text-gray-900">
+          OnlyVet — онлайн-ветеринария
         </Link>
 
         {/* Центральное меню */}
@@ -64,7 +67,7 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Правая часть: вход / кабинет / запись */}
+        {/* Правая часть: вход / кабинет / запись / выход */}
         <div className="flex items-center gap-4">
           {loading ? (
             <span className="text-xs text-gray-500">Загрузка…</span>
@@ -76,12 +79,24 @@ export default function Navbar() {
               >
                 {dashboardLabel}
               </Link>
-              <Link
-                href="/booking"
-                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+
+              {/* Клиентам оставляем кнопку записи, сотрудникам — нет */}
+              {!isStaff && (
+                <Link
+                  href="/booking"
+                  className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+                >
+                  Записаться
+                </Link>
+              )}
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-sm text-gray-700 hover:text-gray-900"
               >
-                Записаться
-              </Link>
+                Выйти
+              </button>
             </>
           ) : (
             <>
