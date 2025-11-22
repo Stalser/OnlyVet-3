@@ -1,3 +1,4 @@
+// app/booking/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -74,8 +75,7 @@ export default function BookingPage() {
 
   const client: SupabaseClient = supabase;
 
-  // ===== Инициализация (авторизация, owner, питомцы) =====
-
+  // ===== Инициализация: auth + owner + pets =====
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -102,7 +102,7 @@ export default function BookingPage() {
         (user.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
-      // 2. Пытаемся найти owner_profile по auth_id
+      // 2. Ищем owner_profile по auth_id
       const { data: ownerRow, error: ownerErr } = await client
         .from("owner_profiles")
         .select("user_id, full_name, auth_id, extra_contacts")
@@ -123,7 +123,7 @@ export default function BookingPage() {
         setOwnerProfile(o);
         ownerId = o.user_id;
 
-        // Разложим ФИО
+        // разложим ФИО
         if (o.full_name) {
           const parts = o.full_name.trim().split(/\s+/);
           if (parts.length >= 1) setLastName(parts[0]);
@@ -139,7 +139,7 @@ export default function BookingPage() {
           setNoMiddleName(true);
         }
 
-        // Контакты
+        // контакты
         if (o.extra_contacts) {
           try {
             const extra =
@@ -202,7 +202,7 @@ export default function BookingPage() {
     void init();
   }, [client]);
 
-  // При выборе существующего питомца подставляем его кличку и вид
+  // Автоподстановка данных по выбранному питомцу
   useEffect(() => {
     if (selectedPetId === "new") return;
     const pet = existingPets.find((p) => p.id === selectedPetId);
@@ -211,8 +211,6 @@ export default function BookingPage() {
       setSpecies(pet.species || "");
     }
   }, [selectedPetId, existingPets]);
-
-  // ===== Вспомогательные функции =====
 
   const buildFullName = () => {
     const parts = [lastName, firstName];
@@ -226,7 +224,6 @@ export default function BookingPage() {
   };
 
   // ===== Сабмит =====
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -278,11 +275,11 @@ export default function BookingPage() {
         setSubmitting(false);
         return;
       }
-      const user = userData.user;
 
+      const user = userData.user;
       const fullName = buildFullName();
 
-      // --- 1. Ищем/создаём owner_profile ---
+      // 1. owner_profile
       let ownerId: number | null = null;
 
       if (ownerProfile) {
@@ -338,11 +335,11 @@ export default function BookingPage() {
         return;
       }
 
-      // --- 2. Ищем или создаём питомца и получаем pet_id ---
+      // 2. Ищем/создаём питомца → pet_id
       let finalPetId: number | null = null;
 
       if (selectedPetId === "new") {
-        // Пытаемся найти похожего питомца, чтобы не плодить дублей
+        // пытаемся найти похожего питомца, чтобы не плодить дублей
         const { data: existing, error: existingErr } = await client
           .from("pets")
           .select("id, name, species")
@@ -371,7 +368,6 @@ export default function BookingPage() {
             console.error("Ошибка создания питомца", petInsertErr);
           } else {
             finalPetId = newPet.id as number;
-            // Обновим локальный список, чтобы в следующей заявке он уже был в выпадающем списке
             setExistingPets((prev) => [
               ...prev,
               {
@@ -389,7 +385,7 @@ export default function BookingPage() {
       const startsAt = new Date(`${date}T${time}:00`);
       const startsIso = startsAt.toISOString();
 
-      // --- 3. создаём appointment ---
+      // 3. создаём appointment
       const { error: apptErr } = await client.from("appointments").insert({
         owner_id: ownerId,
         pet_id: finalPetId,
@@ -423,7 +419,6 @@ export default function BookingPage() {
     }
   };
 
-  // удобный флаг для disabled у кнопки
   const isSubmitDisabled =
     submitting ||
     !isLoggedIn ||
@@ -438,10 +433,10 @@ export default function BookingPage() {
     !agreePersonalData ||
     !agreeOffer;
 
-  // Если не авторизован — простая заглушка
+  // Если не авторизован
   if (!loading && !isLoggedIn) {
     return (
-      <main className="bg-slate-50 min-h-screen flex items-center justify-center py-12">
+      <main className="bg-slate-50 min-h-screen flex.items-center justify-center py-12">
         <div className="text-center space-y-3 max-w-md">
           <h1 className="text-2xl font-semibold">Запись на консультацию</h1>
           <p className="text-sm text-gray-600">
@@ -467,11 +462,10 @@ export default function BookingPage() {
   }
 
   // ===== UI =====
-
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container max-w-3xl mx-auto px-4">
-        <div className="rounded-3xl.border bg-white shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-6">
+        <div className="rounded-3xl border bg-white shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-6">
           {/* Назад */}
           <div>
             <Link
@@ -525,7 +519,6 @@ export default function BookingPage() {
               <section className="space-y-3 pb-4 border-b border-gray-100">
                 <h2 className="font-semibold text-base">Владелец</h2>
 
-                {/* ФИО */}
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="space-y-1">
                     <label className="text-xs text-gray-600">
@@ -539,7 +532,6 @@ export default function BookingPage() {
                       placeholder="Иванов"
                     />
                   </div>
-
                   <div className="space-y-1">
                     <label className="text-xs text-gray-600">
                       Имя <span className="text-red-500">*</span>
@@ -552,9 +544,8 @@ export default function BookingPage() {
                       placeholder="Анна"
                     />
                   </div>
-
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex.items-center justify-between">
                       <label className="text-xs text-gray-600">Отчество</label>
                       <label className="flex items-center gap-1 text-[11px] text-gray-500">
                         <input
@@ -564,9 +555,7 @@ export default function BookingPage() {
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setNoMiddleName(checked);
-                            if (checked) {
-                              setMiddleName("");
-                            }
+                            if (checked) setMiddleName("");
                           }}
                         />
                         <span>Нет отчества</span>
@@ -583,7 +572,6 @@ export default function BookingPage() {
                   </div>
                 </div>
 
-                {/* Контакты */}
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <label className="text-xs text-gray-600">
@@ -647,7 +635,7 @@ export default function BookingPage() {
                     </label>
                     <input
                       type="text"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl.border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={petName}
                       onChange={(e) => setPetName(e.target.value)}
                       placeholder="Например: Барсик"
@@ -659,7 +647,7 @@ export default function BookingPage() {
                     </label>
                     <input
                       type="text"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={species}
                       onChange={(e) => setSpecies(e.target.value)}
                       placeholder="Кот, собака, хорёк…"
@@ -678,7 +666,7 @@ export default function BookingPage() {
                       Услуга <span className="text-red-500">*</span>
                     </label>
                     <select
-                      className="w-full rounded-xl.border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={serviceCode}
                       onChange={(e) => setServiceCode(e.target.value)}
                     >
@@ -696,7 +684,7 @@ export default function BookingPage() {
                       Предпочтительный врач
                     </label>
                     <select
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={doctorId}
                       onChange={(e) =>
                         setDoctorId(e.target.value as string | "any")
@@ -728,7 +716,7 @@ export default function BookingPage() {
                     Кратко опишите проблему
                   </label>
                   <textarea
-                    className="w-full rounded-xl.border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
+                    className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[80px]"
                     value={complaint}
                     onChange={(e) => setComplaint(e.target.value)}
                     placeholder="Когда началось, какие симптомы, какие лекарства уже давали…"
@@ -743,19 +731,19 @@ export default function BookingPage() {
                     </label>
                     <input
                       type="date"
-                      className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs.text-gray-600">
+                    <label className="text-xs text-gray-600">
                       Предпочтительное время{" "}
                       <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="time"
-                      className="w-full rounded-xl.border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl.border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
                     />
@@ -794,7 +782,7 @@ export default function BookingPage() {
                     <input
                       type="checkbox"
                       className="mt-0.5"
-                     .checked={agreeOffer}
+                      checked={agreeOffer}
                       onChange={(e) => setAgreeOffer(e.target.checked)}
                     />
                     <span>
@@ -822,7 +810,7 @@ export default function BookingPage() {
                   <button
                     type="submit"
                     disabled={isSubmitDisabled}
-                    className="inline-flex items-center justify-center rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center rounded-xl px-4.py-2 bg-black text-white text-sm font-medium hover:bg-gray-900.disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {submitting ? "Отправляем заявку..." : "Записаться"}
                   </button>
