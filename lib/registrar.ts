@@ -6,7 +6,7 @@ import { servicesPricing } from "./pricing";
 
 /**
  * Основной тип консультации для регистратуры.
- * Включает жалобу (complaint) и данные клиента.
+ * Включает жалобу (complaint) и базовые поля для пациента/услуги/врача.
  */
 export type RegistrarAppointmentRow = {
   id: string;
@@ -34,7 +34,10 @@ export type RegistrarAppointmentRow = {
   complaint?: string;
 };
 
-/** Вспомогательная функция — вытаскиваем контакты из extra_contacts (jsonb) */
+/**
+ * Вспомогательная функция для вытаскивания email/phone
+ * из jsonb-поля extra_contacts.
+ */
 function extractContacts(extra: any): { email?: string; phone?: string } {
   if (!extra) return {};
   let parsed: any = null;
@@ -65,8 +68,53 @@ function extractContacts(extra: any): { email?: string; phone?: string } {
 }
 
 /**
+ * Получить карту владельцев по owner_id → { fullName, contact }.
+ * Используется, чтобы красиво отрисовать клиента в списке консультаций.
+ */
+async function getOwnersMap(
+  ownerIds: number[]
+): Promise<Map<number, { fullName: string; contact?: string }>> {
+  const map = new Map<number, { fullName: string; contact?: string }>();
+
+  if (!supabase || ownerIds.length === 0) {
+    return map;
+  }
+
+  const uniqueIds = Array.from(new Set(ownerIds));
+
+  const { data, error } = await supabase
+    .from("owner_profiles")
+    .select("user_id, full_name, extra_contacts")
+    .in("user_id", uniqueIds);
+
+  if (error || !data) {
+    console.error("getOwnersMap error:", error);
+    return map;
+  }
+
+  for (const row of data) {
+    const userId = row.user_id as number;
+    const fullName = (row.full_name as string | null) || "Без имени";
+    const { email, phone } = extractContacts(row.extra_contacts);
+
+    let contact: string | undefined;
+    if (phone && email) {
+      contact = `${phone} · ${email}`;
+    } else if (phone) {
+      contact = phone;
+    } else if (email) {
+      contact = email;
+    }
+
+    map.set(userId, { fullName, contact });
+  }
+
+  return map;
+}
+
+/**
  * Получить одну консультацию по ID.
- * Здесь мы дополнительно подтягиваем owner_profiles, чтобы показать нормальные ФИО и контакты.
+ * Здесь мы сразу подтягиваем ФИО и контакт клиента.
  */
 export async function getRegistrarAppointmentById(
   id: string
@@ -99,8 +147,6 @@ export async function getRegistrarAppointmentById(
     return null;
   }
 
-  // --- основные поля приёма ---
-
   let dateLabel = "—";
   if (data.starts_at) {
     const d = new Date(data.starts_at);
@@ -125,25 +171,16 @@ export async function getRegistrarAppointmentById(
   );
   const serviceName = service?.name ?? "Услуга";
 
-  // --- подгружаем клиента по owner_id ---
-
+  // Клиент по owner_id
   let clientName = "Без имени";
-  let clientContact = "";
+  let clientContact: string | undefined;
 
-  if (data.owner_id != null) {
-    const { data: ownerRow, error: ownerErr } = await supabase
-      .from("owner_profiles")
-      .select("full_name, extra_contacts")
-      .eq("user_id", data.owner_id)
-      .maybeSingle();
-
-    if (ownerErr) {
-      console.error("getRegistrarAppointmentById owner error:", ownerErr);
-    } else if (ownerRow) {
-      clientName = ownerRow.full_name || "Без имени";
-      const { email, phone } = extractContacts(ownerRow.extra_contacts);
-      // приоритет — телефон, затем email
-      clientContact = phone || email || "";
+  if (typeof data.owner_id === "number") {
+    const ownersMap = await getOwnersMap([data.owner_id]);
+    const info = ownersMap.get(data.owner_id);
+    if (info) {
+      clientName = info.fullName;
+      clientContact = info.contact;
     }
   }
 
@@ -176,7 +213,7 @@ export async function getRegistrarAppointmentById(
 
 /**
  * Получить все консультации для регистратуры.
- * Здесь сразу подтягиваем клиентов оптом и маппим по owner_id.
+ * Здесь мы сразу заполняем clientName и clientContact по owner_id.
  */
 export async function getRegistrarAppointments(): Promise<
   RegistrarAppointmentRow[]
@@ -208,41 +245,14 @@ export async function getRegistrarAppointments(): Promise<
     return [];
   }
 
-  // --- подтягиваем owner_profiles разом по всем owner_id ---
+  // Собираем owner_id для выборки клиентов
+  const ownerIds = (data as any[])
+    .map((row) => row.owner_id as number | null)
+    .filter((v): v is number => typeof v === "number");
 
-  const ownerIds = Array.from(
-    new Set(
-      (data ?? [])
-        .map((row: any) => row.owner_id)
-        .filter((id: any) => id != null)
-    )
-  ) as number[];
+  const ownersMap = await getOwnersMap(ownerIds);
 
-  const ownersMap = new Map<
-    number,
-    { full_name: string | null; extra_contacts: any }
-  >();
-
-  if (ownerIds.length > 0) {
-    const { data: owners, error: ownersErr } = await supabase
-      .from("owner_profiles")
-      .select("user_id, full_name, extra_contacts")
-      .in("user_id", ownerIds);
-
-    if (ownersErr) {
-      console.error("getRegistrarAppointments owners error:", ownersErr);
-    } else {
-      (owners ?? []).forEach((o: any) => {
-        ownersMap.set(o.user_id, {
-          full_name: o.full_name ?? null,
-          extra_contacts: o.extra_contacts ?? null,
-        });
-      });
-    }
-  }
-
-  return data.map((row: any, index: number) => {
-    // дата/время
+  return (data as any[]).map((row: any, index: number) => {
     let dateLabel = "—";
     if (row.starts_at) {
       const d = new Date(row.starts_at);
@@ -259,26 +269,22 @@ export async function getRegistrarAppointments(): Promise<
       ? new Date(row.created_at).toLocaleString("ru-RU")
       : "";
 
-    // врач
     const doc = doctors.find((d: any) => d.id === row.doctor_id);
     const doctorName = doc?.name ?? "Не назначен";
 
-    // услуга
     const service = servicesPricing.find(
       (s: any) => s.code === row.service_code
     );
     const serviceName = service?.name ?? "Услуга";
 
-    // клиент
     let clientName = "Без имени";
-    let clientContact = "";
+    let clientContact: string | undefined;
 
-    if (row.owner_id != null) {
-      const owner = ownersMap.get(row.owner_id);
-      if (owner) {
-        clientName = owner.full_name || "Без имени";
-        const { email, phone } = extractContacts(owner.extra_contacts);
-        clientContact = phone || email || "";
+    if (typeof row.owner_id === "number") {
+      const info = ownersMap.get(row.owner_id);
+      if (info) {
+        clientName = info.fullName;
+        clientContact = info.contact;
       }
     }
 
@@ -312,7 +318,6 @@ export async function getRegistrarAppointments(): Promise<
 
 /**
  * Получить последние N консультаций для дашборда регистратуры.
- * Используется на главной странице /backoffice/registrar.
  */
 export async function getRecentRegistrarAppointments(
   limit: number = 50
