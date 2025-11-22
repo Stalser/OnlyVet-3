@@ -34,10 +34,7 @@ export type RegistrarAppointmentRow = {
   complaint?: string;
 };
 
-/**
- * Аккуратно достаём контакты из extra_contacts (jsonb)
- * Ожидаем что-то вроде { "phone": "...", "email": "...", ... }
- */
+/** аккуратно достаём телефон/email из extra_contacts (jsonb) */
 function extractContacts(extra: any): { email?: string; phone?: string } {
   if (!extra) return {};
   let parsed: any = null;
@@ -52,9 +49,7 @@ function extractContacts(extra: any): { email?: string; phone?: string } {
     }
   }
 
-  if (!parsed || typeof parsed !== "object") {
-    return {};
-  }
+  if (!parsed || typeof parsed !== "object") return {};
 
   const email = parsed.email ?? parsed.mail ?? undefined;
   const phone =
@@ -65,6 +60,109 @@ function extractContacts(extra: any): { email?: string; phone?: string } {
     undefined;
 
   return { email, phone };
+}
+
+/**
+ * Вспомогательная функция: подтягиваем ФИО/телефон клиентов для массива приёмов.
+ */
+async function hydrateAppointmentsWithOwners(
+  rows: any[]
+): Promise<RegistrarAppointmentRow[]> {
+  if (!rows || rows.length === 0) return [];
+
+  const ownerIds = Array.from(
+    new Set(
+      rows
+        .map((r) => r.owner_id)
+        .filter((v: any) => v !== null && v !== undefined)
+    )
+  ) as number[];
+
+  const ownersMap = new Map<
+    number,
+    { fullName: string; email?: string; phone?: string }
+  >();
+
+  if (ownerIds.length > 0) {
+    const { data: owners, error: ownersError } = await supabase!
+      .from("owner_profiles")
+      .select("user_id, full_name, extra_contacts")
+      .in("user_id", ownerIds);
+
+    if (ownersError) {
+      console.error("hydrateAppointmentsWithOwners ownersError", ownersError);
+    } else {
+      (owners ?? []).forEach((o: any) => {
+        const { email, phone } = extractContacts(o.extra_contacts);
+        ownersMap.set(o.user_id, {
+          fullName: o.full_name || "Без имени",
+          email,
+          phone,
+        });
+      });
+    }
+  }
+
+  return rows.map((row: any, index: number) => {
+    let dateLabel = "—";
+    if (row.starts_at) {
+      const d = new Date(row.starts_at);
+      dateLabel = d.toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    const createdLabel = row.created_at
+      ? new Date(row.created_at).toLocaleString("ru-RU")
+      : "";
+
+    const doc = doctors.find((d: any) => d.id === row.doctor_id);
+    const doctorName = doc?.name ?? "Не назначен";
+
+    const service = servicesPricing.find(
+      (s: any) => s.code === row.service_code
+    );
+    const serviceName = service?.name ?? "Услуга";
+
+    const ownerInfo =
+      row.owner_id != null ? ownersMap.get(row.owner_id) : undefined;
+
+    const clientName = ownerInfo?.fullName ?? "Без имени";
+    const clientContact =
+      ownerInfo?.phone ??
+      ownerInfo?.email ??
+      ""; // сейчас показываем телефон, если есть
+
+    return {
+      id: String(row.id ?? index),
+      dateLabel,
+      createdLabel,
+      startsAt: row.starts_at ?? null,
+
+      clientName,
+      clientContact,
+
+      petName: row.pet_name ?? "",
+      petSpecies: row.species ?? "",
+
+      doctorId: row.doctor_id ?? undefined,
+      doctorName,
+
+      serviceName,
+      serviceCode: row.service_code ?? "",
+
+      statusLabel: row.status ?? "неизвестно",
+
+      videoPlatform: row.video_platform ?? null,
+      videoUrl: row.video_url ?? null,
+
+      complaint: row.complaint ?? "",
+    };
+  });
 }
 
 /**
@@ -101,73 +199,8 @@ export async function getRegistrarAppointmentById(
     return null;
   }
 
-  // --- инфо о клиенте по owner_id ---
-  let clientName = "Без имени";
-  let clientContact = "";
-
-  if (data.owner_id != null) {
-    const { data: owner, error: ownerErr } = await supabase
-      .from("owner_profiles")
-      .select("full_name, extra_contacts")
-      .eq("user_id", data.owner_id)
-      .maybeSingle();
-
-    if (!ownerErr && owner) {
-      clientName = owner.full_name || "Без имени";
-      const { email, phone } = extractContacts(owner.extra_contacts);
-      clientContact = phone || email || "";
-    }
-  }
-
-  let dateLabel = "—";
-  if (data.starts_at) {
-    const d = new Date(data.starts_at);
-    dateLabel = d.toLocaleString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  const createdLabel = data.created_at
-    ? new Date(data.created_at).toLocaleString("ru-RU")
-    : "";
-
-  const doc = doctors.find((d: any) => d.id === data.doctor_id);
-  const doctorName = doc?.name ?? "Не назначен";
-
-  const service = servicesPricing.find(
-    (s: any) => s.code === data.service_code
-  );
-  const serviceName = service?.name ?? "Услуга";
-
-  return {
-    id: String(data.id),
-    dateLabel,
-    createdLabel,
-    startsAt: data.starts_at ?? null,
-
-    clientName,
-    clientContact,
-
-    petName: data.pet_name ?? "",
-    petSpecies: data.species ?? "",
-
-    doctorId: data.doctor_id ?? undefined,
-    doctorName,
-
-    serviceName,
-    serviceCode: data.service_code ?? "",
-
-    statusLabel: data.status ?? "неизвестно",
-
-    videoPlatform: data.video_platform ?? null,
-    videoUrl: data.video_url ?? null,
-
-    complaint: data.complaint ?? "",
-  };
+  const [hydrated] = await hydrateAppointmentsWithOwners([data]);
+  return hydrated ?? null;
 }
 
 /**
@@ -203,95 +236,7 @@ export async function getRegistrarAppointments(): Promise<
     return [];
   }
 
-  // --- заранее подтягиваем владельцев по owner_id ---
-  const ownerIds = Array.from(
-    new Set(
-      (data as any[])
-        .map((row) => row.owner_id)
-        .filter((id) => id != null)
-    )
-  ) as number[];
-
-  const ownerMap = new Map<
-    number,
-    { name: string; contact: string }
-  >();
-
-  if (ownerIds.length > 0) {
-    const { data: owners, error: ownersErr } = await supabase
-      .from("owner_profiles")
-      .select("user_id, full_name, extra_contacts")
-      .in("user_id", ownerIds);
-
-    if (ownersErr) {
-      console.error("getRegistrarAppointments ownersErr", ownersErr);
-    } else {
-      (owners ?? []).forEach((o: any) => {
-        const name = o.full_name || "Без имени";
-        const { email, phone } = extractContacts(o.extra_contacts);
-        const contact = phone || email || "";
-        ownerMap.set(o.user_id, { name, contact });
-      });
-    }
-  }
-
-  return (data as any[]).map((row: any, index: number) => {
-    let dateLabel = "—";
-    if (row.starts_at) {
-      const d = new Date(row.starts_at);
-      dateLabel = d.toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-
-    const createdLabel = row.created_at
-      ? new Date(row.created_at).toLocaleString("ru-RU")
-      : "";
-
-    const doc = doctors.find((d: any) => d.id === row.doctor_id);
-    const doctorName = doc?.name ?? "Не назначен";
-
-    const service = servicesPricing.find(
-      (s: any) => s.code === row.service_code
-    );
-    const serviceName = service?.name ?? "Услуга";
-
-    const ownerInfo =
-      row.owner_id != null ? ownerMap.get(row.owner_id) : undefined;
-
-    const clientName = ownerInfo?.name || "Без имени";
-    const clientContact = ownerInfo?.contact || "";
-
-    return {
-      id: String(row.id ?? index),
-      dateLabel,
-      createdLabel,
-      startsAt: row.starts_at ?? null,
-
-      clientName,
-      clientContact,
-
-      petName: row.pet_name ?? "",
-      petSpecies: row.species ?? "",
-
-      doctorId: row.doctor_id ?? undefined,
-      doctorName,
-
-      serviceName,
-      serviceCode: row.service_code ?? "",
-
-      statusLabel: row.status ?? "неизвестно",
-
-      videoPlatform: row.video_platform ?? null,
-      videoUrl: row.video_url ?? null,
-
-      complaint: row.complaint ?? "",
-    };
-  });
+  return hydrateAppointmentsWithOwners(data);
 }
 
 /**
