@@ -8,38 +8,57 @@ import { supabase } from "@/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type UserRole = "client" | "registrar" | "vet" | "admin";
+type EffectiveRole = UserRole | "guest";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { user, loading } = useCurrentUser();
 
-  const isAuthed = !!user;
-  const role = (user?.role ?? "client") as UserRole;
-  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+  // ---- Fallback по URL (если хук ещё не успел отработать) ----
+  const inClientCabinet = pathname.startsWith("/account");
+  const inRegistrarCabinet = pathname.startsWith("/backoffice");
+  const inVetCabinet = pathname.startsWith("/staff");
 
-  // ===== Куда ведёт ссылка кабинета =====
+  let effectiveRole: EffectiveRole = "guest";
+
+  if (user?.role) {
+    effectiveRole = user.role as UserRole;
+  } else if (inRegistrarCabinet) {
+    effectiveRole = "registrar";
+  } else if (inVetCabinet) {
+    effectiveRole = "vet";
+  } else if (inClientCabinet) {
+    effectiveRole = "client";
+  }
+
+  const isAuthed = effectiveRole !== "guest";
+  const isStaff =
+    effectiveRole === "registrar" ||
+    effectiveRole === "vet" ||
+    effectiveRole === "admin";
+
+  // ---- Куда ведёт ссылка кабинета и текст ----
   let cabinetHref = "/auth/login";
   let cabinetLabel = "Вход";
 
   if (isAuthed && isStaff) {
-    cabinetHref = role === "vet" ? "/staff" : "/backoffice/registrar";
+    cabinetHref = effectiveRole === "vet" ? "/staff" : "/backoffice/registrar";
     cabinetLabel = "Рабочий кабинет";
   } else if (isAuthed && !isStaff) {
     cabinetHref = "/account";
     cabinetLabel = "Личный кабинет";
   }
 
+  // ---- Выход из аккаунта ----
   const handleLogout = async () => {
-    try {
-      if (!supabase) {
-        // если по какой-то причине клиента нет — просто уходим на логин
-        window.location.href = "/auth/login";
-        return;
-      }
+    const client = supabase as SupabaseClient | null;
 
-      const client = supabase as SupabaseClient;
-      await client.auth.signOut();
+    try {
+      if (client) {
+        await client.auth.signOut();
+      }
     } finally {
+      // В любом случае уводим на страницу входа
       window.location.href = "/auth/login";
     }
   };
@@ -87,27 +106,43 @@ export default function Navbar() {
                 {cabinetLabel}
               </Link>
 
-              {/* Записаться:
-                  - клиенту (авторизованному, не staff)
-                  - либо неавторизованному пользователю */}
-              {(!isAuthed || !isStaff) && (
+              {/* Разный набор кнопок для ролей */}
+              {isAuthed ? (
+                isStaff ? (
+                  // ---- Сотрудник: только рабочий кабинет + выйти ----
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="text-sm text-gray-600 hover:text-red-700"
+                  >
+                    Выйти
+                  </button>
+                ) : (
+                  // ---- Клиент: ЛК + Выйти + Записаться ----
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="text-sm text-gray-600 hover:text-red-700"
+                    >
+                      Выйти
+                    </button>
+                    <Link
+                      href="/booking"
+                      className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+                    >
+                      Записаться
+                    </Link>
+                  </>
+                )
+              ) : (
+                // ---- Гость: Вход + Записаться ----
                 <Link
                   href="/booking"
                   className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
                 >
                   Записаться
                 </Link>
-              )}
-
-              {/* Выйти — только если пользователь авторизован */}
-              {isAuthed && (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-sm text-gray-600 hover:text-red-700"
-                >
-                  Выйти
-                </button>
               )}
             </>
           )}
