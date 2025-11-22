@@ -1,67 +1,115 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "./supabaseClient";
-import type { AppUser, UserRole } from "./types";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useCurrentUser } from "@/lib/useCurrentUser";
+import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export function useCurrentUser() {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true);
+type UserRole = "client" | "registrar" | "vet" | "admin";
 
-  useEffect(() => {
-    let ignore = false;
+export default function Navbar() {
+  const pathname = usePathname();
+  const { user, loading } = useCurrentUser();
 
-    async function load() {
-      setLoading(true);
+  const isAuthed = !!user;
+  const role = (user?.role ?? "client") as UserRole;
 
-      // 🔒 Проверяем, что supabase клиент существует
-      if (!supabase) {
-        if (!ignore) {
-          setUser(null);
-          setLoading(false);
-        }
-        return;
+  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+
+  // Куда ведёт ссылка "кабинет"
+  let dashboardHref = "/auth/login";
+  let dashboardLabel = "Вход";
+
+  if (isAuthed && isStaff) {
+    // сотрудник: регистратор / врач / админ
+    dashboardHref = role === "vet" ? "/staff" : "/backoffice/registrar";
+    dashboardLabel = "Рабочий кабинет";
+  } else if (isAuthed && !isStaff) {
+    // обычный клиент
+    dashboardHref = "/account";
+    dashboardLabel = "Личный кабинет";
+  }
+
+  const linkClass = (href: string) =>
+    `text-sm ${
+      pathname === href
+        ? "font-semibold text-gray-900"
+        : "text-gray-600 hover:text-gray-900"
+    }`;
+
+  const handleLogout = async () => {
+    try {
+      if (supabase) {
+        const client: SupabaseClient = supabase;
+        await client.auth.signOut();
       }
-
-      // 1. Получаем текущего авторизованного пользователя из auth
-      const { data, error } = await supabase.auth.getUser();
-
-      const authUser = data?.user ?? null;
-
-      if (!authUser) {
-        if (!ignore) {
-          setUser(null);
-          setLoading(false);
-        }
-        return;
-      }
-
-      // 2. Получаем роль пользователя из таблицы public.user_roles
-      const { data: roleRow } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authUser.id)
-        .maybeSingle();
-
-      // если роли нет → считаем "client"
-      const role: UserRole = (roleRow?.role as UserRole) ?? "client";
-
-      if (!ignore) {
-        setUser({
-          id: authUser.id,
-          email: authUser.email ?? null, // ⭐ фикc TypeScript: undefined → null
-          role,
-        });
-        setLoading(false);
-      }
+    } finally {
+      // В любом случае отправляем на страницу входа
+      window.location.href = "/auth/login";
     }
+  };
 
-    load();
+  return (
+    <nav className="border-b bg-white">
+      <div className="container mx-auto flex items-center justify-between px-4 py-3">
+        {/* Логотип слева — как было изначально */}
+        <Link href="/" className="text-sm font-semibold text-gray-900">
+          OnlyVet{" "}
+          <span className="ml-1 text-xs font-normal text-gray-500">
+            — онлайн-ветеринария
+          </span>
+        </Link>
 
-    return () => {
-      ignore = true;
-    };
-  }, []);
+        {/* Центральное меню */}
+        <div className="flex items-center gap-6">
+          <Link href="/services" className={linkClass("/services")}>
+            Услуги
+          </Link>
+          <Link href="/doctors" className={linkClass("/doctors")}>
+            Врачи
+          </Link>
+          <Link href="/docs" className={linkClass("/docs")}>
+            Документы
+          </Link>
+        </div>
 
-  return { user, loading };
+        {/* Правая часть */}
+        <div className="flex items-center gap-4">
+          {loading ? (
+            <span className="text-xs text-gray-500">Загрузка…</span>
+          ) : (
+            <>
+              {/* Личный / Рабочий кабинет / Вход */}
+              <Link
+                href={dashboardHref}
+                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
+              >
+                {dashboardLabel}
+              </Link>
+
+              {/* Кнопка "Записаться" — всегда доступна */}
+              <Link
+                href="/booking"
+                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+              >
+                Записаться
+              </Link>
+
+              {/* Кнопка "Выйти" только для авторизованных */}
+              {isAuthed && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-sm text-gray-600 hover:text-red-700"
+                >
+                  Выйти
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </nav>
+  );
 }
