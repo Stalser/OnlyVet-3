@@ -3,140 +3,68 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
-type UserRole = "guest" | "client" | "registrar" | "vet" | "admin";
+type AuthRole = "guest" | "user" | "staff";
 
 export default function Navbar() {
-  const [role, setRole] = useState<UserRole>("guest");
-  const [loading, setLoading] = useState(true);
-
-  // Если supabase не сконфигурирован – считаем всех гостями
-  if (!supabase) {
-    return (
-      <header className="border-b border-gray-100 bg-white/90 backdrop-blur-sm">
-        <div className="container flex h-14 items-center justify-between gap-4">
-          <Link href="/" className="font-semibold text-sm tracking-tight">
-            OnlyVet
-          </Link>
-
-          <nav className="hidden sm:flex items-center gap-4 text-xs text-gray-700">
-            <Link href="/services" className="hover:text-black transition-colors">
-              Услуги
-            </Link>
-            <Link href="/doctors" className="hover:text-black transition-colors">
-              Врачи
-            </Link>
-            <Link href="/docs" className="hover:text-black transition-colors">
-              Документы
-            </Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/auth/login"
-              className="text-xs text-gray-700 hover:text-black underline underline-offset-2"
-            >
-              Вход
-            </Link>
-            <Link
-              href="/booking"
-              className="rounded-xl px-4 py-1.5 bg-black text-white text-xs font-medium hover:bg-gray-900"
-            >
-              Записаться
-            </Link>
-          </div>
-        </div>
-      </header>
-    );
-  }
-
-  const client: SupabaseClient = supabase;
+  const [role, setRole] = useState<AuthRole>("guest");
 
   useEffect(() => {
-    let isMounted = true;
+    // Если supabase не сконфигурирован (нет env) – считаем, что пользователь гость
+    if (!supabase) {
+      setRole("guest");
+      return;
+    }
 
-    const load = async () => {
-      setLoading(true);
-
-      // 1. Текущий пользователь
-      const { data, error } = await client.auth.getUser();
-      if (error || !data.user) {
-        if (!isMounted) return;
-        setRole("guest");
-        setLoading(false);
-        return;
-      }
-
-      const user = data.user;
-
-      // 2. Читаем роли из user_roles
-      const { data: rolesData, error: rolesErr } = await client
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-
-      if (rolesErr || !rolesData || rolesData.length === 0) {
-        // нет записи в user_roles → считаем обычным клиентом
-        if (!isMounted) return;
-        setRole("client");
-        setLoading(false);
-        return;
-      }
-
-      const roles = rolesData.map((r: any) => r.role as string);
-
-      let nextRole: UserRole = "client";
-      if (roles.includes("registrar")) nextRole = "registrar";
-      else if (roles.includes("vet")) nextRole = "vet";
-      else if (roles.includes("admin")) nextRole = "admin";
-      else nextRole = "client";
-
-      if (!isMounted) return;
-      setRole(nextRole);
-      setLoading(false);
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      const metaRole =
+        (data.user?.user_metadata?.role as AuthRole | undefined) ?? "user";
+      setRole(metaRole === "staff" ? "staff" : "user");
     };
 
-    load();
+    void getUser();
 
-    // Подписка на изменение сессии, чтобы роли обновлялись без перезагрузки
-    const { data: sub } = client.auth.onAuthStateChange(() => {
-      load();
-    });
+    const { data: sub } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!session) {
+          setRole("guest");
+        } else {
+          const metaRole =
+            (session.user.user_metadata?.role as AuthRole | undefined) ??
+            "user";
+          setRole(metaRole === "staff" ? "staff" : "user");
+        }
+      }
+    );
 
     return () => {
-      isMounted = false;
       sub.subscription.unsubscribe();
     };
-  }, [client]);
+  }, []);
 
   const handleLogout = async () => {
     if (!supabase) return;
-    await client.auth.signOut();
+    await supabase.auth.signOut();
     setRole("guest");
     if (typeof window !== "undefined") {
       window.location.href = "/";
     }
   };
 
-  // Подбираем текст и ссылку в зависимости от роли
+  // Настраиваем текст и ссылку для правой кнопки в зависимости от роли
   let authLabel = "Вход";
   let authHref = "/auth/login";
 
-  if (role === "client") {
+  if (role === "user") {
     authLabel = "Личный кабинет";
     authHref = "/account";
-  } else if (role === "registrar" || role === "admin" || role === "vet") {
+  } else if (role === "staff") {
     authLabel = "Рабочий кабинет";
-    // пока один общий вход: регистратор/админ → backoffice, врач → staff
-    if (role === "vet") {
-      authHref = "/staff";
-    } else {
-      authHref = "/backoffice/registrar";
-    }
+    authHref = "/backoffice";
   }
 
-  const isLoggedIn = role !== "guest";
+  const isLoggedIn = role === "user" || role === "staff";
 
   return (
     <header className="border-b border-gray-100 bg-white/90 backdrop-blur-sm">
@@ -161,7 +89,7 @@ export default function Navbar() {
 
         {/* Правый блок */}
         <div className="flex items-center gap-3">
-          {/* ЛК / Рабочий кабинет / Вход */}
+          {/* Вход / ЛК / Рабочий кабинет */}
           <Link
             href={authHref}
             className="text-xs text-gray-700 hover:text-black underline underline-offset-2"
