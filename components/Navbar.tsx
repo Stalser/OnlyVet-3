@@ -3,122 +3,104 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import type { UserRole } from "@/lib/types"; // если у тебя тип по-другому называется — см. комментарий ниже
 
-// Если UserRole объявлен в другом файле / с другим именем:
-// 1) удали импорт выше
-// 2) раскомментируй строку ниже и подгони под свои значения
-// type UserRole = "client" | "registrar" | "vet" | "admin";
-
-type EffectiveRole = UserRole | "guest";
-
-function getDashboardHref(role: EffectiveRole): string {
-  switch (role) {
-    case "registrar":
-    case "admin":
-      return "/backoffice/registrar";
-    case "vet":
-      return "/staff";
-    case "client":
-      return "/account";
-    default:
-      return "/auth/login";
-  }
-}
-
-function getDashboardLabel(role: EffectiveRole): string {
-  switch (role) {
-    case "registrar":
-    case "admin":
-    case "vet":
-      return "Рабочий кабинет";
-    case "client":
-      return "Личный кабинет";
-    default:
-      return "Вход";
-  }
-}
+type UserRole = "client" | "registrar" | "vet" | "admin";
 
 export default function Navbar() {
-  const { user, loading } = useCurrentUser();
   const pathname = usePathname();
+  const { user, loading } = useCurrentUser();
 
-  // Пока грузится — считаем, что гость (так безопаснее)
-  const role: EffectiveRole = user?.role ?? "guest";
+  const isAuthed = !!user;
+  const role = (user?.role ?? "client") as UserRole;
 
-  const dashboardHref = getDashboardHref(role);
-  const dashboardLabel = getDashboardLabel(role);
+  const isStaff =
+    role === "registrar" || role === "vet" || role === "admin";
 
-  const isActive = (href: string) =>
-    href !== "/"
-      ? pathname?.startsWith(href)
-      : pathname === "/";
+  // Куда ведёт "кабинет"
+  let dashboardHref = "/account";
+  if (role === "registrar" || role === "admin") {
+    dashboardHref = "/backoffice/registrar";
+  } else if (role === "vet") {
+    dashboardHref = "/staff";
+  }
+
+  const dashboardLabel = isStaff ? "Рабочий кабинет" : "Личный кабинет";
+
+  const linkClass = (href: string) =>
+    `text-sm ${
+      pathname === href
+        ? "font-semibold text-gray-900"
+        : "text-gray-600 hover:text-gray-900"
+    }`;
 
   return (
-    <header className="border-b bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:py-4">
-        {/* Лого / бренд */}
-        <div className="flex items-center gap-2">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="rounded-full bg-black px-2 py-1 text-[11px] font-semibold text-white">
-              OV
-            </span>
-            <span className="text-sm font-semibold tracking-tight">
+    <nav className="border-b bg-white">
+      <div className="container mx-auto flex.items-center justify-between px-4 py-3">
+        {/* Логотип слева */}
+        <Link href="/" className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">
+            OV
+          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-semibold text-gray-900">
               OnlyVet
             </span>
-          </Link>
-          <span className="hidden text-[11px] text-gray-400 sm:inline">
-            онлайн-ветеринария
-          </span>
-        </div>
+            <span className="text-[11px] text-gray-500">
+              онлайн-ветеринария
+            </span>
+          </div>
+        </Link>
 
-        {/* Центр: ссылки сайта */}
-        <nav className="hidden items-center gap-4 text-sm text-gray-700 md:flex">
-          <Link
-            href="/services"
-            className={
-              isActive("/services") ? "font-medium text-black" : "hover:text-black"
-            }
-          >
+        {/* Центральное меню */}
+        <div className="flex items-center gap-6">
+          <Link href="/services" className={linkClass("/services")}>
             Услуги
           </Link>
-          <Link
-            href="/doctors"
-            className={
-              isActive("/doctors") ? "font-medium text-black" : "hover:text-black"
-            }
-          >
+          <Link href="/doctors" className={linkClass("/doctors")}>
             Врачи
           </Link>
-          <Link
-            href="/docs"
-            className={
-              isActive("/docs") ? "font-medium text-black" : "hover:text-black"
-            }
-          >
+          <Link href="/docs" className={linkClass("/docs")}>
             Документы
           </Link>
-        </nav>
+        </div>
 
-        {/* Справа: кабинет / вход + CTA */}
-        <div className="flex.items-center gap-3">
-          {/* Кнопка кабинет / вход */}
-          <Link
-            href={dashboardHref}
-            className="text-xs text-gray-700 underline underline-offset-2 hover:text-black"
-          >
-            {dashboardLabel}
-          </Link>
-
-          {/* CTA "Записаться" всегда ведёт на форму записи */}
-          <Link
-            href="/booking"
-            className="inline-flex items-center rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white hover:bg-gray-900"
-          >
-            Записаться
-          </Link>
+        {/* Правая часть: вход / кабинет / запись */}
+        <div className="flex items-center gap-4">
+          {loading ? (
+            <span className="text-xs text-gray-500">Загрузка…</span>
+          ) : isAuthed ? (
+            <>
+              <Link
+                href={dashboardHref}
+                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
+              >
+                {dashboardLabel}
+              </Link>
+              <Link
+                href="/booking"
+                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+              >
+                Записаться
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
+              >
+                Вход
+              </Link>
+              <Link
+                href="/booking"
+                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+              >
+                Записаться
+              </Link>
+            </>
+          )}
         </div>
       </div>
-    </header>
+    </nav>
   );
 }
