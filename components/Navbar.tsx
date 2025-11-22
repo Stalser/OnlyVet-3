@@ -1,112 +1,163 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-
-type StaffRole = "registrar" | "vet" | "admin" | "client";
+import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { UserRole } from "@/lib/types";
 
 export default function Navbar() {
+  const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useCurrentUser();
 
-  const role: StaffRole = (user?.role as StaffRole) ?? "client";
-  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+  // Быстрая проверка: мы на странице логина/регистрации — можно упростить хедер,
+  // но пока просто используем общий вариант.
 
-  // --- Куда ведёт кнопка "кабинета" ---
-  let cabinetLabel = "Личный кабинет";
-  let cabinetHref = "/account";
+  const handleLogout = async () => {
+    if (!supabase) {
+      router.push("/auth/login");
+      return;
+    }
+    const client: SupabaseClient = supabase;
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      console.error("logout error", e);
+    } finally {
+      router.push("/");
+    }
+  };
 
-  if (user && isStaff) {
-    cabinetLabel = "Рабочий кабинет";
-    if (role === "vet") {
-      cabinetHref = "/staff";
+  // Определяем, куда вести сотрудника
+  const getStaffHome = (role: UserRole | null): string => {
+    if (!role) return "/backoffice/registrar";
+    if (role === "registrar" || role === "admin") return "/backoffice/registrar";
+    if (role === "vet") return "/staff";
+    return "/backoffice/registrar";
+  };
+
+  // --- Правый блок навигации (аккаунт) ---
+
+  let accountNode: React.ReactNode = null;
+  let logoutNode: React.ReactNode = null;
+
+  if (!loading) {
+    if (!user) {
+      // Гость
+      accountNode = (
+        <Link
+          href="/auth/login"
+          className="text-xs text-gray-700 hover:text-black"
+        >
+          Вход
+        </Link>
+      );
     } else {
-      // registrar и admin — в кабинет регистратуры
-      cabinetHref = "/backoffice/registrar";
+      // Авторизован
+      if (user.role === "client") {
+        accountNode = (
+          <Link
+            href="/account"
+            className="text-xs text-gray-700 hover:text-black"
+          >
+            Личный кабинет
+          </Link>
+        );
+      } else {
+        // Сотрудник: registrar / vet / admin
+        accountNode = (
+          <Link
+            href={getStaffHome(user.role)}
+            className="text-xs text-gray-700 hover:text-black"
+          >
+            Рабочий кабинет
+          </Link>
+        );
+      }
+
+      logoutNode = (
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="text-xs text-gray-500 hover:text-black"
+        >
+          Выйти
+        </button>
+      );
     }
   }
 
-  // --- Правый блок авторизации ---
-  const isLoggedIn = !!user;
-
-  const isActive = (href: string) =>
-    pathname === href ? "text-gray-900 font-semibold" : "text-gray-600";
+  // Кнопка "Записаться" всегда видна (для клиентов и гостей)
+  const showBookingButton = true;
 
   return (
-    <header className="border-b border-gray-100 bg-white/80 backdrop-blur">
-      <div className="container mx-auto flex items-center justify-between px-4 py-3 md:py-4">
-        {/* Логотип / бренд */}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">
-            OV
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold text-gray-900">
-              OnlyVet
-            </span>
-            <span className="text-[11px] text-gray-500">
-              онлайн-ветеринария
-            </span>
-          </div>
-        </Link>
+    <nav className="w-full border-b border-gray-100 bg-white">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        {/* Логотип/бренд */}
+        <div className="flex items-center gap-2">
+          <Link href="/" className="text-sm font-semibold tracking-tight">
+            OnlyVet — онлайн-ветеринария
+          </Link>
+        </div>
 
-        {/* Навигация по сайту */}
-        <nav className="hidden md:flex items-center gap-6 text-sm">
-          <Link href="/services" className={isActive("/services")}>
+        {/* Центральное меню */}
+        <div className="hidden gap-6 text-xs text-gray-700 md:flex">
+          <Link
+            href="/services"
+            className={
+              pathname.startsWith("/services")
+                ? "font-medium text-black"
+                : "hover:text-black"
+            }
+          >
             Услуги
           </Link>
-          <Link href="/doctors" className={isActive("/doctors")}>
+          <Link
+            href="/doctors"
+            className={
+              pathname.startsWith("/doctors")
+                ? "font-medium text-black"
+                : "hover:text-black"
+            }
+          >
             Врачи
           </Link>
-          <Link href="/docs" className={isActive("/docs")}>
+          <Link
+            href="/docs"
+            className={
+              pathname.startsWith("/docs")
+                ? "font-medium text-black"
+                : "hover:text-black"
+            }
+          >
             Документы
           </Link>
-        </nav>
+        </div>
 
-        {/* Правый блок: кабинет / вход / запись */}
+        {/* Правый блок: аккаунт + кнопка записи */}
         <div className="flex items-center gap-3">
-          {/* Пока грузится user — просто серый текст-заглушка, чтобы не мигало */}
-          {loading ? (
-            <span className="text-xs text-gray-400">Загружаем…</span>
-          ) : (
-            <>
-              {/* Кнопка кабинета или входа */}
-              {isLoggedIn ? (
-                <>
-                  <Link
-                    href={cabinetHref}
-                    className="text-xs md:text-sm text-gray-700 hover:text-black underline underline-offset-2"
-                  >
-                    {cabinetLabel}
-                  </Link>
-                  <Link
-                    href="/auth/logout"
-                    className="text-xs md:text-sm text-gray-500 hover:text-black"
-                  >
-                    Выйти
-                  </Link>
-                </>
-              ) : (
-                <Link
-                  href="/auth/login"
-                  className="text-xs md:text-sm text-gray-700 hover:text-black underline underline-offset-2"
-                >
-                  Вход
-                </Link>
-              )}
+          {/* Аккаунт / Вход */}
+          {accountNode}
 
-              {/* Кнопка "Записаться" всегда доступна */}
-              <Link
-                href="/booking"
-                className="rounded-full bg-black px-4 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-gray-900"
-              >
-                Записаться
-              </Link>
-            </>
+          {/* Выйти (только если залогинен) */}
+          {logoutNode && (
+            <span className="h-3 w-px bg-gray-200" aria-hidden="true" />
+          )}
+          {logoutNode}
+
+          {/* Кнопка "Записаться" */}
+          {showBookingButton && (
+            <Link
+              href="/booking"
+              className="inline-flex items-center rounded-full bg-black px-4 py-1.5 text-xs font-medium text-white hover:bg-gray-900"
+            >
+              Записаться
+            </Link>
           )}
         </div>
       </div>
-    </header>
+    </nav>
   );
 }
