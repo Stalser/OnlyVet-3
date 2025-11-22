@@ -4,54 +4,44 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-type UserRole = "client" | "registrar" | "vet" | "admin";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { user, loading } = useCurrentUser();
 
   const isAuthed = !!user;
-  const role = (user?.role ?? "client") as UserRole;
-  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+  const role = user?.role ?? "client";
+  const isStaff = role === "admin" || role === "registrar" || role === "vet";
 
-  // Куда ведёт ссылка на кабинет + подпись
-  let dashboardHref = "/auth/login";
-  let dashboardLabel = "Вход";
+  // ======= ЛОГИКА КНОПКИ КАБИНЕТА =======
+  let cabinetHref = "/auth/login";
+  let cabinetLabel = "Вход";
 
-  if (isAuthed && isStaff) {
-    // сотрудник
-    dashboardHref = role === "vet" ? "/staff" : "/backoffice/registrar";
-    dashboardLabel = "Рабочий кабинет";
-  } else if (isAuthed && !isStaff) {
-    // клиент
-    dashboardHref = "/account";
-    dashboardLabel = "Личный кабинет";
+  if (isAuthed) {
+    if (isStaff) {
+      cabinetHref = role === "vet" ? "/staff" : "/backoffice/registrar";
+      cabinetLabel = "Рабочий кабинет";
+    } else {
+      cabinetHref = "/account";
+      cabinetLabel = "Личный кабинет";
+    }
   }
 
-  const linkClass = (href: string) =>
-    `text-sm ${
-      pathname === href
-        ? "font-semibold text-gray-900"
-        : "text-gray-600 hover:text-gray-900"
-    }`;
-
   const handleLogout = async () => {
-    try {
-      if (supabase) {
-        const client: SupabaseClient = supabase;
-        await client.auth.signOut();
-      }
-    } finally {
-      window.location.href = "/auth/login";
-    }
+    await supabase.auth.signOut();
+    window.location.href = "/auth/login";
   };
+
+  const linkClass = (href: string) =>
+    pathname === href
+      ? "text-sm font-semibold text-gray-900"
+      : "text-sm text-gray-600 hover:text-gray-900";
 
   return (
     <nav className="border-b bg-white">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        {/* Логотип слева — как было изначально */}
+
+        {/* ЛОГОТИП */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
           OnlyVet{" "}
           <span className="ml-1 text-xs font-normal text-gray-500">
@@ -59,74 +49,54 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Центральное меню */}
+        {/* ЦЕНТРАЛЬНОЕ МЕНЮ */}
         <div className="flex items-center gap-6">
-          <Link href="/services" className={linkClass("/services")}>
-            Услуги
-          </Link>
-          <Link href="/doctors" className={linkClass("/doctors")}>
-            Врачи
-          </Link>
-          <Link href="/docs" className={linkClass("/docs")}>
-            Документы
-          </Link>
+          <Link href="/services" className={linkClass("/services")}>Услуги</Link>
+          <Link href="/doctors" className={linkClass("/doctors")}>Врачи</Link>
+          <Link href="/docs" className={linkClass("/docs")}>Документы</Link>
         </div>
 
-        {/* Правая часть */}
+        {/* ПРАВАЯ ЧАСТЬ */}
         <div className="flex items-center gap-4">
-          {loading ? (
-            <span className="text-xs text-gray-500">Загрузка…</span>
-          ) : (
-            <>
-              {/* Вход / Личный кабинет / Рабочий кабинет */}
-              <Link
-                href={dashboardHref}
-                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-              >
-                {dashboardLabel}
-              </Link>
 
-              {/* Для клиента: Выйти + Записаться (в таком порядке) */}
-              {isAuthed && !isStaff && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="text-sm text-gray-600 hover:text-red-700"
-                  >
-                    Выйти
-                  </button>
-                  <Link
-                    href="/booking"
-                    className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-                  >
-                    Записаться
-                  </Link>
-                </>
-              )}
+          {/* КНОПКА: Кабинет / Вход */}
+          <Link
+            href={cabinetHref}
+            className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
+          >
+            {cabinetLabel}
+          </Link>
 
-              {/* Для сотрудника: только Выйти, без кнопки «Записаться» */}
-              {isAuthed && isStaff && (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-sm text-gray-600 hover:text-red-700"
-                >
-                  Выйти
-                </button>
-              )}
-
-              {/* Для гостя: Вход + Записаться (Вход уже выше в dashboardHref) */}
-              {!isAuthed && (
-                <Link
-                  href="/booking"
-                  className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-                >
-                  Записаться
-                </Link>
-              )}
-            </>
+          {/* КНОПКА: Записаться — ТОЛЬКО КЛИЕНТУ */}
+          {!loading && isAuthed && !isStaff && (
+            <Link
+              href="/booking"
+              className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+            >
+              Записаться
+            </Link>
           )}
+
+          {/* КНОПКА: Записаться — НЕавторизованному пользователю */}
+          {!loading && !isAuthed && (
+            <Link
+              href="/booking"
+              className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+            >
+              Записаться
+            </Link>
+          )}
+
+          {/* КНОПКА: Выйти — ТОЛЬКО КОГДА ПОЛЬЗОВАТЕЛЬ В СИСТЕМЕ */}
+          {isAuthed && (
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-600 hover:text-red-700"
+            >
+              Выйти
+            </button>
+          )}
+
         </div>
       </div>
     </nav>
