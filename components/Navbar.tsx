@@ -1,74 +1,58 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-type AuthRole = "guest" | "user" | "staff";
+import { useCurrentUser } from "../lib/useCurrentUser";
 
 export default function Navbar() {
-  const [role, setRole] = useState<AuthRole>("guest");
+  const router = useRouter();
+  const { user, loading } = useCurrentUser();
 
-  // Приводим supabase к клиенту с типом, чтобы TS не ругался
-  const client: SupabaseClient | null = supabase;
+  const [authLabel, setAuthLabel] = useState("Вход");
+  const [authHref, setAuthHref] = useState("/auth/login");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Определяем, что показывать в правом углу, в зависимости от роли
   useEffect(() => {
-    // Если Supabase не сконфигурирован – просто считаем всех гостями
-    if (!client) {
-      setRole("guest");
+    if (loading) return;
+
+    if (!user) {
+      setIsLoggedIn(false);
+      setAuthLabel("Вход");
+      setAuthHref("/auth/login");
       return;
     }
 
-    const getUser = async () => {
-      const { data } = await client.auth.getUser();
-      const metaRole =
-        (data.user?.user_metadata?.role as AuthRole | undefined) ?? "user";
-      setRole(metaRole === "staff" ? "staff" : "user");
-    };
+    setIsLoggedIn(true);
 
-    void getUser();
-
-    const { data: sub } = client.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!session) {
-          setRole("guest");
-        } else {
-          const metaRole =
-            (session.user.user_metadata?.role as AuthRole | undefined) ??
-            "user";
-          setRole(metaRole === "staff" ? "staff" : "user");
-        }
-      }
-    );
-
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-  }, [client]);
+    switch (user.role) {
+      case "registrar":
+      case "admin":
+        setAuthLabel("Кабинет регистратуры");
+        setAuthHref("/backoffice/registrar");
+        break;
+      case "vet":
+        setAuthLabel("Кабинет врача");
+        setAuthHref("/staff");
+        break;
+      case "client":
+      default:
+        setAuthLabel("Личный кабинет");
+        setAuthHref("/account");
+        break;
+    }
+  }, [user, loading]);
 
   const handleLogout = async () => {
-    if (!client) return;
-    await client.auth.signOut();
-    setRole("guest");
-    if (typeof window !== "undefined") {
-      window.location.href = "/";
-    }
+    if (!supabase) return;
+
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    // После выхода всегда на главную
+    router.push("/");
   };
-
-  // Настраиваем текст и ссылку для правой кнопки в зависимости от роли
-  let authLabel = "Вход";
-  let authHref = "/auth/login";
-
-  if (role === "user") {
-    authLabel = "Личный кабинет";
-    authHref = "/account";
-  } else if (role === "staff") {
-    authLabel = "Рабочий кабинет";
-    authHref = "/backoffice";
-  }
-
-  const isLoggedIn = role === "user" || role === "staff";
 
   return (
     <header className="border-b border-gray-100 bg-white/90 backdrop-blur-sm">
@@ -93,7 +77,7 @@ export default function Navbar() {
 
         {/* Правый блок */}
         <div className="flex items-center gap-3">
-          {/* Вход / ЛК / Рабочий кабинет */}
+          {/* Вход / ЛК / Кабинеты */}
           <Link
             href={authHref}
             className="text-xs text-gray-700 hover:text-black underline underline-offset-2"
@@ -101,7 +85,7 @@ export default function Navbar() {
             {authLabel}
           </Link>
 
-          {/* Выйти */}
+          {/* Выйти — только если залогинен */}
           {isLoggedIn && (
             <button
               type="button"
