@@ -2,47 +2,33 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type UserRole = "client" | "registrar" | "vet" | "admin";
-
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, loading } = useCurrentUser();
 
-  const isAuthed = !!user;
-  const role = (user?.role ?? "client") as UserRole;
-  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+  // Определяем зону по URL
+  const inRegistrarArea = pathname.startsWith("/backoffice");
+  const inVetArea = pathname.startsWith("/staff");
+  const inStaffArea = inRegistrarArea || inVetArea;
+  const inClientArea = pathname.startsWith("/account");
 
-  // Также ориентируемся на URL — на случай, если хук ещё не успел загрузить пользователя
-  const isRegistrarArea = pathname.startsWith("/backoffice");
-  const isVetArea = pathname.startsWith("/staff");
-  const isClientArea = pathname.startsWith("/account");
-
-  // Куда ведёт ссылка "кабинет" и как она подписана
+  // -------- Ссылка "кабинет" справа --------
   let dashboardHref = "/auth/login";
   let dashboardLabel = "Вход";
 
-  if (isAuthed && isStaff) {
-    // сотрудник: регистратор / врач / админ
-    dashboardHref = role === "vet" ? "/staff" : "/backoffice/registrar";
+  if (inStaffArea) {
+    // сотрудник: регистратор/админ → backoffice, врач → staff
+    dashboardHref = inVetArea ? "/staff" : "/backoffice/registrar";
     dashboardLabel = "Рабочий кабинет";
-  } else if (isAuthed && !isStaff) {
-    // обычный клиент
+  } else if (inClientArea) {
     dashboardHref = "/account";
     dashboardLabel = "Личный кабинет";
-  } else {
-    // гость, но уже внутри какого-то кабинета → подстраиваем подпись
-    if (isRegistrarArea || isVetArea) {
-      dashboardHref = isVetArea ? "/staff" : "/backoffice/registrar";
-      dashboardLabel = "Рабочий кабинет";
-    } else if (isClientArea) {
-      dashboardHref = "/account";
-      dashboardLabel = "Личный кабинет";
-    }
   }
+
+  // На каких страницах считаем, что человек уже внутри кабинета
+  const inAnyCabinet = inStaffArea || inClientArea;
 
   const linkClass = (href: string) =>
     `text-sm ${
@@ -51,14 +37,17 @@ export default function Navbar() {
         : "text-gray-600 hover:text-gray-900"
     }`;
 
+  // -------- Выход --------
   const handleLogout = async () => {
     try {
       if (supabase) {
         const client: SupabaseClient = supabase;
         await client.auth.signOut();
       }
+    } catch (e) {
+      console.error("Logout error:", e);
     } finally {
-      // В любом случае отправляем на страницу входа
+      // Всегда уводим на страницу логина
       window.location.href = "/auth/login";
     }
   };
@@ -66,7 +55,7 @@ export default function Navbar() {
   return (
     <nav className="border-b bg-white">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        {/* Логотип слева — как в исходном дизайне */}
+        {/* Логотип слева — как было в макете */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
           OnlyVet{" "}
           <span className="ml-1 text-xs font-normal text-gray-500">
@@ -89,37 +78,31 @@ export default function Navbar() {
 
         {/* Правая часть */}
         <div className="flex items-center gap-4">
-          {loading ? (
-            <span className="text-xs text-gray-500">Загрузка…</span>
-          ) : (
-            <>
-              {/* Личный / Рабочий кабинет / Вход */}
-              <Link
-                href={dashboardHref}
-                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-              >
-                {dashboardLabel}
-              </Link>
+          {/* Ссылка на кабинет / вход */}
+          <Link
+            href={dashboardHref}
+            className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
+          >
+            {dashboardLabel}
+          </Link>
 
-              {/* Кнопка "Записаться" — всегда доступна */}
-              <Link
-                href="/booking"
-                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-              >
-                Записаться
-              </Link>
+          {/* "Записаться" — всегда доступна */}
+          <Link
+            href="/booking"
+            className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+          >
+            Записаться
+          </Link>
 
-              {/* Кнопка "Выйти" только для авторизованных */}
-              {isAuthed && (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-sm text-gray-600 hover:text-red-700"
-                >
-                  Выйти
-                </button>
-              )}
-            </>
+          {/* Кнопка "Выйти" — показываем только если мы уже внутри любого кабинета */}
+          {inAnyCabinet && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-sm text-gray-600 hover:text-red-700"
+            >
+              Выйти
+            </button>
           )}
         </div>
       </div>
