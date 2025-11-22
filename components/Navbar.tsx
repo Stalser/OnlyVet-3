@@ -3,21 +3,25 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type AuthRole = "guest" | "user" | "staff";
 
 export default function Navbar() {
   const [role, setRole] = useState<AuthRole>("guest");
 
+  // Приводим supabase к клиенту с типом, чтобы TS не ругался
+  const client: SupabaseClient | null = supabase;
+
   useEffect(() => {
-    // Если supabase не сконфигурирован (нет env) – считаем, что пользователь гость
-    if (!supabase) {
+    // Если Supabase не сконфигурирован – просто считаем всех гостями
+    if (!client) {
       setRole("guest");
       return;
     }
 
     const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await client.auth.getUser();
       const metaRole =
         (data.user?.user_metadata?.role as AuthRole | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
@@ -25,7 +29,7 @@ export default function Navbar() {
 
     void getUser();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
+    const { data: sub } = client.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
           setRole("guest");
@@ -41,11 +45,11 @@ export default function Navbar() {
     return () => {
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [client]);
 
   const handleLogout = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (!client) return;
+    await client.auth.signOut();
     setRole("guest");
     if (typeof window !== "undefined") {
       window.location.href = "/";
