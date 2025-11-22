@@ -1,32 +1,32 @@
-// components/Navbar.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCurrentUser } from "@/lib/useCurrentUser";
-import { supabase } from "@/lib/supabaseClient";
-
-type UserRole = "client" | "registrar" | "vet" | "admin";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, loading } = useCurrentUser();
 
-  const isAuthed = !!user;
-  const role = (user?.role ?? "client") as UserRole;
+  // Мы в зоне сотрудников?
+  const isRegistrarArea = pathname.startsWith("/backoffice");
+  const isVetArea = pathname.startsWith("/staff");
+  const isStaffArea = isRegistrarArea || isVetArea;
 
-  const isStaff =
-    role === "registrar" || role === "vet" || role === "admin";
+  // Мы в личном кабинете клиента?
+  const isClientArea = pathname.startsWith("/account");
 
-  // Куда ведёт кабинет
-  let dashboardHref = "/account";
-  if (role === "registrar" || role === "admin") {
-    dashboardHref = "/backoffice/registrar";
-  } else if (role === "vet") {
-    dashboardHref = "/staff";
+  // Ссылка на кабинет и подпись
+  let dashboardHref = "/auth/login";
+  let dashboardLabel = "Вход";
+
+  if (isStaffArea) {
+    // если страница врача — ведём в /staff
+    // если страница регистратора/админа — ведём в /backoffice/registrar
+    dashboardHref = isVetArea ? "/staff" : "/backoffice/registrar";
+    dashboardLabel = "Рабочий кабинет";
+  } else if (isClientArea) {
+    dashboardHref = "/account";
+    dashboardLabel = "Личный кабинет";
   }
-
-  const dashboardLabel = isStaff ? "Рабочий кабинет" : "Личный кабинет";
 
   const linkClass = (href: string) =>
     `text-sm ${
@@ -35,23 +35,15 @@ export default function Navbar() {
         : "text-gray-600 hover:text-gray-900"
     }`;
 
-  const handleLogout = async () => {
-    try {
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
-    } finally {
-      // Принудительно сбрасываем состояние и попадаем на главную
-      window.location.href = "/";
-    }
-  };
-
   return (
     <nav className="border-b bg-white">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        {/* Логотип/название слева — БЕЗ OV-пилюли, как было раньше */}
+        {/* Логотип слева (как было изначально) */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
-          OnlyVet — онлайн-ветеринария
+          OnlyVet{" "}
+          <span className="ml-1 text-xs font-normal text-gray-500">
+            — онлайн-ветеринария
+          </span>
         </Link>
 
         {/* Центральное меню */}
@@ -67,53 +59,21 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Правая часть: вход / кабинет / запись / выход */}
+        {/* Правая часть: кабинет / вход + запись */}
         <div className="flex items-center gap-4">
-          {loading ? (
-            <span className="text-xs text-gray-500">Загрузка…</span>
-          ) : isAuthed ? (
-            <>
-              <Link
-                href={dashboardHref}
-                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-              >
-                {dashboardLabel}
-              </Link>
+          <Link
+            href={dashboardHref}
+            className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
+          >
+            {dashboardLabel}
+          </Link>
 
-              {/* Клиентам оставляем кнопку записи, сотрудникам — нет */}
-              {!isStaff && (
-                <Link
-                  href="/booking"
-                  className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-                >
-                  Записаться
-                </Link>
-              )}
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-sm text-gray-700 hover:text-gray-900"
-              >
-                Выйти
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/auth/login"
-                className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-              >
-                Вход
-              </Link>
-              <Link
-                href="/booking"
-                className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-              >
-                Записаться
-              </Link>
-            </>
-          )}
+          <Link
+            href="/booking"
+            className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+          >
+            Записаться
+          </Link>
         </div>
       </div>
     </nav>
