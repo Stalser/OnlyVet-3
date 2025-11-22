@@ -1,211 +1,184 @@
+// components/registrar/RegistrarAssignSlot.tsx
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { doctors } from "@/lib/data";
 
-type SlotOption = {
-  id: string;
-  label: string;
-  raw: any;
+type Props = {
+  appointmentId: string;
+  doctorId?: string | null;
 };
 
-interface RegistrarAssignSlotProps {
-  appointmentId: string;
-  doctorId?: string;
-}
+type FormState = {
+  doctorId: string;
+  date: string;
+  time: string;
+};
 
-export function RegistrarAssignSlot({
-  appointmentId,
-  doctorId,
-}: RegistrarAssignSlotProps) {
-  const router = useRouter();
-  const [slots, setSlots] = useState<SlotOption[]>([]);
-  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+export function RegistrarAssignSlot({ appointmentId, doctorId }: Props) {
+  const client: SupabaseClient | null = supabase;
 
+  const [form, setForm] = useState<FormState>({
+    doctorId: doctorId ?? "",
+    date: "",
+    time: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Подставляем сегодняшнюю дату и ближайшее время по умолчанию
   useEffect(() => {
-    let ignore = false;
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    setForm((prev) => ({
+      ...prev,
+      date: prev.date || date,
+      time: prev.time || `${hh}:${mm}`,
+    }));
+  }, []);
 
-    async function load() {
-      if (!doctorId) {
-        setLoading(false);
-        return;
-      }
-      if (!supabase) {
-        setErrorMessage("Supabase недоступен на клиенте.");
-        setLoading(false);
-        return;
-      }
+  const handleChange = (
+    field: keyof FormState,
+    value: string
+  ) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
-      setLoading(true);
-      setErrorMessage(null);
-
-      const { data, error } = await supabase
-        .from("doctor_slots")
-        .select("*")
-        .eq("doctor_id", doctorId)
-        .order("date", { ascending: true })
-        .order("time_start", { ascending: true });
-
-      if (error || !data) {
-        if (!ignore) {
-          setErrorMessage("Не удалось загрузить слоты для врача.");
-          setLoading(false);
-        }
-        return;
-      }
-
-      const available = data.filter(
-        (row: any) =>
-          !row.appointment_id && row.status === "available"
-      );
-
-      const mapped: SlotOption[] = available.map((row: any) => {
-        const label = `${row.date} ${row.time_start}–${row.time_end}`;
-        return {
-          id: row.id,
-          label,
-          raw: row,
-        };
-      });
-
-      if (!ignore) {
-        setSlots(mapped);
-        setLoading(false);
-      }
-    }
-
-    load();
-
-    return () => {
-      ignore = true;
-    };
-  }, [doctorId]);
-
-  if (!doctorId) {
-    return (
-      <div className="text-[11px] text-gray-400">
-        Врач пока не назначен — выбор слота недоступен.
-      </div>
-    );
-  }
-
-  const handleAssign = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) {
-      setErrorMessage("Supabase недоступен на клиенте.");
-      return;
-    }
-    if (!selectedSlotId) {
-      setErrorMessage("Выберите слот для назначения.");
-      return;
-    }
+    setMsg(null);
+    setErrorMsg(null);
 
-    const slot = slots.find((s) => s.id === selectedSlotId);
-    if (!slot) {
-      setErrorMessage("Слот не найден.");
+    if (!client) {
+      setErrorMsg("Supabase не сконфигурирован.");
       return;
     }
 
-    setSaving(true);
-    setErrorMessage(null);
-
-    // 1) помечаем слот как занятый и привязываем консультацию
-    const { error: slotError } = await supabase
-      .from("doctor_slots")
-      .update({
-        appointment_id: appointmentId,
-        status: "busy",
-      })
-      .eq("id", selectedSlotId);
-
-    if (slotError) {
-      setErrorMessage("Не удалось привязать консультацию к слоту.");
-      setSaving(false);
+    if (!form.date || !form.time) {
+      setErrorMsg("Укажите дату и время.");
       return;
     }
 
-    // 2) обновляем запись приёма (дата/время/врач)
-    const doc = doctors.find((d) => d.id === doctorId);
+    setLoading(true);
 
-    const { error: appError } = await supabase
-      .from("appointments")
-      .update({
-        date: slot.raw.date,
-        time: slot.raw.time_start,
-        doctor_id: doctorId,
-        doctor_name: doc?.name ?? null,
-      })
-      .eq("id", appointmentId);
+    try {
+      const startsAt = new Date(`${form.date}T${form.time}:00`);
+      const startsIso = startsAt.toISOString();
 
-    if (appError) {
-      setErrorMessage(
-        "Слот обновлён, но не удалось обновить данные консультации."
-      );
-      setSaving(false);
-      return;
+      const updates: Record<string, any> = {
+        starts_at: startsIso,
+      };
+
+      if (form.doctorId) {
+        updates.doctor_id = form.doctorId;
+      }
+
+      const { error } = await client
+        .from("appointments")
+        .update(updates)
+        .eq("id", appointmentId);
+
+      if (error) {
+        console.error("RegistrarAssignSlot update error:", error);
+        setErrorMsg("Не удалось сохранить слот и врача.");
+      } else {
+        setMsg("Время и врач обновлены.");
+      }
+    } catch (err) {
+      console.error("RegistrarAssignSlot error:", err);
+      setErrorMsg("Ошибка при обработке даты/времени.");
+    } finally {
+      setLoading(false);
     }
-
-    setSaving(false);
-    router.refresh();
   };
 
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold text-gray-700">
-        Назначить консультацию на слот врача
-      </div>
-
-      {loading && (
-        <div className="text-[11px] text-gray-500">
-          Загружаем доступные слоты…
-        </div>
-      )}
-
-      {!loading && slots.length === 0 && (
-        <div className="text-[11px] text-gray-400">
-          Для этого врача пока нет свободных слотов. Создайте их на
-          странице расписания.
-        </div>
-      )}
-
-      {!loading && slots.length > 0 && (
-        <form
-          onSubmit={handleAssign}
-          className="flex flex-wrap items-center gap-2"
-        >
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 text-xs"
+    >
+      <div className="grid gap-2 md:grid-cols-3">
+        {/* Врач */}
+        <div className="space-y-1">
+          <label className="text-[11px] text-gray-600">
+            Врач
+          </label>
           <select
-            value={selectedSlotId}
-            onChange={(e) => setSelectedSlotId(e.target.value)}
-            className="rounded-xl border px-2 py-1.5 text-xs"
+            className="w-full rounded-xl border border-gray-200 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600"
+            value={form.doctorId}
+            onChange={(e) =>
+              handleChange("doctorId", e.target.value)
+            }
           >
-            <option value="">Выберите слот…</option>
-            {slots.map((slot) => (
-              <option key={slot.id} value={slot.id}>
-                {slot.label}
+            <option value="">Не указан</option>
+            {doctors.map((d: any) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
               </option>
             ))}
           </select>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {saving ? "Назначаем…" : "Назначить на слот"}
-          </button>
-        </form>
-      )}
-
-      {errorMessage && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
-          {errorMessage}
         </div>
+
+        {/* Дата */}
+        <div className="space-y-1">
+          <label className="text-[11px] text-gray-600">
+            Дата
+          </label>
+          <input
+            type="date"
+            className="w-full rounded-xl border border-gray-200 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600"
+            value={form.date}
+            onChange={(e) =>
+              handleChange("date", e.target.value)
+            }
+          />
+        </div>
+
+        {/* Время */}
+        <div className="space-y-1">
+          <label className="text-[11px] text-gray-600">
+            Время
+          </label>
+          <input
+            type="time"
+            className="w-full rounded-xl border border-gray-200 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600"
+            value={form.time}
+            onChange={(e) =>
+              handleChange("time", e.target.value)
+            }
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="text-[10px] text-gray-400">
+          Эти данные увидит врач в своём кабинете.
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading ? "Сохраняем…" : "Сохранить"}
+        </button>
+      </div>
+
+      {msg && (
+        <p className="text-[11px] text-emerald-700">
+          {msg}
+        </p>
       )}
-    </div>
+      {errorMsg && (
+        <p className="text-[11px] text-red-600">
+          {errorMsg}
+        </p>
+      )}
+    </form>
   );
 }
