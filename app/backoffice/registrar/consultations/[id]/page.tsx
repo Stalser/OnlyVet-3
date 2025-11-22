@@ -28,7 +28,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
         </div>
 
         {/* Заголовок */}
-        <header className="flex.items-center justify-between">
+        <header className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight">
               Карточка консультации
@@ -63,7 +63,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               <h2 className="text-base font-semibold">Основная информация</h2>
 
               {/* ID + дата */}
-              <div className="flex flex-wrap.items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-xs text-gray-500">ID заявки</div>
                   <div className="font-mono text-sm text-gray-900">
@@ -119,15 +119,15 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
-                      Здесь будет ссылка на карточку питомца из таблицы pets, если
-                      pet_id присутствует.
+                      Здесь будет ссылка на карточку питомца из таблицы pets,
+                      если pet_id присутствует.
                     </div>
                   </div>
                 </div>
 
                 {/* Услуга + врач + платформа связи */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase text-gray-500">
+                  <h3 className="text-xs font-semibold.uppercase text-gray-500">
                     Услуга и врач
                   </h3>
                   <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
@@ -189,29 +189,33 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
             {/* ======= Блок "Жалоба клиента" ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-2">
-              <h2 className="text-base font-semibold">Жалоба / описание проблемы</h2>
+              <h2 className="text-base font-semibold">
+                Жалоба / описание проблемы
+              </h2>
               {appointment.complaint ? (
                 <p className="text-sm text-gray-700 whitespace-pre-line">
                   {appointment.complaint}
                 </p>
               ) : (
                 <p className="text-xs text-gray-500">
-                  Жалоба клиента не указана. Позже здесь будет отображаться текст
-                  из формы записи на консультацию.
+                  Жалоба клиента не указана. Позже здесь будет отображаться
+                  текст из формы записи на консультацию.
                 </p>
               )}
             </section>
 
             {/* ======= Блок "Действия регистратуры" ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <h2 className="text-base font-semibold">Действия регистратуры</h2>
+              <h2 className="text-base font-semibold">
+                Действия регистратуры
+              </h2>
 
               <RegistrarActions
                 appointmentId={appointment.id}
                 currentStatus={appointment.statusLabel}
               />
 
-              <div className="border-t.border-gray-100 pt-4 mt-2">
+              <div className="border-t border-gray-100 pt-4 mt-2">
                 <RegistrarAssignSlot
                   appointmentId={appointment.id}
                   doctorId={appointment.doctorId}
