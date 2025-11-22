@@ -14,10 +14,14 @@ export default function Navbar() {
 
   const isAuthed = !!user;
   const role = (user?.role ?? "client") as UserRole;
-
   const isStaff = role === "registrar" || role === "vet" || role === "admin";
 
-  // Куда ведёт ссылка "кабинет"
+  // Также ориентируемся на URL — на случай, если хук ещё не успел загрузить пользователя
+  const isRegistrarArea = pathname.startsWith("/backoffice");
+  const isVetArea = pathname.startsWith("/staff");
+  const isClientArea = pathname.startsWith("/account");
+
+  // Куда ведёт ссылка "кабинет" и как она подписана
   let dashboardHref = "/auth/login";
   let dashboardLabel = "Вход";
 
@@ -29,6 +33,15 @@ export default function Navbar() {
     // обычный клиент
     dashboardHref = "/account";
     dashboardLabel = "Личный кабинет";
+  } else {
+    // гость, но уже внутри какого-то кабинета → подстраиваем подпись
+    if (isRegistrarArea || isVetArea) {
+      dashboardHref = isVetArea ? "/staff" : "/backoffice/registrar";
+      dashboardLabel = "Рабочий кабинет";
+    } else if (isClientArea) {
+      dashboardHref = "/account";
+      dashboardLabel = "Личный кабинет";
+    }
   }
 
   const linkClass = (href: string) =>
@@ -53,7 +66,7 @@ export default function Navbar() {
   return (
     <nav className="border-b bg-white">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        {/* Логотип слева — как было изначально */}
+        {/* Логотип слева — как в исходном дизайне */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
           OnlyVet{" "}
           <span className="ml-1 text-xs font-normal text-gray-500">
