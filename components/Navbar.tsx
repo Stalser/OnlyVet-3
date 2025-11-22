@@ -15,20 +15,35 @@ export default function Navbar() {
   const isAuthed = !!user;
   const role = (user?.role ?? "client") as UserRole;
 
-  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+  // Для logout аккуратно сузим тип, чтобы TS не ругался
+  const client = supabase as SupabaseClient | null;
 
-  // Куда ведёт ссылка "кабинет"
+  const handleLogout = async () => {
+    if (!client) return;
+    try {
+      await client.auth.signOut();
+      // после выхода просто на главную
+      window.location.href = "/";
+    } catch (e) {
+      console.error("Logout error", e);
+    }
+  };
+
+  // Куда ведёт ссылка на кабинет
   let dashboardHref = "/auth/login";
   let dashboardLabel = "Вход";
 
-  if (isAuthed && isStaff) {
-    // сотрудник: регистратор / врач / админ
-    dashboardHref = role === "vet" ? "/staff" : "/backoffice/registrar";
-    dashboardLabel = "Рабочий кабинет";
-  } else if (isAuthed && !isStaff) {
-    // обычный клиент
-    dashboardHref = "/account";
-    dashboardLabel = "Личный кабинет";
+  if (isAuthed) {
+    if (role === "registrar" || role === "admin") {
+      dashboardHref = "/backoffice/registrar";
+      dashboardLabel = "Рабочий кабинет";
+    } else if (role === "vet") {
+      dashboardHref = "/staff";
+      dashboardLabel = "Рабочий кабинет";
+    } else {
+      dashboardHref = "/account";
+      dashboardLabel = "Личный кабинет";
+    }
   }
 
   const linkClass = (href: string) =>
@@ -38,22 +53,10 @@ export default function Navbar() {
         : "text-gray-600 hover:text-gray-900"
     }`;
 
-  const handleLogout = async () => {
-    try {
-      if (supabase) {
-        const client: SupabaseClient = supabase;
-        await client.auth.signOut();
-      }
-    } finally {
-      // В любом случае отправляем на страницу входа
-      window.location.href = "/auth/login";
-    }
-  };
-
   return (
     <nav className="border-b bg-white">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        {/* Логотип слева — как было изначально */}
+        {/* Логотип слева — как в исходной версии */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
           OnlyVet{" "}
           <span className="ml-1 text-xs font-normal text-gray-500">
@@ -74,13 +77,12 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Правая часть */}
+        {/* Правая часть: кабинет / вход + запись */}
         <div className="flex items-center gap-4">
           {loading ? (
             <span className="text-xs text-gray-500">Загрузка…</span>
           ) : (
             <>
-              {/* Личный / Рабочий кабинет / Вход */}
               <Link
                 href={dashboardHref}
                 className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
@@ -88,24 +90,22 @@ export default function Navbar() {
                 {dashboardLabel}
               </Link>
 
-              {/* Кнопка "Записаться" — всегда доступна */}
+              {isAuthed && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-sm text-gray-700 hover:text-gray-900"
+                >
+                  Выйти
+                </button>
+              )}
+
               <Link
                 href="/booking"
                 className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
               >
                 Записаться
               </Link>
-
-              {/* Кнопка "Выйти" только для авторизованных */}
-              {isAuthed && (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-sm text-gray-600 hover:text-red-700"
-                >
-                  Выйти
-                </button>
-              )}
             </>
           )}
         </div>
