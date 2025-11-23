@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type UserRole = "client" | "registrar" | "vet" | "admin";
 
@@ -16,24 +17,27 @@ export default function Navbar() {
   const role = (user?.role ?? "client") as UserRole;
   const isStaff = role === "registrar" || role === "vet" || role === "admin";
 
-  // Куда ведёт ссылка кабинета на десктопе
+  // --- Куда ведёт ссылка "кабинет" на десктопе ---
   let cabinetHref = "/auth/login";
   let cabinetLabel = "Вход";
 
   if (isAuthed && isStaff) {
+    // сотрудники: регистратор / врач / админ
     cabinetHref = role === "vet" ? "/staff" : "/backoffice/registrar";
     cabinetLabel = "Рабочий кабинет";
   } else if (isAuthed && !isStaff) {
+    // обычный клиент
     cabinetHref = "/account";
     cabinetLabel = "Личный кабинет";
   }
 
   const handleLogout = async () => {
     try {
-      // supabase может быть null в типах — аккуратно через optional chaining
-      await supabase?.auth.signOut();
+      if (supabase) {
+        const client = supabase as SupabaseClient;
+        await client.auth.signOut();
+      }
     } finally {
-      // В любом случае уводим на страницу логина
       window.location.href = "/auth/login";
     }
   };
@@ -45,8 +49,8 @@ export default function Navbar() {
 
   return (
     <nav className="border-b bg-white">
-      <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        {/* Логотип слева — как было */}
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        {/* Логотип слева */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
           OnlyVet{" "}
           <span className="ml-1 text-xs font-normal text-gray-500">
@@ -55,7 +59,7 @@ export default function Navbar() {
         </Link>
 
         {/* Центральное меню (только десктоп) */}
-        <div className="hidden md:flex.items-center gap-6">
+        <div className="hidden items-center gap-6 md:flex">
           <Link href="/services" className={linkClass("/services")}>
             Услуги
           </Link>
@@ -67,12 +71,13 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Правая часть: десктопная версия */}
-        <div className="hidden md:flex items-center gap-4">
+        {/* Правая часть: десктоп */}
+        <div className="hidden items-center gap-4 md:flex">
           {loading ? (
             <span className="text-xs text-gray-500">Загрузка…</span>
           ) : (
             <>
+              {/* Кабинет / вход */}
               <Link
                 href={cabinetHref}
                 className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
@@ -104,8 +109,8 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Правая часть: мобильная версия (только клиентский сценарий) */}
-        <div className="flex md:hidden items-center gap-3">
+        {/* Правая часть: мобильная версия (Только клиентский сценарий) */}
+        <div className="flex items-center gap-3 md:hidden">
           {loading ? (
             <span className="text-xs text-gray-500">…</span>
           ) : (
@@ -127,7 +132,7 @@ export default function Navbar() {
                 </>
               ) : (
                 <>
-                  {/* Для авторизованного клиента — ссылка в личный кабинет */}
+                  {/* Клиенту даём ЛК на мобильном */}
                   {role === "client" && (
                     <Link
                       href="/account"
@@ -136,7 +141,7 @@ export default function Navbar() {
                       Личный кабинет
                     </Link>
                   )}
-                  {/* Сотрудникам в мобильной версии ссылку в рабочий кабинет не показываем */}
+                  {/* Сотрудникам мобильный рабочий кабинет не светим, только выйти */}
                   <button
                     type="button"
                     onClick={handleLogout}
