@@ -105,6 +105,8 @@ export function StaffDashboardClient({ appointments }: Props) {
   // 2. фильтруем приёмы: если у врача есть doctor_id — показываем только его
   const doctorAppointments = useMemo(() => {
     if (!doctorId) {
+      // fallback: если для пользователя не найден doctor_id,
+      // показываем все приёмы (например, для админа или старых аккаунтов)
       return appointments;
     }
     return appointments.filter((a) => a.doctorId === doctorId);
@@ -207,7 +209,7 @@ export function StaffDashboardClient({ appointments }: Props) {
                     key={a.id}
                     className="border-b last:border-0 hover:bg-gray-50"
                   >
-                    <td className="px-2 py-2.align-top text-[11px] text-gray-700">
+                    <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                       <div>{a.dateLabel}</div>
                       {a.createdLabel && (
                         <div className="text-[10px] text-gray-400">
