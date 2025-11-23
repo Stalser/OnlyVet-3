@@ -81,45 +81,15 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
 
   return (
     <>
-      {/* Панель фильтров над таблицей */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="text-[11px] text-gray-500">
-          Показаны последние {appointments.length} записей. После фильтрации:{" "}
-          {filtered.length}.
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
-            className="w-60 rounded-xl border px-2 py-1.5 text-xs"
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border px-2 py-1.5 text-xs"
-          >
-            <option value="all">Все статусы</option>
-            {statuses.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={doctorFilter}
-            onChange={(e) => setDoctorFilter(e.target.value)}
-            className="rounded-xl border px-2 py-1.5 text-xs"
-          >
-            <option value="all">Все врачи</option>
-            {doctors.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold">
+            Все консультации и заявки
+          </h2>
+          <p className="text-[11px] text-gray-500">
+            Всего записей: {appointments.length}. После фильтрации:{" "}
+            {filtered.length}.
+          </p>
         </div>
       </div>
 
@@ -142,8 +112,15 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
           </thead>
           <tbody>
             {filtered.map((a, index) => {
-              const hasDocs = a.hasDocuments ?? false;
-              const paymentStatus = a.paymentStatus ?? "unpaid";
+              const docsLabel = a.hasDocuments ? "да" : "нет";
+              const docsClass = a.hasDocuments
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-gray-100 text-gray-500";
+
+              const paidLabel = a.hasPayments ? "оплачено" : "не оплачено";
+              const paidClass = a.hasPayments
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-gray-100 text-gray-500";
 
               return (
                 <tr
@@ -172,7 +149,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="px-2 py-2.align-top">
                     <div className="text-[11px]">
                       {a.petName || "—"}
                     </div>
@@ -183,7 +160,6 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Врач: фактически назначенный + выбранный клиентом */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">
                       {a.doctorName || "Не назначен"}
@@ -204,7 +180,6 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Жалоба */}
                   <td className="px-2 py-2 align-top max-w-[220px]">
                     <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                       {a.complaint && a.complaint.trim().length > 0
@@ -213,37 +188,23 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </div>
                   </td>
 
-                  {/* Документы */}
                   <td className="px-2 py-2 align-top">
-                    {hasDocs ? (
-                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        есть
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                        нет
-                      </span>
-                    )}
-                  </td>
-
-                  {/* Оплата */}
-                  <td className="px-2 py-2 align-top">
-                    {paymentStatus === "paid" ? (
-                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        оплачено
-                      </span>
-                    ) : paymentStatus === "partial" ? (
-                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        частично
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium.text-gray-500">
-                        не оплачено
-                      </span>
-                    )}
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${docsClass}`}
+                    >
+                      {docsLabel}
+                    </span>
                   </td>
 
                   <td className="px-2 py-2 align-top">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${paidClass}`}
+                    >
+                      {paidLabel}
+                    </span>
+                  </td>
+
+                  <td className="px-2 py-2.align-top">
                     <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                       {a.statusLabel}
                     </span>
@@ -267,7 +228,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   colSpan={11}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
-                  Нет записей по текущему фильтру.
+                  Нет записей, удовлетворяющих фильтру.
                 </td>
               </tr>
             )}
