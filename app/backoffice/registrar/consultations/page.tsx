@@ -13,7 +13,7 @@ export default async function RegistrarConsultationsPage() {
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
-      <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+      <main className="mx-auto max-w-7xl px-6 py-6 space-y-6">
         {/* Навигация назад */}
         <div>
           <Link
@@ -32,7 +32,7 @@ export default async function RegistrarConsultationsPage() {
             </h1>
             <p className="text-sm text-gray-500">
               Полный список всех онлайн-консультаций с возможностью фильтрации
-              по статусу, врачу, услуге и жалобе.
+              по статусу, врачу, услуге, жалобе и документам.
             </p>
           </div>
           <RegistrarHeader />
