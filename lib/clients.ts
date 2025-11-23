@@ -90,6 +90,7 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   }
 
   // 2. Питомцы: считаем количество по owner_id
+  // стараемся не падать, даже если у pets нет deleted_at
   let petsCountMap = new Map<string, number>();
   try {
     const { data: pets, error: petsError } = await supabase
@@ -203,7 +204,7 @@ async function getOwnerAppointments(
     return [];
   }
 
-  return data.map((row: any, index: number) => {
+  return (data as any[]).map((row: any, index: number): RegistrarAppointmentRow => {
     let dateLabel = "—";
     if (row.starts_at) {
       const d = new Date(row.starts_at);
@@ -235,18 +236,29 @@ async function getOwnerAppointments(
       dateLabel,
       createdLabel,
       startsAt: row.starts_at ?? null,
+
       clientName,
       clientContact: "",
+
       petName: row.pet_name ?? "",
       petSpecies: row.species ?? "",
+
       doctorId: row.doctor_id ?? undefined,
       doctorName,
+
       serviceName,
       serviceCode: row.service_code ?? "",
+
       statusLabel: row.status ?? "неизвестно",
+
       videoPlatform: null,
       videoUrl: null,
-      // complaint, requestedDoctorName и пр. — опциональные в типе, можно не задавать
+
+      // новые поля, чтобы совпасть с RegistrarAppointmentRow
+      complaint: "",
+      requestedDoctorName: undefined,
+      hasDocuments: false,
+      hasPayments: false,
     };
   });
 }
