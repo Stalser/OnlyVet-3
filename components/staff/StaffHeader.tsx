@@ -1,4 +1,3 @@
-// components/staff/StaffHeader.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,53 +5,34 @@ import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
 
 type StaffProfile = {
-  full_name: string;
+  full_name: string | null;
   position: string | null;
+  doctor_id: string | null;
 };
 
 export function StaffHeader() {
   const { user, loading } = useCurrentUser();
   const [profile, setProfile] = useState<StaffProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
-    let ignore = false;
+    if (!user || !supabase) return;
 
-    async function loadProfile() {
-      if (!user || !supabase) {
-        if (!ignore) setProfileLoading(false);
-        return;
-      }
-
-      setProfileLoading(true);
-
-      const { data, error } = await supabase
+    async function load() {
+      const { data } = await supabase
         .from("staff_profiles")
-        .select("full_name, position")
+        .select("full_name, position, doctor_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!ignore) {
-        if (!error && data) {
-          setProfile({
-            full_name: data.full_name,
-            position: data.position,
-          });
-        }
-        setProfileLoading(false);
-      }
+      setProfile(data ?? null);
     }
 
-    void loadProfile();
-
-    return () => {
-      ignore = true;
-    };
+    load();
   }, [user]);
 
   if (loading) {
     return (
-      <div className="flex flex-col items-end gap-1 text-xs text-gray-400">
+      <div className="flex flex-col items-end text-xs text-gray-400">
         Загрузка профиля…
       </div>
     );
@@ -60,30 +40,25 @@ export function StaffHeader() {
 
   if (!user) {
     return (
-      <div className="flex flex-col items-end gap-1 text-xs text-red-500">
+      <div className="flex flex-col items-end text-xs text-red-500">
         Ошибка авторизации
       </div>
     );
   }
 
-  const roleLabel =
-    user.role === "vet"
-      ? "Врач"
-      : user.role === "registrar"
-      ? "Регистратор"
-      : user.role === "admin"
-      ? "Администратор"
-      : "Пользователь";
-
-  const name = profile?.full_name ?? roleLabel;
-  const position = profile?.position ?? roleLabel;
-
   return (
-    <div className="flex flex-col.items-end text-right">
+    <div className="flex flex-col items-end text-right">
       <div className="text-xs text-gray-500">Сейчас работает</div>
-      <div className="text-sm.font-semibold text-gray-900">{name}</div>
-      <div className="text-[11px] text-gray-500">{position}</div>
-      <div className="text-[10px] leading-none text-gray-400">
+
+      <div className="text-sm font-semibold text-gray-900">
+        {profile?.full_name ?? "Врач"}
+      </div>
+
+      {profile?.position && (
+        <div className="text-[11px] text-gray-500">{profile.position}</div>
+      )}
+
+      <div className="text-[10px] text-gray-400 leading-none">
         {user.email}
       </div>
     </div>
