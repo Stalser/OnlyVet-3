@@ -1,49 +1,63 @@
 // lib/registrar.ts
+
 import { supabase } from "./supabaseClient";
 import { doctors } from "./data";
 import { servicesPricing } from "./pricing";
 
+/**
+ * Основной тип консультации для регистратуры и врача.
+ */
 export type RegistrarAppointmentRow = {
   id: string;
+
+  // дата/время
   dateLabel: string;
   createdLabel?: string;
   startsAt: string | null;
 
-  // клиент / питомец
+  // клиент
   clientName: string;
   clientContact?: string;
+
+  // пациент
   petName?: string;
   petSpecies?: string;
 
-  // врач и услуга
+  // врач (фактически назначенный)
   doctorId?: string;
   doctorName?: string;
-  requestedDoctorName?: string;
+
+  // врач, которого выбрал клиент при заявке (requested_doctor_id / requested_doctor_code)
+  requestedDoctorCode?: string | null;
+  requestedDoctorName?: string | null;
+
+  // услуга
   serviceName: string;
   serviceCode?: string;
 
-  // статусы / связь
+  // статус
   statusLabel: string;
+
+  // формат связи
   videoPlatform?: string | null;
   videoUrl?: string | null;
+
+  // жалоба
   complaint?: string;
 
-  // новые поля
+  // документы / оплата (пока заглушки)
   hasDocuments: boolean;
   hasPayments: boolean;
 };
 
 /**
- * Вспомогательная функция форматирования даты.
+ * Приводим сырую строку из appointments к удобному виду.
  */
-function formatDateTime(
-  iso: string | null
-): { dateLabel: string; createdLabel: string } {
+function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
+  // --- Дата / время ---
   let dateLabel = "—";
-  let createdLabel = "";
-
-  if (iso) {
-    const d = new Date(iso);
+  if (row.starts_at) {
+    const d = new Date(row.starts_at);
     dateLabel = d.toLocaleString("ru-RU", {
       day: "2-digit",
       month: "2-digit",
@@ -51,16 +65,76 @@ function formatDateTime(
       hour: "2-digit",
       minute: "2-digit",
     });
-    createdLabel = d.toLocaleString("ru-RU");
   }
 
-  return { dateLabel, createdLabel };
+  const createdLabel = row.created_at
+    ? new Date(row.created_at).toLocaleString("ru-RU")
+    : "";
+
+  // --- Врач (фактический) ---
+  const assignedDoc = doctors.find((d: any) => d.id === row.doctor_id);
+  const doctorName = assignedDoc?.name ?? "Не назначен";
+
+  // --- Врач, выбранный клиентом при записи (requested_doctor_code / requested_doctor_id) ---
+  const requestedDoctorCode: string | null =
+    row.requested_doctor_code ?? row.requested_doctor_id ?? null;
+  let requestedDoctorName: string | null = null;
+  if (requestedDoctorCode) {
+    const reqDoc = doctors.find((d: any) => d.id === requestedDoctorCode);
+    requestedDoctorName = reqDoc?.name ?? null;
+  }
+
+  // --- Услуга ---
+  const service = servicesPricing.find(
+    (s: any) => s.code === row.service_code
+  );
+  const serviceName = service?.name ?? "Услуга";
+
+  // Пока клиента не привязали к owner_profiles
+  const clientName = "Без имени";
+  const clientContact = "";
+
+  return {
+    id: String(row.id ?? index),
+
+    dateLabel,
+    createdLabel,
+    startsAt: row.starts_at ?? null,
+
+    clientName,
+    clientContact,
+
+    petName: row.pet_name ?? "",
+    petSpecies: row.species ?? "",
+
+    doctorId: row.doctor_id ?? undefined,
+    doctorName,
+
+    requestedDoctorCode,
+    requestedDoctorName,
+
+    serviceName,
+    serviceCode: row.service_code ?? "",
+
+    statusLabel: row.status ?? "неизвестно",
+
+    videoPlatform: row.video_platform ?? null,
+    videoUrl: row.video_url ?? null,
+
+    complaint: row.complaint ?? "",
+
+    // пока заглушки — позже подключим appointment_documents и payments
+    hasDocuments: false,
+    hasPayments: false,
+  };
 }
 
 /**
- * Грузим все консультации для регистратуры + считаем наличие документов и оплат.
+ * Все консультации для регистратуры.
  */
-export async function getRegistrarAppointments(): Promise<RegistrarAppointment> {
+export async function getRegistrarAppointments(): Promise<
+  RegistrarAppointmentRow[]
+> {
   if (!supabase) return [];
 
   const { data, error } = await supabase
@@ -79,115 +153,22 @@ export async function getRegistrarAppointments(): Promise<RegistrarAppointment> 
       video_platform,
       video_url,
       complaint,
+      requested_doctor_code,
       requested_doctor_id
     `
     )
     .order("starts_at", { ascending: false });
 
   if (error || !data) {
-    console.error("getRegistrarAppointments error", error);
+    console.error("getRegistrarAppointments error:", error);
     return [];
   }
 
-  const rows = data as any[];
-
-  // Собираем список id приёмов
-  const appointmentIds = rows
-    .map((r) => r.id as string | null)
-    .filter((id): id is string => !!id);
-
-  // ---- Документы по приёмам ----
-  const docsByAppointment = new Map<string, number>();
-  if (appointmentIds.length && supabase) {
-    const { data: docs, error: docsError } = await supabase
-      .from("appointment_documents")
-      .select("appointment_id")
-      .in("appointment_id", appointmentIds);
-
-    if (docsError) {
-      console.error("getRegistrarAppointments appointment_documents error", docsError);
-    } else if (docs) {
-      for (const row of docs as any[]) {
-        const key = String(row.appointment_id);
-        if (!key) continue;
-        docsByAppointment.set(
-          key,
-          (docsByAppointment.get(key) ?? 0) + 1
-        );
-      }
-    }
-  }
-
-  // ---- Оплаты по приёмам ----
-  const paymentsByAppointment = new Map<string, boolean>();
-  if (appointmentIds.length && supabase) {
-    const { data: pays, error: payError } = await supabase
-      .from("payments")
-      .select("appointment_id")
-      .in("appointment_id", appointmentIds);
-
-    if (payError) {
-      console.error("getRegistrarAppointments payments error", payError);
-    } else if (pays) {
-      for (const row of pays as any[]) {
-        const key = String(row.appointment_id);
-        if (!key) continue;
-        // Любая запись = есть оплата (можем потом усложнить до "частично"/"полностью")
-        paymentsByAppointment.set(key, true);
-      }
-    }
-  }
-
-  return rows.map((row, index): RegistrarAppointmentRow => {
-    const { dateLabel, createdLabel } = formatDateTime(row.starts_at);
-
-    const doctor = doctors.find((d) => d.id === row.doctor_id);
-    const requestedDoctorId = row.requested_doctor_id as string | null;
-    const requestedDoctor = requestedDoctorId
-      ? doctors.find((d) => d.id === requestedDoctorId)
-      : undefined;
-
-    const service = servicesPricing.find(
-      (s: any) => s.code === row.service_code
-    );
-
-    const key = String(row.id);
-    const hasDocuments = (docsByAppointment.get(key) ?? 0) > 0;
-    const hasPayments = !!paymentsByAppointment.get(key);
-
-    return {
-      id: String(row.id ?? index),
-      dateLabel,
-      createdLabel,
-      startsAt: row.starts_at ?? null,
-
-      // пока без реальной привязки к owner_profiles
-      clientName: "Без имени",
-      clientContact: "",
-
-      petName: row.pet_name ?? "",
-      petSpecies: row.species ?? "",
-
-      doctorId: row.doctor_id ?? undefined,
-      doctorName: doctor?.name ?? "Не назначен",
-      requestedDoctorName: requestedDoctor?.name,
-
-      serviceName: service?.name ?? "Услуга",
-      serviceCode: row.service_code ?? "",
-
-      statusLabel: row.status ?? "неизвестно",
-      videoPlatform: row.video_platform ?? null,
-      videoUrl: row.video_url ?? null,
-      complaint: row.complaint ?? "",
-
-      hasDocuments: hasDocuments,
-      hasPayments: hasPayments,
-    };
-  });
+  return (data as any[]).map(mapRowToRegistrar);
 }
 
 /**
- * Одна консультация по id (включая флаги документов и оплат).
+ * Одна консультация по ID (для регистратуры и врача).
  */
 export async function getRegistrarAppointmentById(
   id: string
@@ -210,6 +191,7 @@ export async function getRegistrarAppointmentById(
       video_platform,
       video_url,
       complaint,
+      requested_doctor_code,
       requested_doctor_id
     `
     )
@@ -221,80 +203,25 @@ export async function getRegistrarAppointmentById(
     return null;
   }
 
-  const row: any = data;
-  const { dateLabel, createdLabel } = formatDateTime(row.starts_at);
-
-  const doctor = doctors.find((d) => d.id === row.doctor_id);
-  const requestedDoctorId = row.requested_doctor_id as string | null;
-  const requestedDoctor = requestedDoctorId
-    ? doctors.find((d) => d.id === requestedDoctorId)
-    : undefined;
-
-  const service = servicesPricing.find((s: any) => s.code === row.service_code);
-
-  // Документы и оплаты по одному приёму
-  let hasDocuments = false;
-  let hasPayments = false;
-
-  try {
-    const { data: docs } = await supabase
-      .from("appointment_documents")
-      .select("id")
-      .eq("appointment_id", row.id);
-    if (docs && docs.length > 0) {
-      hasDocuments = true;
-    }
-  } catch (e) {
-    console.error("getRegistrarAppointmentById docs error", e);
-  }
-
-  try {
-    const { data: pays } = await supabase
-      .from("payments")
-      .select("id")
-      .eq("appointment_id", row.id);
-    if (pays && pays.length > 0) {
-      hasPayments = true;
-    }
-  } catch (e) {
-    console.error("getRegistrarAppointmentById payments error", e);
-  }
-
-  return {
-    id: String(row.id),
-    dateLabel,
-    createdLabel,
-    startsAt: row.starts_at ?? null,
-
-    clientName: "Без имени",
-    clientContact: "",
-
-    petName: row.pet_name ?? "",
-    petSpecies: row.species ?? "",
-
-    doctorId: row.doctor_id ?? undefined,
-    doctorName: doctor?.name ?? "Не назначен",
-    requestedDoctorName: requestedDoctor?.name,
-
-    serviceName: service?.name ?? "Услуга",
-    serviceCode: row.service_code ?? "",
-
-    statusLabel: row.status ?? "неизвестно",
-    videoPlatform: row.video_platform ?? null,
-    videoUrl: row.video_url ?? null,
-    complaint: row.complaint ?? "",
-
-    hasDocuments: hasDocuments,
-    hasPayments: hasPayments,
-  };
+  return mapRowToRegistrar(data, 0);
 }
 
 /**
- * Последние N консультаций (используется на дашборде регистратуры).
+ * Последние N консультаций (для дашборда регистратуры).
  */
 export async function getRecentRegistrarAppointments(
   limit: number = 50
 ): Promise<RegistrarAppointmentRow[]> {
   const all = await getRegistrarAppointments();
   return all.slice(0, limit);
+}
+
+/**
+ * Приёмы для конкретного врача по doctor_id (для кабинета врача).
+ */
+export async function getAppointmentsForDoctor(
+  doctorId: string
+): Promise<RegistrarAppointmentRow[]> {
+  const all = await getRegistrarAppointments();
+  return all.filter((a) => a.doctorId === doctorId);
 }
