@@ -16,7 +16,7 @@ export async function getPetDetails(petId: string): Promise<PetDetails> {
     return { pet: null, owner: null, appointments: [] };
   }
 
-  // Сам питомец
+  // сам питомец
   const { data: pet, error: petError } = await supabase
     .from("pets")
     .select("*")
@@ -42,7 +42,7 @@ export async function getPetDetails(petId: string): Promise<PetDetails> {
     owner = ownerData ?? null;
   }
 
-  // Консультации по этому питомцу (appointments.pet_id)
+  // консультации по этому питомцу (appointments.pet_id)
   const { data: appts, error: apptsError } = await supabase
     .from("appointments")
     .select(
@@ -56,7 +56,8 @@ export async function getPetDetails(petId: string): Promise<PetDetails> {
   }
 
   const appointments: RegistrarAppointmentRow[] = (appts ?? []).map(
-    (row: any, index: number) => {
+    (row: any, index: number): RegistrarAppointmentRow => {
+      // дата / время
       let dateLabel = "—";
       if (row.starts_at) {
         const d = new Date(row.starts_at);
@@ -86,18 +87,30 @@ export async function getPetDetails(petId: string): Promise<PetDetails> {
         dateLabel,
         createdLabel,
         startsAt: row.starts_at ?? null,
+
+        // Клиент — пока берём только ФИО владельца, без контактов
         clientName: owner?.full_name || "Без имени",
         clientContact: "",
+
         petName: row.pet_name ?? "",
         petSpecies: row.species ?? "",
+
         doctorId: row.doctor_id ?? undefined,
         doctorName,
+
         serviceName,
         serviceCode: row.service_code ?? "",
+
         statusLabel: row.status ?? "неизвестно",
+
         videoPlatform: null,
         videoUrl: null,
-        // complaint и requestedDoctorName — опциональные, можем не задавать
+
+        // дополнительные поля из RegistrarAppointmentRow
+        complaint: "",
+        requestedDoctorName: undefined,
+        hasDocuments: false,
+        hasPayments: false,
       };
     }
   );
