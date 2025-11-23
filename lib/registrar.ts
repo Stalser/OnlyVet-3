@@ -23,9 +23,13 @@ export type RegistrarAppointmentRow = {
   petName?: string;
   petSpecies?: string;
 
-  // врач
+  // врач (назначенный)
   doctorId?: string;
   doctorName?: string;
+
+  // врач (запрошенный при записи)
+  requestedDoctorCode?: string;
+  requestedDoctorName?: string;
 
   // услуга
   serviceName: string;
@@ -43,10 +47,9 @@ export type RegistrarAppointmentRow = {
 };
 
 /**
- * Маппинг строки из БД в тип RegistrarAppointmentRow.
+ * Приводим сырую строку из appointments к удобному виду.
  */
 function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
-  // Дата и время приёма
   let dateLabel = "—";
   if (row.starts_at) {
     const d = new Date(row.starts_at);
@@ -63,60 +66,53 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
     ? new Date(row.created_at).toLocaleString("ru-RU")
     : "";
 
-  // Врач: ищем по doctor_id в справочнике doctors (lib/data.ts)
-  let doctorName = "Не назначен";
-  if (row.doctor_id) {
-    const doc = doctors.find((d: any) => d.id === row.doctor_id);
-    if (doc) {
-      doctorName = doc.name;
-    }
-  }
+  // Назначенный врач (по doctor_id → uuid врача из другой системы/CRM)
+  const assignedDoctor = doctors.find((d: any) => d.id === row.doctor_id);
+  const doctorName = assignedDoctor?.name ?? "Не назначен";
 
-  // Услуга: находим в servicesPricing по коду
-  let serviceName = "Услуга";
-  if (row.service_code) {
-    const service = servicesPricing.find((s: any) => s.code === row.service_code);
-    if (service) {
-      serviceName = service.name;
-    }
-  }
+  // Запрошенный врач (по requested_doctor_code → наш локальный код врача)
+  const requestedDoctor = row.requested_doctor_code
+    ? doctors.find((d: any) => d.id === row.requested_doctor_code)
+    : undefined;
+  const requestedDoctorName = requestedDoctor?.name ?? undefined;
 
-  // Клиент — пока без явной связи с owner_profiles
+  // Услуга
+  const service = servicesPricing.find(
+    (s: any) => s.code === row.service_code
+  );
+  const serviceName = service?.name ?? "Услуга";
+
+  // Пока клиентские данные не связаны явно с owner_profiles
   const clientName = "Без имени";
   const clientContact = "";
 
   return {
     id: String(row.id ?? index),
 
-    // время/дата
     dateLabel,
     createdLabel,
     startsAt: row.starts_at ?? null,
 
-    // клиент
     clientName,
     clientContact,
 
-    // пациент
     petName: row.pet_name ?? "",
     petSpecies: row.species ?? "",
 
-    // врач
     doctorId: row.doctor_id ?? undefined,
     doctorName,
 
-    // услуга
+    requestedDoctorCode: row.requested_doctor_code ?? undefined,
+    requestedDoctorName,
+
     serviceName,
     serviceCode: row.service_code ?? "",
 
-    // статус
     statusLabel: row.status ?? "неизвестно",
 
-    // формат связи
     videoPlatform: row.video_platform ?? null,
     videoUrl: row.video_url ?? null,
 
-    // жалоба
     complaint: row.complaint ?? "",
   };
 }
@@ -124,7 +120,9 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
 /**
  * Все консультации для регистратуры.
  */
-export async function getRegistrarAppointments(): Promise<RegistrarAppointmentRow[]> {
+export async function getRegistrarAppointments(): Promise<
+  RegistrarAppointmentRow[]
+> {
   if (!supabase) return [];
 
   const { data, error } = await supabase
@@ -139,11 +137,11 @@ export async function getRegistrarAppointments(): Promise<RegistrarAppointmentRo
       species,
       service_code,
       doctor_id,
-      requested_doctor_code,
       owner_id,
       video_platform,
       video_url,
-      complaint
+      complaint,
+      requested_doctor_code
     `
     )
     .order("starts_at", { ascending: false });
@@ -153,7 +151,7 @@ export async function getRegistrarAppointments(): Promise<RegistrarAppointmentRo
     return [];
   }
 
-  return (data as any[]).map((row, idx) => mapRowToRegistrar(row, idx));
+  return (data as any[]).map(mapRowToRegistrar);
 }
 
 /**
@@ -176,11 +174,11 @@ export async function getRegistrarAppointmentById(
       species,
       service_code,
       doctor_id,
-      requested_doctor_code,
       owner_id,
       video_platform,
       video_url,
-      complaint
+      complaint,
+      requested_doctor_code
     `
     )
     .eq("id", id)
@@ -205,8 +203,8 @@ export async function getRecentRegistrarAppointments(
 }
 
 /**
- * Приёмы для конкретного врача по doctor_id (для кабинета врача).
- * Сейчас просто фильтрует уже загруженные приёмы.
+ * Приёмы для конкретного врача по doctor_id.
+ * Сейчас просто фильтрует по doctorId.
  */
 export async function getAppointmentsForDoctor(
   doctorId: string
