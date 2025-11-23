@@ -1,4 +1,3 @@
-// components/registrar/RegistrarRecentConsultationsClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -9,12 +8,55 @@ interface Props {
   appointments: RegistrarAppointmentRow[];
 }
 
+type StatusBadge = {
+  label: string;
+  className: string;
+};
+
+function getStatusBadge(status: string): StatusBadge {
+  const s = status.toLowerCase();
+
+  if (s.includes("запрош")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700",
+    };
+  }
+  if (s.includes("подтверж")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700",
+    };
+  }
+  if (s.includes("отмен")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700",
+    };
+  }
+  if (s.includes("заверш")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600",
+    };
+  }
+
+  return {
+    label: status || "неизвестен",
+    className:
+      "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700",
+  };
+}
+
 export function RegistrarRecentConsultationsClient({ appointments }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
 
-  // Уникальные статусы и врачи для фильтров
   const statuses = useMemo(
     () =>
       Array.from(
@@ -39,7 +81,6 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
     [appointments]
   );
 
-  // Фильтрация + поиск
   const filtered = useMemo(() => {
     return appointments.filter((a) => {
       if (
@@ -68,6 +109,8 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
           a.serviceName || "",
           a.serviceCode || "",
           a.complaint || "",
+          a.hasDocuments ? "есть документы" : "нет документов",
+          a.hasPayments ? "оплачено" : "не оплачено",
         ]
           .join(" ")
           .toLowerCase();
@@ -84,12 +127,11 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
   return (
     <>
       {/* Панель фильтров над таблицей */}
-      <div className="mb-3 flex flex-wrap.items-center justify-between gap-3 text-xs">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="text-[11px] text-gray-500">
           Показаны последние {appointments.length} записей. После фильтрации:{" "}
           {filtered.length}.
         </div>
-
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
@@ -144,123 +186,104 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((a, index) => (
-              <tr
-                key={a.id}
-                className="border-b last:border-0 hover:bg-gray-50"
-              >
-                {/* № */}
-                <td className="px-2 py-2 align-top">{index + 1}</td>
+            {filtered.map((a, index) => {
+              const badge = getStatusBadge(a.statusLabel);
 
-                {/* Дата / время */}
-                <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                  <div>{a.dateLabel}</div>
-                  {a.createdLabel && (
-                    <div className="text-[10px] text-gray-400">
-                      создано: {a.createdLabel}
+              return (
+                <tr
+                  key={a.id}
+                  className="border-b last:border-0 hover:bg-gray-50"
+                >
+                  <td className="px-2 py-2 align-top">{index + 1}</td>
+
+                  <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                    <div>{a.dateLabel}</div>
+                    {a.createdLabel && (
+                      <div className="text-[10px] text-gray-400">
+                        создано: {a.createdLabel}
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px] font-medium">
+                      {a.clientName}
                     </div>
-                  )}
-                </td>
+                    {a.clientContact && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.clientContact}
+                      </div>
+                    )}
+                  </td>
 
-                {/* Клиент */}
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px] font-medium">
-                    {a.clientName}
-                  </div>
-                  {a.clientContact && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.clientContact}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">{a.petName || "—"}</div>
+                    {a.petSpecies && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.petSpecies}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Врач: фактически назначенный + выбранный клиентом */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.doctorName || "Не назначен"}
                     </div>
-                  )}
-                </td>
+                    {a.requestedDoctorName && (
+                      <div className="text-[10px] text-gray-500">
+                        выбрал клиент: {a.requestedDoctorName}
+                      </div>
+                    )}
+                  </td>
 
-                {/* Питомец */}
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">
-                    {a.petName || "—"}
-                  </div>
-                  {a.petSpecies && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.petSpecies}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">{a.serviceName}</div>
+                    {a.serviceCode && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.serviceCode}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Жалоба */}
+                  <td className="px-2 py-2 align-top max-w-[220px]">
+                    <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                      {a.complaint && a.complaint.trim().length > 0
+                        ? a.complaint
+                        : "—"}
                     </div>
-                  )}
-                </td>
+                  </td>
 
-                {/* Врач: фактический + выбранный клиентом */}
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">
-                    {a.doctorName || "Не назначен"}
-                  </div>
-                  {a.requestedDoctorName && (
-                    <div className="text-[10px] text-gray-500">
-                      выбрал клиент: {a.requestedDoctorName}
-                    </div>
-                  )}
-                </td>
+                  {/* Документы */}
+                  <td className="px-2 py-2 align-top">
+                    <span className="text-[11px] text-gray-700">
+                      {a.hasDocuments ? "есть" : "нет"}
+                    </span>
+                  </td>
 
-                {/* Услуга */}
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">{a.serviceName}</div>
-                  {a.serviceCode && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.serviceCode}
-                    </div>
-                  )}
-                </td>
+                  {/* Оплата */}
+                  <td className="px-2 py-2 align-top">
+                    <span className="text-[11px] text-gray-700">
+                      {a.hasPayments ? "оплачено" : "не оплачено"}
+                    </span>
+                  </td>
 
-                {/* Жалоба (обрезаем до 2 строк) */}
-                <td className="px-2 py-2 align-top max-w-[220px]">
-                  <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                    {a.complaint && a.complaint.trim().length > 0
-                      ? a.complaint
-                      : "—"}
-                  </div>
-                </td>
+                  <td className="px-2 py-2 align-top">
+                    <span className={badge.className}>{badge.label}</span>
+                  </td>
 
-                {/* Документы */}
-                <td className="px-2 py-2 align-top">
-                  <span
-                    className={
-                      a.hasDocuments
-                        ? "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700"
-                        : "inline-flex rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-500"
-                    }
-                  >
-                    {a.hasDocuments ? "есть" : "нет"}
-                  </span>
-                </td>
-
-                {/* Оплата */}
-                <td className="px-2 py-2 align-top">
-                  <span
-                    className={
-                      a.hasPayments
-                        ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-                        : "inline-flex rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-500"
-                    }
-                  >
-                    {a.hasPayments ? "оплачено" : "не оплачено"}
-                  </span>
-                </td>
-
-                {/* Статус */}
-                <td className="px-2 py-2 align-top">
-                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    {a.statusLabel}
-                  </span>
-                </td>
-
-                {/* Действия */}
-                <td className="px-2 py-2 align-top text-right">
-                  <Link
-                    href={`/backoffice/registrar/consultations/${a.id}`}
-                    className="text-[11px] font-medium text-emerald-700 hover:underline"
-                  >
-                    Открыть
-                  </Link>
-                </td>
-              </tr>
-            ))}
+                  <td className="px-2 py-2 align-top text-right">
+                    <Link
+                      href={`/backoffice/registrar/consultations/${a.id}`}
+                      className="text-[11px] font-medium text-emerald-700 hover:underline"
+                    >
+                      Открыть
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
 
             {filtered.length === 0 && (
               <tr>
@@ -268,7 +291,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   colSpan={11}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
-                  Нет записей по текущему фильтру.
+                  Консультаций и заявок ещё нет.
                 </td>
               </tr>
             )}
