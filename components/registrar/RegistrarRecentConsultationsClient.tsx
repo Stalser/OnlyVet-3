@@ -14,6 +14,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
 
+  // Уникальные статусы и врачи для фильтров
   const statuses = useMemo(
     () =>
       Array.from(
@@ -38,6 +39,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
     [appointments]
   );
 
+  // Фильтрация + поиск
   const filtered = useMemo(() => {
     return appointments.filter((a) => {
       if (
@@ -82,11 +84,12 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
   return (
     <>
       {/* Панель фильтров над таблицей */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="mb-3 flex flex-wrap.items-center justify-between gap-3 text-xs">
         <div className="text-[11px] text-gray-500">
           Показаны последние {appointments.length} записей. После фильтрации:{" "}
           {filtered.length}.
         </div>
+
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
@@ -146,8 +149,10 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 key={a.id}
                 className="border-b last:border-0 hover:bg-gray-50"
               >
+                {/* № */}
                 <td className="px-2 py-2 align-top">{index + 1}</td>
 
+                {/* Дата / время */}
                 <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                   <div>{a.dateLabel}</div>
                   {a.createdLabel && (
@@ -181,7 +186,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
-                {/* Врач: фактически назначенный + выбранный клиентом */}
+                {/* Врач: фактический + выбранный клиентом */}
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">
                     {a.doctorName || "Не назначен"}
@@ -203,7 +208,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
-                {/* Жалоба */}
+                {/* Жалоба (обрезаем до 2 строк) */}
                 <td className="px-2 py-2 align-top max-w-[220px]">
                   <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                     {a.complaint && a.complaint.trim().length > 0
@@ -217,7 +222,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   <span
                     className={
                       a.hasDocuments
-                        ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                        ? "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700"
                         : "inline-flex rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-500"
                     }
                   >
@@ -239,7 +244,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 </td>
 
                 {/* Статус */}
-                <td className="px-2 py-2.align-top">
+                <td className="px-2 py-2 align-top">
                   <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     {a.statusLabel}
                   </span>
