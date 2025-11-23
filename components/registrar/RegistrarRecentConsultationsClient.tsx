@@ -1,4 +1,3 @@
-// components/registrar/RegistrarRecentConsultationsClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -79,17 +78,60 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
     });
   }, [appointments, statusFilter, doctorFilter, search]);
 
+  // Показать только последние 10 записей после фильтрации
+  const recent = useMemo(() => filtered.slice(0, 10), [filtered]);
+
+  const docBadge = (hasDocuments?: boolean) =>
+    hasDocuments
+      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+      : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500";
+
+  const payBadge = (hasPayments?: boolean) =>
+    hasPayments
+      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+      : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500";
+
   return (
     <>
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold">
-            Все консультации и заявки
-          </h2>
-          <p className="text-[11px] text-gray-500">
-            Всего записей: {appointments.length}. После фильтрации:{" "}
-            {filtered.length}.
-          </p>
+      {/* Панель фильтров над таблицей */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="text-[11px] text-gray-500">
+          Показаны последние {recent.length} записей (из {filtered.length} по
+          фильтру, всего в системе: {appointments.length}).
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
+            className="w-60 rounded-xl border px-2 py-1.5 text-xs"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-xl border px-2 py-1.5 text-xs"
+          >
+            <option value="all">Все статусы</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={doctorFilter}
+            onChange={(e) => setDoctorFilter(e.target.value)}
+            className="rounded-xl border px-2 py-1.5 text-xs"
+          >
+            <option value="all">Все врачи</option>
+            {doctors.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -111,124 +153,112 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((a, index) => {
-              const docsLabel = a.hasDocuments ? "да" : "нет";
-              const docsClass = a.hasDocuments
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-500";
+            {recent.map((a, index) => (
+              <tr
+                key={a.id}
+                className="border-b last:border-0 hover:bg-gray-50"
+              >
+                <td className="px-2 py-2 align-top">{index + 1}</td>
 
-              const paidLabel = a.hasPayments ? "оплачено" : "не оплачено";
-              const paidClass = a.hasPayments
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-500";
-
-              return (
-                <tr
-                  key={a.id}
-                  className="border-b last:border-0 hover:bg-gray-50"
-                >
-                  <td className="px-2 py-2 align-top">{index + 1}</td>
-
-                  <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                    <div>{a.dateLabel}</div>
-                    {a.createdLabel && (
-                      <div className="text-[10px] text-gray-400">
-                        создано: {a.createdLabel}
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px] font-medium">
-                      {a.clientName}
+                <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                  <div>{a.dateLabel}</div>
+                  {a.createdLabel && (
+                    <div className="text-[10px] text-gray-400">
+                      создано: {a.createdLabel}
                     </div>
-                    {a.clientContact && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.clientContact}
-                      </div>
-                    )}
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2.align-top">
-                    <div className="text-[11px]">
-                      {a.petName || "—"}
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px] font-medium">
+                    {a.clientName}
+                  </div>
+                  {a.clientContact && (
+                    <div className="text-[10px] text-gray-500">
+                      {a.clientContact}
                     </div>
-                    {a.petSpecies && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.petSpecies}
-                      </div>
-                    )}
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px]">
-                      {a.doctorName || "Не назначен"}
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px]">
+                    {a.petName || "—"}
+                  </div>
+                  {a.petSpecies && (
+                    <div className="text-[10px] text-gray-500">
+                      {a.petSpecies}
                     </div>
-                    {a.requestedDoctorName && (
-                      <div className="text-[10px] text-gray-500">
-                        выбрал клиент: {a.requestedDoctorName}
-                      </div>
-                    )}
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px]">{a.serviceName}</div>
-                    {a.serviceCode && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.serviceCode}
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-2 py-2 align-top max-w-[220px]">
-                    <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                      {a.complaint && a.complaint.trim().length > 0
-                        ? a.complaint
-                        : "—"}
+                {/* Врач: фактический + выбранный клиентом */}
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px]">
+                    {a.doctorName || "Не назначен"}
+                  </div>
+                  {a.requestedDoctorName && (
+                    <div className="text-[10px] text-gray-500">
+                      выбрал клиент: {a.requestedDoctorName}
                     </div>
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${docsClass}`}
-                    >
-                      {docsLabel}
-                    </span>
-                  </td>
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px]">{a.serviceName}</div>
+                  {a.serviceCode && (
+                    <div className="text-[10px] text-gray-500">
+                      {a.serviceCode}
+                    </div>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${paidClass}`}
-                    >
-                      {paidLabel}
-                    </span>
-                  </td>
+                {/* Жалоба — только первые строки, остальное видно в карточке */}
+                <td className="px-2 py-2 align-top max-w-[220px]">
+                  <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                    {a.complaint && a.complaint.trim().length > 0
+                      ? a.complaint
+                      : "—"}
+                  </div>
+                </td>
 
-                  <td className="px-2 py-2.align-top">
-                    <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                      {a.statusLabel}
-                    </span>
-                  </td>
+                {/* Документы */}
+                <td className="px-2 py-2 align-top">
+                  <span className={docBadge(a.hasDocuments)}>
+                    {a.hasDocuments ? "есть" : "нет"}
+                  </span>
+                </td>
 
-                  <td className="px-2 py-2 align-top text-right">
-                    <Link
-                      href={`/backoffice/registrar/consultations/${a.id}`}
-                      className="text-[11px] font-medium text-emerald-700 hover:underline"
-                    >
-                      Открыть
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
+                {/* Оплата */}
+                <td className="px-2 py-2 align-top">
+                  <span className={payBadge(a.hasPayments)}>
+                    {a.hasPayments ? "оплачено" : "не оплачено"}
+                  </span>
+                </td>
 
-            {filtered.length === 0 && (
+                <td className="px-2 py-2 align-top">
+                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    {a.statusLabel}
+                  </span>
+                </td>
+
+                <td className="px-2 py-2 align-top text-right">
+                  <Link
+                    href={`/backoffice/registrar/consultations/${a.id}`}
+                    className="text-[11px] font-medium text-emerald-700 hover:underline"
+                  >
+                    Открыть
+                  </Link>
+                </td>
+              </tr>
+            ))}
+
+            {recent.length === 0 && (
               <tr>
                 <td
                   colSpan={11}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
-                  Нет записей, удовлетворяющих фильтру.
+                  Консультаций и заявок ещё нет.
                 </td>
               </tr>
             )}
