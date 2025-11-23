@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { StaffHeader } from "@/components/staff/StaffHeader";
 import { StaffNav } from "@/components/staff/StaffNav";
 import { getRegistrarAppointments } from "@/lib/registrar";
 
@@ -33,7 +33,7 @@ export default async function StaffSchedulePage() {
     (d1, d2) => new Date(d1).getTime() - new Date(d2).getTime()
   );
 
-  // Сегодняшний день (ключ YYYY-MM-DD)
+  // Сегодняшний день
   const todayKey = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     .toISOString()
     .split("T")[0];
@@ -57,17 +57,19 @@ export default async function StaffSchedulePage() {
               Расписание приёмов
             </h1>
             <p className="text-sm text-gray-500">
-              Список предстоящих онлайн-консультаций, сгруппированных по
-              дням. Пока показываются все приёмы, позже добавим режим
+              Список предстоящих онлайн-консультаций, сгруппированных по дням.
+              Пока показываются все приёмы, позже добавим режим
               &quot;только мои&quot;.
             </p>
           </div>
-          <RegistrarHeader />
+
+          {/* ⬅️ Заменено: RegistrarHeader → StaffHeader */}
+          <StaffHeader />
         </header>
 
         <StaffNav />
 
-        {/* Режим просмотра — чисто визуальный скелет */}
+        {/* Режим просмотра — пока заглушка */}
         <section className="rounded-2xl border bg-white p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-semibold text-gray-700">
@@ -83,9 +85,8 @@ export default async function StaffSchedulePage() {
             </div>
           </div>
           <p className="text-[10px] text-gray-400">
-            Сейчас оба режима отображают одинаковый список. Когда появится
-            привязка пользователя к конкретному врачу, здесь появится
-            настоящая фильтрация.
+            Сейчас оба режима одинаковые. После подключения doctor_id →
+            появится настоящая фильтрация.
           </p>
         </section>
 
