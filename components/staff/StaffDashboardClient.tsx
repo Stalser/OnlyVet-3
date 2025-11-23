@@ -63,7 +63,7 @@ export function StaffDashboardClient({ appointments }: Props) {
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  // 1. тянем doctor_id из staff_profiles по user_id
+  // 1. вытаскиваем doctor_id из staff_profiles по user_id
   useEffect(() => {
     let ignore = false;
 
@@ -102,11 +102,9 @@ export function StaffDashboardClient({ appointments }: Props) {
     };
   }, [user]);
 
-  // 2. фильтруем приёмы: если у врача есть doctor_id — показываем только его
+  // 2. фильтруем приёмы: если у врача есть doctor_id — показываем только его приёмы
   const doctorAppointments = useMemo(() => {
     if (!doctorId) {
-      // fallback: если для пользователя не найден doctor_id,
-      // показываем все приёмы (например, для админа или старых аккаунтов)
       return appointments;
     }
     return appointments.filter((a) => a.doctorId === doctorId);
@@ -146,6 +144,15 @@ export function StaffDashboardClient({ appointments }: Props) {
     );
   }
 
+  // ========= правильная ссылка "Общий список всех приёмов" =========
+  // vet  -> /staff/schedule  (врач видит общий список своих приёмов)
+  // admin -> /backoffice/registrar/consultations  (админ может смотреть регистратуру)
+  const role = user?.role;
+  const allAppointmentsHref =
+    role === "admin"
+      ? "/backoffice/registrar/consultations"
+      : "/staff/schedule";
+
   return (
     <>
       {/* Мини-дашборд */}
@@ -183,8 +190,8 @@ export function StaffDashboardClient({ appointments }: Props) {
             Предстоящие консультации
           </h2>
           <Link
-            href="/backoffice/registrar/consultations"
-            className="text-xs font-medium text-emerald-700 hover:underline"
+            href={allAppointmentsHref}
+            className="text-xs.font-medium text-emerald-700 hover:underline"
           >
             Общий список всех приёмов →
           </Link>
