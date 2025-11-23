@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type StaffProfile = {
   full_name: string | null;
@@ -15,19 +16,39 @@ export function StaffHeader() {
   const [profile, setProfile] = useState<StaffProfile | null>(null);
 
   useEffect(() => {
-    if (!user || !supabase) return;
+    let ignore = false;
+
+    const client: SupabaseClient | null = supabase;
+
+    // Если нет пользователя или нет клиента supabase — профиля нет
+    if (!user || !client) {
+      if (!ignore) {
+        setProfile(null);
+      }
+      return;
+    }
 
     async function load() {
-      const { data } = await supabase
+      const { data, error } = await client
         .from("staff_profiles")
         .select("full_name, position, doctor_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      setProfile(data ?? null);
+      if (!ignore) {
+        if (!error && data) {
+          setProfile(data as StaffProfile);
+        } else {
+          setProfile(null);
+        }
+      }
     }
 
-    load();
+    void load();
+
+    return () => {
+      ignore = true;
+    };
   }, [user]);
 
   if (loading) {
