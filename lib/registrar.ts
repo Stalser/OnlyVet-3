@@ -35,6 +35,13 @@ export type RegistrarAppointmentRow = {
   serviceName: string;
   serviceCode?: string;
 
+  // документы по приёму
+  hasDocuments?: boolean;        // есть ли хоть один документ
+  documentsCount?: number;      // количество документов (на будущее)
+
+  // оплата по приёму (пока заглушка)
+  paymentStatus?: "paid" | "unpaid" | "partial" | null;
+
   // статус
   statusLabel: string;
 
@@ -87,6 +94,11 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
   const clientName = "Без имени";
   const clientContact = "";
 
+  // Документы/оплата — пока заглушки (реальные значения добавим позднее)
+  const hasDocuments = false;
+  const documentsCount = 0;
+  const paymentStatus: "paid" | "unpaid" | "partial" | null = null;
+
   return {
     id: String(row.id ?? index),
 
@@ -108,6 +120,10 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
 
     serviceName,
     serviceCode: row.service_code ?? "",
+
+    hasDocuments,
+    documentsCount,
+    paymentStatus,
 
     statusLabel: row.status ?? "неизвестно",
 
