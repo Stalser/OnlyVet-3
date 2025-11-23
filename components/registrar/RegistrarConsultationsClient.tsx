@@ -1,11 +1,31 @@
+// components/registrar/RegistrarConsultationsClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
-import type { RegistrarAppointmentRow } from "@/lib/registrar";
 import Link from "next/link";
+import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
 interface Props {
   appointments: RegistrarAppointmentRow[];
+}
+
+function statusBadgeClass(status: string): string {
+  const s = status.toLowerCase();
+
+  if (s.includes("отмен")) {
+    return "bg-red-50 text-red-700";
+  }
+  if (s.includes("запрош")) {
+    return "bg-amber-50 text-amber-700";
+  }
+  if (s.includes("подтверж")) {
+    return "bg-blue-50 text-blue-700";
+  }
+  if (s.includes("заверш")) {
+    return "bg-gray-100 text-gray-700";
+  }
+  // всё остальное считаем «нормальным» зелёным статусом
+  return "bg-emerald-50 text-emerald-700";
 }
 
 export function RegistrarConsultationsClient({ appointments }: Props) {
@@ -78,19 +98,9 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
     });
   }, [appointments, statusFilter, doctorFilter, search]);
 
-  const docBadge = (hasDocuments?: boolean) =>
-    hasDocuments
-      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-      : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500";
-
-  const payBadge = (hasPayments?: boolean) =>
-    hasPayments
-      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-      : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500";
-
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap.items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">
             Все консультации и заявки
@@ -153,100 +163,134 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((a, index) => (
-              <tr
-                key={a.id}
-                className="border-b last:border-0 hover:bg-gray-50"
-              >
-                <td className="px-2 py-2 align-top">{index + 1}</td>
+            {filtered.map((a, index) => {
+              const hasDocs = a.hasDocuments === true;
+              const isPaid = a.hasPayments === true;
 
-                <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                  <div>{a.dateLabel}</div>
-                  {a.createdLabel && (
-                    <div className="text-[10px] text-gray-400">
-                      создано: {a.createdLabel}
+              return (
+                <tr
+                  key={a.id}
+                  className="border-b last:border-0 hover:bg-gray-50"
+                >
+                  <td className="px-2 py-2 align-top">{index + 1}</td>
+
+                  {/* Дата / время */}
+                  <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                    <div>{a.dateLabel}</div>
+                    {a.createdLabel && (
+                      <div className="text-[10px] text-gray-400">
+                        создано: {a.createdLabel}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Клиент */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px] font-medium">
+                      {a.clientName || "Без имени"}
                     </div>
-                  )}
-                </td>
+                    {a.clientContact && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.clientContact}
+                      </div>
+                    )}
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px] font-medium">
-                    {a.clientName}
-                  </div>
-                  {a.clientContact && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.clientContact}
+                  {/* Питомец */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.petName || "—"}
                     </div>
-                  )}
-                </td>
+                    {a.petSpecies && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.petSpecies}
+                      </div>
+                    )}
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">
-                    {a.petName || "—"}
-                  </div>
-                  {a.petSpecies && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.petSpecies}
+                  {/* Врач: назначенный + кого выбрал клиент */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.doctorName || "Не назначен"}
                     </div>
-                  )}
-                </td>
+                    {a.requestedDoctorName && (
+                      <div className="text-[10px] text-gray-500">
+                        выбрал клиент: {a.requestedDoctorName}
+                      </div>
+                    )}
+                  </td>
 
-                <td className="px-2 py-2.align-top">
-                  <div className="text-[11px]">
-                    {a.doctorName || "Не назначен"}
-                  </div>
-                  {a.requestedDoctorName && (
-                    <div className="text-[10px] text-gray-500">
-                      выбрал клиент: {a.requestedDoctorName}
+                  {/* Услуга */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">{a.serviceName}</div>
+                    {a.serviceCode && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.serviceCode}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Жалоба (обрезаем до 2 строк) */}
+                  <td className="px-2 py-2 align-top max-w-[220px]">
+                    <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                      {a.complaint && a.complaint.trim().length > 0
+                        ? a.complaint
+                        : "—"}
                     </div>
-                  )}
-                </td>
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">{a.serviceName}</div>
-                  {a.serviceCode && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.serviceCode}
-                    </div>
-                  )}
-                </td>
+                  {/* Документы: да / нет */}
+                  <td className="px-2 py-2 align-top">
+                    <span
+                      className={
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                        (hasDocs
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-gray-100 text-gray-600")
+                      }
+                    >
+                      {hasDocs ? "да" : "нет"}
+                    </span>
+                  </td>
 
-                <td className="px-2 py-2 align-top max-w-[220px]">
-                  <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                    {a.complaint && a.complaint.trim().length > 0
-                      ? a.complaint
-                      : "—"}
-                  </div>
-                </td>
+                  {/* Оплата: да / нет, цветом */}
+                  <td className="px-2 py-2 align-top">
+                    <span
+                      className={
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                        (isPaid
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-gray-100 text-gray-600")
+                      }
+                    >
+                      {isPaid ? "да" : "нет"}
+                    </span>
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <span className={docBadge(a.hasDocuments)}>
-                    {a.hasDocuments ? "есть" : "нет"}
-                  </span>
-                </td>
+                  {/* Статус: цветной бейдж */}
+                  <td className="px-2 py-2 align-top">
+                    <span
+                      className={
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                        statusBadgeClass(a.statusLabel || "")
+                      }
+                    >
+                      {a.statusLabel}
+                    </span>
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <span className={payBadge(a.hasPayments)}>
-                    {a.hasPayments ? "оплачено" : "не оплачено"}
-                  </span>
-                </td>
-
-                <td className="px-2 py-2 align-top">
-                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    {a.statusLabel}
-                  </span>
-                </td>
-
-                <td className="px-2 py-2.align-top text-right">
-                  <Link
-                    href={`/backoffice/registrar/consultations/${a.id}`}
-                    className="text-[11px] font-medium text-emerald-700 hover:underline"
-                  >
-                    Открыть
-                  </Link>
-                </td>
-              </tr>
-            ))}
+                  {/* Действия */}
+                  <td className="px-2 py-2 align-top text-right">
+                    <Link
+                      href={`/backoffice/registrar/consultations/${a.id}`}
+                      className="text-[11px] font-medium text-emerald-700 hover:underline"
+                    >
+                      Открыть
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
 
             {filtered.length === 0 && (
               <tr>
