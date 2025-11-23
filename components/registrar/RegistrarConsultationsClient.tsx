@@ -145,8 +145,15 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
           </thead>
           <tbody>
             {filtered.map((a, index) => {
-              const hasDocs = a.hasDocuments ?? false;
-              const paymentStatus = a.paymentStatus ?? "unpaid";
+              const paidLabel = a.hasPayments ? "да" : "нет";
+              const paidClass = a.hasPayments
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-gray-100 text-gray-500";
+
+              const docsLabel = a.hasDocuments ? "да" : "нет";
+              const docsClass = a.hasDocuments
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-gray-100 text-gray-500";
 
               return (
                 <tr
@@ -175,7 +182,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="px-2 py-2.align-top">
                     <div className="text-[11px]">
                       {a.petName || "—"}
                     </div>
@@ -186,7 +193,6 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Врач: фактически назначенный + выбранный клиентом */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">
                       {a.doctorName || "Не назначен"}
@@ -207,43 +213,29 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Жалоба — обрезаем по высоте, полный текст в карточке */}
+                  {/* Жалоба */}
                   <td className="px-2 py-2 align-top max-w-[220px]">
                     <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                      {a.complaint && a.complaint.trim().length > 0
-                        ? a.complaint
-                        : "—"}
+                      {a.complaint && a.comp
+                      ? a.complaint
+                      : "—"}
                     </div>
                   </td>
 
-                  {/* Документы — заглушка, позже привяжем к appointment_documents */}
                   <td className="px-2 py-2 align-top">
-                    {hasDocs ? (
-                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        есть
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                        нет
-                      </span>
-                    )}
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${docsClass}`}
+                    >
+                      {docsLabel}
+                    </span>
                   </td>
 
-                  {/* Оплата — заглушка, позже привяжем к счетам/оплатам */}
                   <td className="px-2 py-2 align-top">
-                    {paymentStatus === "paid" ? (
-                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        оплачено
-                      </span>
-                    ) : paymentStatus === "partial" ? (
-                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        частично
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                        не оплачено
-                      </span>
-                    )}
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${paidClass}`}
+                    >
+                      {a.hasPayments ? "оплачено" : "не оплачено"}
+                    </span>
                   </td>
 
                   <td className="px-2 py-2 align-top">
