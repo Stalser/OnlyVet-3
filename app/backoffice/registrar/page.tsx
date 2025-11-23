@@ -7,7 +7,6 @@ import { getRecentRegistrarAppointments } from "@/lib/registrar";
 import { getOwnersSummary } from "@/lib/clients";
 import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
 
-// ВАЖНО: всегда брать свежие данные
 export const dynamic = "force-dynamic";
 
 export default async function RegistrarDashboardPage() {
@@ -16,22 +15,29 @@ export default async function RegistrarDashboardPage() {
     getOwnersSummary(),
   ]);
 
-  // новые заявки: статус содержит "запрош"
   const newRequests = appointments.filter((a) =>
     a.statusLabel.toLowerCase().includes("запрош")
   );
   const newRequestsCount = newRequests.length;
 
-  // для таблицы внизу показываем только первые 10
   const lastAppointments = appointments.slice(0, 10);
 
-  // подпись количества заявок
   const newRequestsLabel = (() => {
     if (newRequestsCount === 0) return "новых заявок";
     if (newRequestsCount === 1) return "новая заявка";
     if (newRequestsCount >= 2 && newRequestsCount <= 4) return "новые заявки";
     return "новых заявок";
   })();
+
+  const statusBadgeClass = (status: string): string => {
+    const s = status.toLowerCase();
+
+    if (s.includes("отмен")) return "bg-red-50 text-red-700";
+    if (s.includes("запрош")) return "bg-amber-50 text-amber-700";
+    if (s.includes("подтверж")) return "bg-blue-50 text-blue-700";
+    if (s.includes("заверш")) return "bg-gray-100 text-gray-700";
+    return "bg-emerald-50 text-emerald-700";
+  };
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
@@ -49,7 +55,7 @@ export default async function RegistrarDashboardPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Верхняя строка виджетов: Новые заявки + Расписание */}
+        {/* Верхние виджеты */}
         <section className="grid gap-4 md:grid-cols-2">
           {/* Новые заявки */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
@@ -62,7 +68,9 @@ export default async function RegistrarDashboardPage() {
             </div>
             <div className="mt-4 flex items-end justify-between">
               <div>
-                <div className="text-3xl font-bold">{newRequestsCount}</div>
+                <div className="text-3xl font-bold">
+                  {newRequestsCount}
+                </div>
                 <div className="text-[11px] text-gray-500">
                   {newRequestsCount === 0
                     ? "нет новых заявок"
@@ -70,7 +78,7 @@ export default async function RegistrarDashboardPage() {
                 </div>
               </div>
               <Link
-                href="/backoffice/registrar/queue"
+                href="/backoffice/registrar/consultations"
                 className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
               >
                 Открыть заявки
@@ -90,7 +98,7 @@ export default async function RegistrarDashboardPage() {
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-gray-500">
-                Открыть расписание врачей или список приёмов:
+                Открыть расписание врачей или календарь записей:
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link
@@ -103,14 +111,14 @@ export default async function RegistrarDashboardPage() {
                   href="/backoffice/registrar/consultations"
                   className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
                 >
-                  Все консультации и заявки
+                  Календарь / список приёмов
                 </Link>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Документы и финансы */}
+        {/* Документы / финансы */}
         <section className="grid gap-4 md:grid-cols-3">
           <Link
             href="/backoffice/registrar/documents"
@@ -138,12 +146,12 @@ export default async function RegistrarDashboardPage() {
         {/* Создать новую консультацию */}
         <RegistrarCreateAppointment />
 
-        {/* Краткая картотека клиентов */}
+        {/* Мини-картотека клиентов */}
         <RegistrarClientsMini owners={owners} />
 
-        {/* Последние консультации и заявки — мини-таблица */}
+        {/* Последние консультации и заявки — большой виджет */}
         <section className="rounded-2xl border bg-white p-4">
-          <div className="mb-4 flex flex-wrap.items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">
               Последние консультации и заявки
             </h2>
@@ -172,120 +180,132 @@ export default async function RegistrarDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {lastAppointments.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b last:border-0 hover:bg-gray-50"
-                  >
-                    {/* Дата / время */}
-                    <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                      <div>{a.dateLabel}</div>
-                      {a.createdLabel && (
-                        <div className="text-[10px] text-gray-400">
-                          создано: {a.createdLabel}
+                {lastAppointments.map((a) => {
+                  const hasDocs = a.hasDocuments === true;
+                  const isPaid = a.hasPayments === true;
+
+                  return (
+                    <tr
+                      key={a.id}
+                      className="border-b last:border-0 hover:bg-gray-50"
+                    >
+                      {/* Дата / время */}
+                      <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                        <div>{a.dateLabel}</div>
+                        {a.createdLabel && (
+                          <div className="text-[10px] text-gray-400">
+                            создано: {a.createdLabel}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Клиент */}
+                      <td className="px-2 py-2 align-top">
+                        <div className="text-[11px] font-medium">
+                          {a.clientName || "Без имени"}
                         </div>
-                      )}
-                    </td>
+                        {a.clientContact && (
+                          <div className="text-[10px] text-gray-500">
+                            {a.clientContact}
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Клиент */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px] font-medium">
-                        {a.clientName || "Без имени"}
-                      </div>
-                      {a.clientContact && (
-                        <div className="text-[10px] text-gray-500">
-                          {a.clientContact}
+                      {/* Питомец */}
+                      <td className="px-2 py-2.align-top">
+                        <div className="text-[11px]">
+                          {a.petName || "—"}
                         </div>
-                      )}
-                    </td>
+                        {a.petSpecies && (
+                          <div className="text-[10px] text-gray-500">
+                            {a.petSpecies}
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Питомец */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px]">
-                        {a.petName || "—"}
-                      </div>
-                      {a.petSpecies && (
-                        <div className="text-[10px] text-gray-500">
-                          {a.petSpecies}
+                      {/* Врач */}
+                      <td className="px-2 py-2 align-top">
+                        <div className="text-[11px]">
+                          {a.doctorName || "Не назначен"}
                         </div>
-                      )}
-                    </td>
+                        {a.requestedDoctorName && (
+                          <div className="text-[10px] text-gray-500">
+                            выбрал клиент: {a.requestedDoctorName}
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Врач: фактический + выбранный клиентом */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px]">
-                        {a.doctorName || "Не назначен"}
-                      </div>
-                      {a.requestedDoctorName && (
-                        <div className="text-[10px] text-gray-500">
-                          выбрал клиент: {a.requestedDoctorName}
+                      {/* Услуга */}
+                      <td className="px-2 py-2 align-top">
+                        <div className="text-[11px]">{a.serviceName}</div>
+                        {a.serviceCode && (
+                          <div className="text-[10px] text-gray-500">
+                            {a.serviceCode}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Жалоба (коротко) */}
+                      <td className="px-2 py-2 align-top max-w-[220px]">
+                        <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                          {a.complaint && a.complaint.trim().length > 0
+                            ? a.complaint
+                            : "—"}
                         </div>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Услуга + код */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-[11px]">{a.serviceName}</div>
-                      {a.serviceCode && (
-                        <div className="text-[10px] text-gray-500">
-                          {a.serviceCode}
-                        </div>
-                      )}
-                    </td>
+                      {/* Документы */}
+                      <td className="px-2 py-2 align-top">
+                        <span
+                          className={
+                            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                            (hasDocs
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-gray-100 text-gray-600")
+                          }
+                        >
+                          {hasDocs ? "да" : "нет"}
+                        </span>
+                      </td>
 
-                    {/* Жалоба (обрезанная) */}
-                    <td className="px-2 py-2 align-top max-w-[220px]">
-                      <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                        {a.complaint && a.complaint.trim().length > 0
-                          ? a.complaint
-                          : "—"}
-                      </div>
-                    </td>
+                      {/* Оплата */}
+                      <td className="px-2 py-2.align-top">
+                        <span
+                          className={
+                            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                            (isPaid
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-gray-100 text-gray-600")
+                          }
+                        >
+                          {isPaid ? "да" : "нет"}
+                        </span>
+                      </td>
 
-                    {/* Документы: есть / нет */}
-                    <td className="px-2 py-2 align-top">
-                      <span
-                        className={
-                          a.hasDocuments
-                            ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-                            : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600"
-                        }
-                      >
-                        {a.hasDocuments ? "есть" : "нет"}
-                      </span>
-                    </td>
+                      {/* Статус */}
+                      <td className="px-2 py-2 align-top">
+                        <span
+                          className={
+                            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                            statusBadgeClass(a.statusLabel || "")
+                          }
+                        >
+                          {a.statusLabel}
+                        </span>
+                      </td>
 
-                    {/* Оплата: оплачено / не оплачено */}
-                    <td className="px-2 py-2 align-top">
-                      <span
-                        className={
-                          a.hasPayments
-                            ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-                            : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600"
-                        }
-                      >
-                        {a.hasPayments ? "оплачено" : "не оплачено"}
-                      </span>
-                    </td>
-
-                    {/* Статус */}
-                    <td className="px-2 py-2 align-top">
-                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
-                        {a.statusLabel}
-                      </span>
-                    </td>
-
-                    {/* Действия */}
-                    <td className="px-2 py-2 align-top text-right">
-                      <Link
-                        href={`/backoffice/registrar/consultations/${a.id}`}
-                        className="text-[11px] font-medium text-emerald-700 hover:underline"
-                      >
-                        Открыть →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                      {/* Действия */}
+                      <td className="px-2 py-2 align-top text-right">
+                        <Link
+                          href={`/backoffice/registrar/consultations/${a.id}`}
+                          className="text-[11px] font-medium text-emerald-700 hover:underline"
+                        >
+                          Открыть →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {lastAppointments.length === 0 && (
                   <tr>
