@@ -1,18 +1,23 @@
+// app/backoffice/registrar/queue/page.tsx
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { RegistrarActions } from "@/components/registrar/RegistrarActions";
 import { getRegistrarAppointments } from "@/lib/registrar";
+import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
 export default async function RegistrarQueuePage() {
   const all = await getRegistrarAppointments();
+
+  // Заявки со статусом "запрошена"
   const pending = all.filter(
-    (a) => a.statusLabel.toLowerCase() === "запрошена"
+    (a: RegistrarAppointmentRow) =>
+      a.statusLabel.toLowerCase() === "запрошена"
   );
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
-      <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+      <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <Link
@@ -25,8 +30,8 @@ export default async function RegistrarQueuePage() {
               Очередь новых заявок
             </h1>
             <p className="text-sm text-gray-500">
-              Заявки со статусом “запрошена”. Здесь регистратор может
-              подтверждать, перенести или отменить обращения клиентов.
+              Заявки со статусом «запрошена». Здесь регистратор может
+              подтверждать, переносить или отменять обращения клиентов.
             </p>
           </div>
           <RegistrarHeader />
