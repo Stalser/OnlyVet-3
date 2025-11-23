@@ -1,7 +1,11 @@
+// app/backoffice/registrar/consultations/page.tsx
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getRegistrarAppointments } from "@/lib/registrar";
 import { RegistrarConsultationsClient } from "@/components/registrar/RegistrarConsultationsClient";
+
+// ✅ Всегда отдаём свежие данные, без кэша
+export const dynamic = "force-dynamic";
 
 export default async function RegistrarConsultationsPage() {
   const appointments = await getRegistrarAppointments();
@@ -22,7 +26,6 @@ export default async function RegistrarConsultationsPage() {
           <RegistrarHeader />
         </header>
 
-        {/* ВАЖНО: вот этот компонент должен быть ниже */}
         <RegistrarConsultationsClient appointments={appointments} />
       </main>
     </RoleGuard>
