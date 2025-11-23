@@ -18,21 +18,19 @@ export function StaffHeader() {
   useEffect(() => {
     let ignore = false;
 
-    // если нет пользователя или supabase-клиента — профиля нет
-    if (!user || !supabase) {
-      if (!ignore) {
-        setProfile(null);
-      }
-      return;
-    }
-
-    const client = supabase as SupabaseClient;
-
     async function load() {
+      // --- Абсолютная защита от null ---
+      if (!user || !supabase) {
+        if (!ignore) setProfile(null);
+        return;
+      }
+
+      const client = supabase as SupabaseClient;
+
       const { data, error } = await client
         .from("staff_profiles")
         .select("full_name, position, doctor_id")
-        .eq("user_id", user.id)
+        .eq("user_id", user.id)       // user гарантированно НЕ null
         .maybeSingle();
 
       if (!ignore) {
@@ -50,6 +48,8 @@ export function StaffHeader() {
       ignore = true;
     };
   }, [user]);
+
+  // ============ UI ============
 
   if (loading) {
     return (
