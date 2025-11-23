@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { StaffHeader } from "@/components/staff/StaffHeader";
 import { StaffNav } from "@/components/staff/StaffNav";
 import { getRegistrarAppointments } from "@/lib/registrar";
 import { StaffDashboardClient } from "@/components/staff/StaffDashboardClient";
@@ -24,13 +24,15 @@ export default async function StaffDashboardPage() {
               Сейчас отображаются только приёмы, привязанные к этому врачу.
             </p>
           </div>
-          <RegistrarHeader />
+
+          {/* ⬅️ Старый RegistrarHeader заменён на StaffHeader */}
+          <StaffHeader />
         </header>
 
         {/* Горизонтальное меню врача */}
         <StaffNav />
 
-        {/* Клиентский дашборд, который фильтрует приёмы по doctor_id */}
+        {/* Клиентский дашборд с фильтрацией по doctor_id */}
         <StaffDashboardClient appointments={appointments} />
       </main>
     </RoleGuard>
