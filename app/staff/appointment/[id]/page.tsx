@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { StaffHeader } from "@/components/staff/StaffHeader";
 import { StaffNav } from "@/components/staff/StaffNav";
 import { getRegistrarAppointmentById } from "@/lib/registrar";
 
@@ -16,6 +16,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
   return (
     <RoleGuard allowed={["vet", "admin"]}>
       <main className="mx-auto max-w-4xl px-4 py-6 space-y-6">
+
         {/* Шапка */}
         <header className="flex items-center justify-between">
           <div>
@@ -28,17 +29,19 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
             <h1 className="mt-2 text-xl font-bold tracking-tight">
               Онлайн-консультация
             </h1>
-            <p className="text-sm text_gray-500">
+            <p className="text-sm text-gray-500">
               Информация о приёме и рабочее пространство врача.
             </p>
           </div>
-          <RegistrarHeader />
+
+          {/* БЫЛО: <RegistrarHeader /> */}
+          <StaffHeader />
         </header>
 
         <StaffNav />
 
         {!appointment && (
-          <section className="rounded-2xl border bg-white p-4">
+          <section className="rounded-2xl.border bg-white p-4">
             <p className="text-sm text-gray-500">
               Консультация с идентификатором{" "}
               <span className="font-mono">{params.id}</span> не найдена.
@@ -62,6 +65,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                     </div>
                   )}
                 </div>
+
                 <div className="text-right text-xs text-gray-500">
                   Статус
                   <div className="mt-1 text-[11px] font-semibold text-gray-900">
@@ -117,6 +121,7 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
               <h2 className="text-sm font-semibold">
                 Формат связи для подключения врача
               </h2>
+
               <div className="rounded-xl bg-emerald-50 p-3 text-sm space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -126,14 +131,15 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                     <div className="text-sm font-semibold text-emerald-900">
                       Яндекс Телемост
                     </div>
+
                     {appointment.videoPlatform &&
                       appointment.videoPlatform !== "yandex_telemost" && (
                         <div className="text-[10px] text-emerald-900 mt-0.5">
-                          (фактическая платформа:{" "}
-                          {appointment.videoPlatform})
+                          (фактическая платформа: {appointment.videoPlatform})
                         </div>
                       )}
                   </div>
+
                   <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600" />
                     Онлайн
@@ -151,45 +157,44 @@ export default async function StaffAppointmentPage({ params }: PageProps) {
                       Перейти в Телемост
                     </a>
                     <div className="text-[10px] text-emerald-900 mt-0.5">
-                      Откроется в новой вкладке. Убедитесь, что вы
-                      авторизованы в Яндексе под нужным аккаунтом.
+                      Откроется в новой вкладке.
                     </div>
                   </div>
                 ) : (
                   <div className="text-[11px] text-emerald-800">
-                    Ссылка на Телемост пока не указана. Уточните у
-                    регистратуры или проверьте карточку консультации.
+                    Ссылка на Телемост пока не указана.
                   </div>
                 )}
               </div>
             </section>
 
-            {/* Заключение врача — скелет */}
+            {/* Черновик врача */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-sm font-semibold">
                 Заключение врача (черновик)
               </h2>
               <p className="text-xs text-gray-500">
-                Здесь будет основной рабочий блок врача: жалобы, анамнез,
-                осмотр, диагноз, план и назначения. Сейчас это скелет —
-                текст ниже пока не сохраняется в базу.
+                Здесь будет рабочий блок врача: жалобы, анамнез, осмотр,
+                диагноз, назначения. Пока не сохраняется.
               </p>
+
               <textarea
                 className="w-full min-h-[160px] rounded-xl border px-3 py-2 text-xs"
                 placeholder="Черновые заметки по приёму…"
               />
+
               <div className="flex flex-wrap justify-end gap-2 pt-2 text-[11px]">
                 <button
                   type="button"
-                  className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
                   disabled
+                  className="rounded-xl border px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
                 >
                   Сохранить черновик (скоро)
                 </button>
                 <button
                   type="button"
-                  className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white opacity-60"
                   disabled
+                  className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white opacity-60"
                 >
                   Отметить приём завершённым (скоро)
                 </button>
