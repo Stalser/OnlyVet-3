@@ -1,3 +1,4 @@
+// app/backoffice/registrar/page.tsx
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
@@ -6,7 +7,7 @@ import { getRecentRegistrarAppointments } from "@/lib/registrar";
 import { getOwnersSummary } from "@/lib/clients";
 import { RegistrarClientsMini } from "@/components/registrar/RegistrarClientsMini";
 
-// ВАЖНО: делаем страницу динамической, чтобы она всегда брала свежие данные из БД
+// ВАЖНО: всегда брать свежие данные
 export const dynamic = "force-dynamic";
 
 export default async function RegistrarDashboardPage() {
@@ -24,7 +25,7 @@ export default async function RegistrarDashboardPage() {
   // для таблицы внизу показываем только первые 10
   const lastAppointments = appointments.slice(0, 10);
 
-  // функция для подписи количества заявок
+  // подпись количества заявок
   const newRequestsLabel = (() => {
     if (newRequestsCount === 0) return "новых заявок";
     if (newRequestsCount === 1) return "новая заявка";
@@ -48,7 +49,7 @@ export default async function RegistrarDashboardPage() {
           <RegistrarHeader />
         </header>
 
-        {/* Верхняя строка виджетов: Новые заявки + Календарь записей */}
+        {/* Верхняя строка виджетов: Новые заявки + Расписание */}
         <section className="grid gap-4 md:grid-cols-2">
           {/* Новые заявки */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
@@ -61,9 +62,7 @@ export default async function RegistrarDashboardPage() {
             </div>
             <div className="mt-4 flex items-end justify-between">
               <div>
-                <div className="text-3xl font-bold">
-                  {newRequestsCount}
-                </div>
+                <div className="text-3xl font-bold">{newRequestsCount}</div>
                 <div className="text-[11px] text-gray-500">
                   {newRequestsCount === 0
                     ? "нет новых заявок"
@@ -71,7 +70,7 @@ export default async function RegistrarDashboardPage() {
                 </div>
               </div>
               <Link
-                href="/backoffice/registrar/consultations"
+                href="/backoffice/registrar/queue"
                 className="rounded-xl border border-emerald-600 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
               >
                 Открыть заявки
@@ -79,7 +78,7 @@ export default async function RegistrarDashboardPage() {
             </div>
           </div>
 
-          {/* Расписание и календарь */}
+          {/* Расписание и записи */}
           <div className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
             <div className="space-y-2">
               <h2 className="text-sm font-semibold">Расписание и записи</h2>
@@ -91,7 +90,7 @@ export default async function RegistrarDashboardPage() {
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-gray-500">
-                Открыть расписание врачей или календарь записей:
+                Открыть расписание врачей или список приёмов:
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link
@@ -104,14 +103,14 @@ export default async function RegistrarDashboardPage() {
                   href="/backoffice/registrar/consultations"
                   className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
                 >
-                  Календарь / список приёмов
+                  Все консультации и заявки
                 </Link>
               </div>
             </div>
           </div>
         </section>
 
-                {/* Документация и финансы клиентов и питомцев */}
+        {/* Документы и финансы */}
         <section className="grid gap-4 md:grid-cols-3">
           <Link
             href="/backoffice/registrar/documents"
@@ -142,9 +141,9 @@ export default async function RegistrarDashboardPage() {
         {/* Краткая картотека клиентов */}
         <RegistrarClientsMini owners={owners} />
 
-        {/* Последние консультации и заявки */}
+        {/* Последние консультации и заявки — мини-таблица */}
         <section className="rounded-2xl border bg-white p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap.items-center justify-between gap-3">
             <h2 className="text-base font-semibold">
               Последние консультации и заявки
             </h2>
@@ -165,6 +164,9 @@ export default async function RegistrarDashboardPage() {
                   <th className="px-2 py-2">Питомец</th>
                   <th className="px-2 py-2">Врач</th>
                   <th className="px-2 py-2">Услуга</th>
+                  <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
+                  <th className="px-2 py-2">Документы</th>
+                  <th className="px-2 py-2">Оплата</th>
                   <th className="px-2 py-2">Статус</th>
                   <th className="px-2 py-2 text-right">Действия</th>
                 </tr>
@@ -209,19 +211,61 @@ export default async function RegistrarDashboardPage() {
                       )}
                     </td>
 
-                    {/* Врач */}
-                    <td className="px-2 py-2 align-top text-[11px]">
-                      {a.doctorName || "Не назначен"}
+                    {/* Врач: фактический + выбранный клиентом */}
+                    <td className="px-2 py-2 align-top">
+                      <div className="text-[11px]">
+                        {a.doctorName || "Не назначен"}
+                      </div>
+                      {a.requestedDoctorName && (
+                        <div className="text-[10px] text-gray-500">
+                          выбрал клиент: {a.requestedDoctorName}
+                        </div>
+                      )}
                     </td>
 
-                    {/* Услуга */}
-                    <td className="px-2 py-2 align-top text-[11px]">
-                      {a.serviceName}
+                    {/* Услуга + код */}
+                    <td className="px-2 py-2 align-top">
+                      <div className="text-[11px]">{a.serviceName}</div>
                       {a.serviceCode && (
                         <div className="text-[10px] text-gray-500">
                           {a.serviceCode}
                         </div>
                       )}
+                    </td>
+
+                    {/* Жалоба (обрезанная) */}
+                    <td className="px-2 py-2 align-top max-w-[220px]">
+                      <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                        {a.complaint && a.complaint.trim().length > 0
+                          ? a.complaint
+                          : "—"}
+                      </div>
+                    </td>
+
+                    {/* Документы: есть / нет */}
+                    <td className="px-2 py-2 align-top">
+                      <span
+                        className={
+                          a.hasDocuments
+                            ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                            : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600"
+                        }
+                      >
+                        {a.hasDocuments ? "есть" : "нет"}
+                      </span>
+                    </td>
+
+                    {/* Оплата: оплачено / не оплачено */}
+                    <td className="px-2 py-2 align-top">
+                      <span
+                        className={
+                          a.hasPayments
+                            ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                            : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600"
+                        }
+                      >
+                        {a.hasPayments ? "оплачено" : "не оплачено"}
+                      </span>
                     </td>
 
                     {/* Статус */}
@@ -246,7 +290,7 @@ export default async function RegistrarDashboardPage() {
                 {lastAppointments.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={10}
                       className="px-2 py-8 text-center text-xs text-gray-400"
                     >
                       Консультаций и заявок ещё нет.
