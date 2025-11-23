@@ -18,15 +18,15 @@ export function StaffHeader() {
   useEffect(() => {
     let ignore = false;
 
-    const client: SupabaseClient | null = supabase;
-
-    // Если нет пользователя или нет клиента supabase — профиля нет
-    if (!user || !client) {
+    // если нет пользователя или supabase-клиента — профиля нет
+    if (!user || !supabase) {
       if (!ignore) {
         setProfile(null);
       }
       return;
     }
+
+    const client = supabase as SupabaseClient;
 
     async function load() {
       const { data, error } = await client
