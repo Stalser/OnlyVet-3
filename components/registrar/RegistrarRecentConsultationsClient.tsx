@@ -11,6 +11,7 @@ interface Props {
 export function RegistrarRecentConsultationsClient({ appointments }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
+  const [search, setSearch] = useState<string>("");
 
   const statuses = useMemo(
     () =>
@@ -52,19 +53,47 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
         return false;
       }
 
+      if (search.trim().length > 0) {
+        const q = search.trim().toLowerCase();
+        const haystack = [
+          a.clientName,
+          a.clientContact || "",
+          a.petName || "",
+          a.petSpecies || "",
+          a.doctorName || "",
+          a.requestedDoctorName || "",
+          a.serviceName || "",
+          a.serviceCode || "",
+          a.complaint || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(q)) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [appointments, statusFilter, doctorFilter]);
+  }, [appointments, statusFilter, doctorFilter, search]);
 
   return (
     <>
-      {/* Маленькая панель фильтров справа над таблицей */}
+      {/* Панель фильтров над таблицей */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="text-[11px] text-gray-500">
           Показаны последние {appointments.length} записей. После фильтрации:{" "}
           {filtered.length}.
         </div>
         <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
+            className="w-60 rounded-xl border px-2 py-1.5 text-xs"
+          />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -94,7 +123,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-xs">
+        <table className="min-w-full.text-xs">
           <thead>
             <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
               <th className="px-2 py-2">№</th>
@@ -103,6 +132,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
               <th className="px-2 py-2">Питомец</th>
               <th className="px-2 py-2">Врач</th>
               <th className="px-2 py-2">Услуга</th>
+              <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
               <th className="px-2 py-2">Статус</th>
               <th className="px-2 py-2 text-right">Действия</th>
             </tr>
@@ -113,9 +143,8 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 key={a.id}
                 className="border-b last:border-0 hover:bg-gray-50"
               >
-                <td className="px-2 py-2 align-top">
-                  {index + 1}
-                </td>
+                <td className="px-2 py-2 align-top">{index + 1}</td>
+
                 <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                   <div>{a.dateLabel}</div>
                   {a.createdLabel && (
@@ -124,6 +153,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </div>
                   )}
                 </td>
+
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px] font-medium">
                     {a.clientName}
@@ -134,6 +164,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </div>
                   )}
                 </td>
+
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">
                     {a.petName || "—"}
@@ -144,11 +175,19 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </div>
                   )}
                 </td>
+
+                {/* Врач: фактически назначенный + выбранный клиентом */}
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">
                     {a.doctorName || "Не назначен"}
                   </div>
+                  {a.requestedDoctorName && (
+                    <div className="text-[10px] text-gray-500">
+                      выбрал клиент: {a.requestedDoctorName}
+                    </div>
+                  )}
                 </td>
+
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">{a.serviceName}</div>
                   {a.serviceCode && (
@@ -157,11 +196,22 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </div>
                   )}
                 </td>
-                <td className="px-2 py-2 align-top">
+
+                {/* Жалоба */}
+                <td className="px-2 py-2 align-top max-w-[220px]">
+                  <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                    {a.complaint && a.complaint.trim().length > 0
+                      ? a.complaint
+                      : "—"}
+                  </div>
+                </td>
+
+                <td className="px-2 py-2.align-top">
                   <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     {a.statusLabel}
                   </span>
                 </td>
+
                 <td className="px-2 py-2 align-top text-right">
                   <Link
                     href={`/backoffice/registrar/consultations/${a.id}`}
@@ -176,7 +226,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
                   Нет записей по текущему фильтру.
