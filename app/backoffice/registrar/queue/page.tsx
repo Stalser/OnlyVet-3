@@ -1,4 +1,3 @@
-// app/backoffice/registrar/queue/page.tsx
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
@@ -53,7 +52,7 @@ export default async function RegistrarQueuePage() {
 
           {pending.length > 0 && (
             <div className="space-y-4">
-              {pending.map((a) => (
+              {pending.map((a: RegistrarAppointmentRow) => (
                 <div
                   key={a.id}
                   className="rounded-2xl border border-gray-100 bg-gray-50 p-3 text-xs"
