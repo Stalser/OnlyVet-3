@@ -1,3 +1,4 @@
+// components/registrar/RegistrarRecentConsultationsClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -78,26 +79,13 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
     });
   }, [appointments, statusFilter, doctorFilter, search]);
 
-  // Показать только последние 10 записей после фильтрации
-  const recent = useMemo(() => filtered.slice(0, 10), [filtered]);
-
-  const docBadge = (hasDocuments?: boolean) =>
-    hasDocuments
-      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-      : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500";
-
-  const payBadge = (hasPayments?: boolean) =>
-    hasPayments
-      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-      : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500";
-
   return (
     <>
       {/* Панель фильтров над таблицей */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="text-[11px] text-gray-500">
-          Показаны последние {recent.length} записей (из {filtered.length} по
-          фильтру, всего в системе: {appointments.length}).
+          Показаны последние {appointments.length} записей. После фильтрации:{" "}
+          {filtered.length}.
         </div>
         <div className="flex flex-wrap gap-2">
           <input
@@ -153,7 +141,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             </tr>
           </thead>
           <tbody>
-            {recent.map((a, index) => (
+            {filtered.map((a, index) => (
               <tr
                 key={a.id}
                 className="border-b last:border-0 hover:bg-gray-50"
@@ -169,6 +157,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
+                {/* Клиент */}
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px] font-medium">
                     {a.clientName}
@@ -180,6 +169,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
+                {/* Питомец */}
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">
                     {a.petName || "—"}
@@ -191,7 +181,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
-                {/* Врач: фактический + выбранный клиентом */}
+                {/* Врач: фактически назначенный + выбранный клиентом */}
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">
                     {a.doctorName || "Не назначен"}
@@ -203,6 +193,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
+                {/* Услуга */}
                 <td className="px-2 py-2 align-top">
                   <div className="text-[11px]">{a.serviceName}</div>
                   {a.serviceCode && (
@@ -212,7 +203,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                   )}
                 </td>
 
-                {/* Жалоба — только первые строки, остальное видно в карточке */}
+                {/* Жалоба */}
                 <td className="px-2 py-2 align-top max-w-[220px]">
                   <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                     {a.complaint && a.complaint.trim().length > 0
@@ -223,24 +214,38 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
 
                 {/* Документы */}
                 <td className="px-2 py-2 align-top">
-                  <span className={docBadge(a.hasDocuments)}>
+                  <span
+                    className={
+                      a.hasDocuments
+                        ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                        : "inline-flex rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-500"
+                    }
+                  >
                     {a.hasDocuments ? "есть" : "нет"}
                   </span>
                 </td>
 
                 {/* Оплата */}
                 <td className="px-2 py-2 align-top">
-                  <span className={payBadge(a.hasPayments)}>
+                  <span
+                    className={
+                      a.hasPayments
+                        ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                        : "inline-flex rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-500"
+                    }
+                  >
                     {a.hasPayments ? "оплачено" : "не оплачено"}
                   </span>
                 </td>
 
-                <td className="px-2 py-2 align-top">
+                {/* Статус */}
+                <td className="px-2 py-2.align-top">
                   <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     {a.statusLabel}
                   </span>
                 </td>
 
+                {/* Действия */}
                 <td className="px-2 py-2 align-top text-right">
                   <Link
                     href={`/backoffice/registrar/consultations/${a.id}`}
@@ -252,13 +257,13 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
               </tr>
             ))}
 
-            {recent.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td
                   colSpan={11}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
-                  Консультаций и заявок ещё нет.
+                  Нет записей по текущему фильтру.
                 </td>
               </tr>
             )}
