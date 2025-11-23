@@ -23,13 +23,13 @@ export type RegistrarAppointmentRow = {
   petName?: string;
   petSpecies?: string;
 
-  // врач (назначенный)
+  // врач (фактически назначенный)
   doctorId?: string;
   doctorName?: string;
 
-  // врач (запрошенный при записи)
-  requestedDoctorCode?: string;
-  requestedDoctorName?: string;
+  // врач, которого выбрал клиент при заявке (requested_doctor_code)
+  requestedDoctorCode?: string | null;
+  requestedDoctorName?: string | null;
 
   // услуга
   serviceName: string;
@@ -46,10 +46,8 @@ export type RegistrarAppointmentRow = {
   complaint?: string;
 };
 
-/**
- * Приводим сырую строку из appointments к удобному виду.
- */
 function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
+  // --- Дата / время ---
   let dateLabel = "—";
   if (row.starts_at) {
     const d = new Date(row.starts_at);
@@ -66,23 +64,26 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
     ? new Date(row.created_at).toLocaleString("ru-RU")
     : "";
 
-  // Назначенный врач (по doctor_id → uuid врача из другой системы/CRM)
-  const assignedDoctor = doctors.find((d: any) => d.id === row.doctor_id);
-  const doctorName = assignedDoctor?.name ?? "Не назначен";
+  // --- Врач (фактический) ---
+  const doc = doctors.find((d: any) => d.id === row.doctor_id);
+  const doctorName = doc?.name ?? "Не назначен";
 
-  // Запрошенный врач (по requested_doctor_code → наш локальный код врача)
-  const requestedDoctor = row.requested_doctor_code
-    ? doctors.find((d: any) => d.id === row.requested_doctor_code)
-    : undefined;
-  const requestedDoctorName = requestedDoctor?.name ?? undefined;
+  // --- Врач, выбранный клиентом при записи (requested_doctor_code) ---
+  const requestedDoctorCode: string | null =
+    row.requested_doctor_code ?? null;
+  let requestedDoctorName: string | null = null;
+  if (requestedDoctorCode) {
+    const reqDoc = doctors.find((d: any) => d.id === requestedDoctorCode);
+    requestedDoctorName = reqDoc?.name ?? null;
+  }
 
-  // Услуга
+  // --- Услуга ---
   const service = servicesPricing.find(
     (s: any) => s.code === row.service_code
   );
   const serviceName = service?.name ?? "Услуга";
 
-  // Пока клиентские данные не связаны явно с owner_profiles
+  // ⚠ Клиентские данные пока не связаны явно с owner_profiles
   const clientName = "Без имени";
   const clientContact = "";
 
@@ -102,7 +103,7 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
     doctorId: row.doctor_id ?? undefined,
     doctorName,
 
-    requestedDoctorCode: row.requested_doctor_code ?? undefined,
+    requestedDoctorCode,
     requestedDoctorName,
 
     serviceName,
@@ -203,8 +204,7 @@ export async function getRecentRegistrarAppointments(
 }
 
 /**
- * Приёмы для конкретного врача по doctor_id.
- * Сейчас просто фильтрует по doctorId.
+ * Приёмы для конкретного врача по doctor_id (для кабинета врача).
  */
 export async function getAppointmentsForDoctor(
   doctorId: string
