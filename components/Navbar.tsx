@@ -8,36 +8,57 @@ import { supabase } from "@/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type UserRole = "client" | "registrar" | "vet" | "admin";
+type EffectiveRole = UserRole | "guest";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { user, loading } = useCurrentUser();
 
-  const isAuthed = !!user;
-  const role = (user?.role ?? "client") as UserRole;
-  const isStaff = role === "registrar" || role === "vet" || role === "admin";
+  // ---- Fallback по URL (если хук ещё не успел отработать) ----
+  const inClientCabinet = pathname.startsWith("/account");
+  const inRegistrarCabinet = pathname.startsWith("/backoffice");
+  const inVetCabinet = pathname.startsWith("/staff");
 
-  // --- Куда ведёт ссылка "кабинет" на десктопе ---
+  let effectiveRole: EffectiveRole = "guest";
+
+  if (user?.role) {
+    effectiveRole = user.role as UserRole;
+  } else if (inRegistrarCabinet) {
+    effectiveRole = "registrar";
+  } else if (inVetCabinet) {
+    effectiveRole = "vet";
+  } else if (inClientCabinet) {
+    effectiveRole = "client";
+  }
+
+  const isAuthed = effectiveRole !== "guest";
+  const isStaff =
+    effectiveRole === "registrar" ||
+    effectiveRole === "vet" ||
+    effectiveRole === "admin";
+
+  // ---- Куда ведёт ссылка кабинета и текст ----
   let cabinetHref = "/auth/login";
   let cabinetLabel = "Вход";
 
   if (isAuthed && isStaff) {
-    // сотрудники: регистратор / врач / админ
-    cabinetHref = role === "vet" ? "/staff" : "/backoffice/registrar";
+    cabinetHref = effectiveRole === "vet" ? "/staff" : "/backoffice/registrar";
     cabinetLabel = "Рабочий кабинет";
   } else if (isAuthed && !isStaff) {
-    // обычный клиент
     cabinetHref = "/account";
     cabinetLabel = "Личный кабинет";
   }
 
+  // ---- Выход из аккаунта ----
   const handleLogout = async () => {
+    const client = supabase as SupabaseClient | null;
+
     try {
-      if (supabase) {
-        const client = supabase as SupabaseClient;
+      if (client) {
         await client.auth.signOut();
       }
     } finally {
+      // В любом случае уводим на страницу входа
       window.location.href = "/auth/login";
     }
   };
@@ -49,8 +70,8 @@ export default function Navbar() {
 
   return (
     <nav className="border-b bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        {/* Логотип слева */}
+      <div className="container mx-auto flex items-center justify-between px-4 py-3">
+        {/* Логотип слева — как было изначально */}
         <Link href="/" className="text-sm font-semibold text-gray-900">
           OnlyVet{" "}
           <span className="ml-1 text-xs font-normal text-gray-500">
@@ -58,8 +79,8 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Центральное меню (только десктоп) */}
-        <div className="hidden items-center gap-6 md:flex">
+        {/* Центральное меню */}
+        <div className="flex items-center gap-6">
           <Link href="/services" className={linkClass("/services")}>
             Услуги
           </Link>
@@ -71,13 +92,13 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Правая часть: десктоп */}
-        <div className="hidden items-center gap-4 md:flex">
+        {/* Правая часть */}
+        <div className="flex items-center gap-4">
           {loading ? (
             <span className="text-xs text-gray-500">Загрузка…</span>
           ) : (
             <>
-              {/* Кабинет / вход */}
+              {/* Кабинет / Вход */}
               <Link
                 href={cabinetHref}
                 className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
@@ -85,63 +106,10 @@ export default function Navbar() {
                 {cabinetLabel}
               </Link>
 
-              {/* Записаться — только для клиентов и гостей */}
-              {(!isAuthed || !isStaff) && (
-                <Link
-                  href="/booking"
-                  className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-                >
-                  Записаться
-                </Link>
-              )}
-
-              {/* Выйти — для всех авторизованных */}
-              {isAuthed && (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-sm text-gray-600 hover:text-red-700"
-                >
-                  Выйти
-                </button>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Правая часть: мобильная версия (Только клиентский сценарий) */}
-        <div className="flex items-center gap-3 md:hidden">
-          {loading ? (
-            <span className="text-xs text-gray-500">…</span>
-          ) : (
-            <>
-              {!isAuthed ? (
-                <>
-                  <Link
-                    href="/auth/login"
-                    className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-                  >
-                    Вход
-                  </Link>
-                  <Link
-                    href="/booking"
-                    className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-                  >
-                    Записаться
-                  </Link>
-                </>
-              ) : (
-                <>
-                  {/* Клиенту даём ЛК на мобильном */}
-                  {role === "client" && (
-                    <Link
-                      href="/account"
-                      className="text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4"
-                    >
-                      Личный кабинет
-                    </Link>
-                  )}
-                  {/* Сотрудникам мобильный рабочий кабинет не светим, только выйти */}
+              {/* Разный набор кнопок для ролей */}
+              {isAuthed ? (
+                isStaff ? (
+                  // ---- Сотрудник: только рабочий кабинет + выйти ----
                   <button
                     type="button"
                     onClick={handleLogout}
@@ -149,7 +117,32 @@ export default function Navbar() {
                   >
                     Выйти
                   </button>
-                </>
+                ) : (
+                  // ---- Клиент: ЛК + Выйти + Записаться ----
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="text-sm text-gray-600 hover:text-red-700"
+                    >
+                      Выйти
+                    </button>
+                    <Link
+                      href="/booking"
+                      className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+                    >
+                      Записаться
+                    </Link>
+                  </>
+                )
+              ) : (
+                // ---- Гость: Вход + Записаться ----
+                <Link
+                  href="/booking"
+                  className="rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+                >
+                  Записаться
+                </Link>
               )}
             </>
           )}
