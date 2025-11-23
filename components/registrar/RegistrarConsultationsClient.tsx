@@ -1,4 +1,3 @@
-// components/registrar/RegistrarConsultationsClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -81,6 +80,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
+      {/* Верхняя панель */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">
@@ -91,6 +91,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
             {filtered.length}.
           </p>
         </div>
+
         <div className="flex flex-wrap gap-2 text-xs">
           <input
             type="text"
@@ -99,6 +100,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
             placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
             className="w-60 rounded-xl border px-2 py-1.5 text-xs"
           />
+
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -111,6 +113,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
               </option>
             ))}
           </select>
+
           <select
             value={doctorFilter}
             onChange={(e) => setDoctorFilter(e.target.value)}
@@ -126,6 +129,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
         </div>
       </div>
 
+      {/* Таблица */}
       <div className="overflow-x-auto">
         <table className="min-w-full text-xs">
           <thead>
@@ -138,128 +142,114 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
               <th className="px-2 py-2">Услуга</th>
               <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
               <th className="px-2 py-2">Документы</th>
-              <th className="px-2 py-2">Оплата</th>
               <th className="px-2 py-2">Статус</th>
               <th className="px-2 py-2 text-right">Действия</th>
             </tr>
           </thead>
+
           <tbody>
-            {filtered.map((a, index) => {
-              const paidLabel = a.hasPayments ? "да" : "нет";
-              const paidClass = a.hasPayments
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-500";
+            {filtered.map((a, index) => (
+              <tr
+                key={a.id}
+                className="border-b last:border-0 hover:bg-gray-50"
+              >
+                {/* № */}
+                <td className="px-2 py-2 align-top">{index + 1}</td>
 
-              const docsLabel = a.hasDocuments ? "да" : "нет";
-              const docsClass = a.hasDocuments
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-500";
-
-              return (
-                <tr
-                  key={a.id}
-                  className="border-b last:border-0 hover:bg-gray-50"
-                >
-                  <td className="px-2 py-2 align-top">{index + 1}</td>
-
-                  <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                    <div>{a.dateLabel}</div>
-                    {a.createdLabel && (
-                      <div className="text-[10px] text-gray-400">
-                        создано: {a.createdLabel}
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px] font-medium">
-                      {a.clientName}
+                {/* Дата */}
+                <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                  <div>{a.dateLabel}</div>
+                  {a.createdLabel && (
+                    <div className="text-[10px] text-gray-400">
+                      создано: {a.createdLabel}
                     </div>
-                    {a.clientContact && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.clientContact}
-                      </div>
-                    )}
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2.align-top">
-                    <div className="text-[11px]">
-                      {a.petName || "—"}
+                {/* Клиент */}
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px] font-medium">
+                    {a.clientName}
+                  </div>
+                  {a.clientContact && (
+                    <div className="text-[10px] text-gray-500">
+                      {a.clientContact}
                     </div>
-                    {a.petSpecies && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.petSpecies}
-                      </div>
-                    )}
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px]">
-                      {a.doctorName || "Не назначен"}
+                {/* Питомец */}
+                <td className="px-2 py-2.align-top">
+                  <div className="text-[11px]">{a.petName || "—"}</div>
+                  {a.petSpecies && (
+                    <div className="text-[10px] text-gray-500">
+                      {a.petSpecies}
                     </div>
-                    {a.requestedDoctorName && (
-                      <div className="text-[10px] text-gray-500">
-                        выбрал клиент: {a.requestedDoctorName}
-                      </div>
-                    )}
-                  </td>
+                  )}
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px]">{a.serviceName}</div>
-                    {a.serviceCode && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.serviceCode}
-                      </div>
-                    )}
-                  </td>
+                {/* Врач */}
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px]">
+                    {a.doctorName || "Не назначен"}
+                  </div>
+                  {a.requestedDoctorName && (
+                    <div className="text-[10px] text-gray-500">
+                      выбрал клиент: {a.requestedDoctorName}
+                    </div>
+                  )}
+                </td>
 
-                  {/* Жалоба */}
-                  <td className="px-2 py-2 align-top max-w-[220px]">
-                    <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                      {a.complaint && a.comp
+                {/* Услуга */}
+                <td className="px-2 py-2 align-top">
+                  <div className="text-[11px]">{a.serviceName}</div>
+                  {a.serviceCode && (
+                    <div className="text-[10px] text-gray-500">
+                      {a.serviceCode}
+                    </div>
+                  )}
+                </td>
+
+                {/* Жалоба */}
+                <td className="px-2 py-2 align-top max-w-[220px]">
+                  <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                    {a.complaint && a.complaint.trim().length > 0
                       ? a.complaint
                       : "—"}
-                    </div>
-                  </td>
+                  </div>
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${docsClass}`}
-                    >
-                      {docsLabel}
-                    </span>
-                  </td>
+                {/* Документы */}
+                <td className="px-2 py-2 align-top">
+                  <span className="text-[11px] text-gray-700">
+                    {/* пока заглушка — позже вместо 0 будет count */}
+                    0
+                  </span>
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${paidClass}`}
-                    >
-                      {a.hasPayments ? "оплачено" : "не оплачено"}
-                    </span>
-                  </td>
+                {/* Статус */}
+                <td className="px-2 py-2 align-top">
+                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    {a.statusLabel}
+                  </span>
+                </td>
 
-                  <td className="px-2 py-2 align-top">
-                    <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                      {a.statusLabel}
-                    </span>
-                  </td>
-
-                  <td className="px-2 py-2 align-top text-right">
-                    <Link
-                      href={`/backoffice/registrar/consultations/${a.id}`}
-                      className="text-[11px] font-medium text-emerald-700 hover:underline"
-                    >
-                      Открыть
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
+                {/* Действия */}
+                <td className="px-2 py-2 align-top text-right">
+                  <Link
+                    href={`/backoffice/registrar/consultations/${a.id}`}
+                    className="text-[11px] font-medium text-emerald-700 hover:underline"
+                  >
+                    Открыть →
+                  </Link>
+                </td>
+              </tr>
+            ))}
 
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={10}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
                   Нет записей, удовлетворяющих фильтру.
