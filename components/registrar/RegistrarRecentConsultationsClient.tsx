@@ -1,3 +1,4 @@
+// components/registrar/RegistrarRecentConsultationsClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -123,7 +124,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full.text-xs">
+        <table className="min-w-full text-xs">
           <thead>
             <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
               <th className="px-2 py-2">№</th>
@@ -133,100 +134,137 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
               <th className="px-2 py-2">Врач</th>
               <th className="px-2 py-2">Услуга</th>
               <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
+              <th className="px-2 py-2">Документы</th>
+              <th className="px-2 py-2">Оплата</th>
               <th className="px-2 py-2">Статус</th>
               <th className="px-2 py-2 text-right">Действия</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((a, index) => (
-              <tr
-                key={a.id}
-                className="border-b last:border-0 hover:bg-gray-50"
-              >
-                <td className="px-2 py-2 align-top">{index + 1}</td>
+            {filtered.map((a, index) => {
+              const hasDocs = a.hasDocuments ?? false;
+              const paymentStatus = a.paymentStatus ?? "unpaid";
 
-                <td className="px-2 py-2 align-top text-[11px] text-gray-700">
-                  <div>{a.dateLabel}</div>
-                  {a.createdLabel && (
-                    <div className="text-[10px] text-gray-400">
-                      создано: {a.createdLabel}
+              return (
+                <tr
+                  key={a.id}
+                  className="border-b last:border-0 hover:bg-gray-50"
+                >
+                  <td className="px-2 py-2 align-top">{index + 1}</td>
+
+                  <td className="px-2 py-2 align-top text-[11px] text-gray-700">
+                    <div>{a.dateLabel}</div>
+                    {a.createdLabel && (
+                      <div className="text-[10px] text-gray-400">
+                        создано: {a.createdLabel}
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px] font-medium">
+                      {a.clientName}
                     </div>
-                  )}
-                </td>
+                    {a.clientContact && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.clientContact}
+                      </div>
+                    )}
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px] font-medium">
-                    {a.clientName}
-                  </div>
-                  {a.clientContact && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.clientContact}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.petName || "—"}
                     </div>
-                  )}
-                </td>
+                    {a.petSpecies && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.petSpecies}
+                      </div>
+                    )}
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">
-                    {a.petName || "—"}
-                  </div>
-                  {a.petSpecies && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.petSpecies}
+                  {/* Врач: фактически назначенный + выбранный клиентом */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.doctorName || "Не назначен"}
                     </div>
-                  )}
-                </td>
+                    {a.requestedDoctorName && (
+                      <div className="text-[10px] text-gray-500">
+                        выбрал клиент: {a.requestedDoctorName}
+                      </div>
+                    )}
+                  </td>
 
-                {/* Врач: фактически назначенный + выбранный клиентом */}
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">
-                    {a.doctorName || "Не назначен"}
-                  </div>
-                  {a.requestedDoctorName && (
-                    <div className="text-[10px] text-gray-500">
-                      выбрал клиент: {a.requestedDoctorName}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">{a.serviceName}</div>
+                    {a.serviceCode && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.serviceCode}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Жалоба */}
+                  <td className="px-2 py-2 align-top max-w-[220px]">
+                    <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                      {a.complaint && a.complaint.trim().length > 0
+                        ? a.complaint
+                        : "—"}
                     </div>
-                  )}
-                </td>
+                  </td>
 
-                <td className="px-2 py-2 align-top">
-                  <div className="text-[11px]">{a.serviceName}</div>
-                  {a.serviceCode && (
-                    <div className="text-[10px] text-gray-500">
-                      {a.serviceCode}
-                    </div>
-                  )}
-                </td>
+                  {/* Документы */}
+                  <td className="px-2 py-2 align-top">
+                    {hasDocs ? (
+                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        есть
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                        нет
+                      </span>
+                    )}
+                  </td>
 
-                {/* Жалоба */}
-                <td className="px-2 py-2 align-top max-w-[220px]">
-                  <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                    {a.complaint && a.complaint.trim().length > 0
-                      ? a.complaint
-                      : "—"}
-                  </div>
-                </td>
+                  {/* Оплата */}
+                  <td className="px-2 py-2 align-top">
+                    {paymentStatus === "paid" ? (
+                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        оплачено
+                      </span>
+                    ) : paymentStatus === "partial" ? (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        частично
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium.text-gray-500">
+                        не оплачено
+                      </span>
+                    )}
+                  </td>
 
-                <td className="px-2 py-2.align-top">
-                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    {a.statusLabel}
-                  </span>
-                </td>
+                  <td className="px-2 py-2 align-top">
+                    <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      {a.statusLabel}
+                    </span>
+                  </td>
 
-                <td className="px-2 py-2 align-top text-right">
-                  <Link
-                    href={`/backoffice/registrar/consultations/${a.id}`}
-                    className="text-[11px] font-medium text-emerald-700 hover:underline"
-                  >
-                    Открыть
-                  </Link>
-                </td>
-              </tr>
-            ))}
+                  <td className="px-2 py-2 align-top text-right">
+                    <Link
+                      href={`/backoffice/registrar/consultations/${a.id}`}
+                      className="text-[11px] font-medium text-emerald-700 hover:underline"
+                    >
+                      Открыть
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
 
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={11}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
                   Нет записей по текущему фильтру.
