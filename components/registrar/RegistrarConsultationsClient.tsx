@@ -114,7 +114,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
           <select
             value={doctorFilter}
             onChange={(e) => setDoctorFilter(e.target.value)}
-            className="rounded-xl.border px-2 py-1.5 text-xs"
+            className="rounded-xl border px-2 py-1.5 text-xs"
           >
             <option value="all">Все врачи</option>
             {doctors.map((d) => (
@@ -207,7 +207,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Жалоба с обрезкой */}
+                  {/* Жалоба — обрезаем по высоте, полный текст в карточке */}
                   <td className="px-2 py-2 align-top max-w-[220px]">
                     <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                       {a.complaint && a.complaint.trim().length > 0
@@ -216,7 +216,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     </div>
                   </td>
 
-                  {/* Документы — пока заглушка (будет интеграция позже) */}
+                  {/* Документы — заглушка, позже привяжем к appointment_documents */}
                   <td className="px-2 py-2 align-top">
                     {hasDocs ? (
                       <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
@@ -229,7 +229,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Оплата — пока заглушка */}
+                  {/* Оплата — заглушка, позже привяжем к счетам/оплатам */}
                   <td className="px-2 py-2 align-top">
                     {paymentStatus === "paid" ? (
                       <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
