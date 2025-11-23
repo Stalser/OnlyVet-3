@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { StaffHeader } from "@/components/staff/StaffHeader";
 import { StaffNav } from "@/components/staff/StaffNav";
 import { getRegistrarAppointments } from "@/lib/registrar";
 
@@ -58,7 +58,7 @@ export default async function StaffCalendarPage() {
     <RoleGuard allowed={["vet", "admin"]}>
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         {/* Шапка */}
-        <header className="flex items-center justify-between">
+        <header className="flex.items-center justify-between">
           <div>
             <Link
               href="/staff"
@@ -75,7 +75,8 @@ export default async function StaffCalendarPage() {
               мои&quot;.
             </p>
           </div>
-          <RegistrarHeader />
+          {/* Был RegistrarHeader, теперь отдельная шапка врача */}
+          <StaffHeader />
         </header>
 
         <StaffNav />
