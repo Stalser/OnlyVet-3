@@ -90,7 +90,6 @@ export async function getOwnersSummary(): Promise<OwnerSummary[]> {
   }
 
   // 2. Питомцы: считаем количество по owner_id
-  // стараемся не падать, даже если у pets нет deleted_at
   let petsCountMap = new Map<string, number>();
   try {
     const { data: pets, error: petsError } = await supabase
@@ -247,6 +246,7 @@ async function getOwnerAppointments(
       statusLabel: row.status ?? "неизвестно",
       videoPlatform: null,
       videoUrl: null,
+      // complaint, requestedDoctorName и пр. — опциональные в типе, можно не задавать
     };
   });
 }
