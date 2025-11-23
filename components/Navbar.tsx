@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { supabase } from "@/lib/supabaseClient";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 type UserRole = "client" | "registrar" | "vet" | "admin";
 
@@ -31,11 +30,10 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     try {
-      if (supabase) {
-        const client = supabase as SupabaseClient;
-        await client.auth.signOut();
-      }
+      // supabase может быть null в типах — аккуратно через optional chaining
+      await supabase?.auth.signOut();
     } finally {
+      // В любом случае уводим на страницу логина
       window.location.href = "/auth/login";
     }
   };
@@ -56,8 +54,8 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Центральное меню */}
-        <div className="hidden md:flex items-center gap-6">
+        {/* Центральное меню (только десктоп) */}
+        <div className="hidden md:flex.items-center gap-6">
           <Link href="/services" className={linkClass("/services")}>
             Услуги
           </Link>
