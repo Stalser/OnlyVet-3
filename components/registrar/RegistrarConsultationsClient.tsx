@@ -24,7 +24,7 @@ function statusBadgeClass(status: string): string {
   if (s.includes("заверш")) {
     return "bg-gray-100 text-gray-700";
   }
-  // всё остальное считаем «нормальным» зелёным статусом
+  // остальные — «нормальные» зелёные статусы
   return "bg-emerald-50 text-emerald-700";
 }
 
@@ -100,7 +100,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex flex-wrap.items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">
             Все консультации и заявки
@@ -208,7 +208,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Врач: назначенный + кого выбрал клиент */}
+                  {/* Врач: назначенный + кто был выбран клиентом */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">
                       {a.doctorName || "Не назначен"}
@@ -230,7 +230,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Жалоба (обрезаем до 2 строк) */}
+                  {/* Жалоба (2 строки, остальное «…») */}
                   <td className="px-2 py-2 align-top max-w-[220px]">
                     <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                       {a.complaint && a.complaint.trim().length > 0
@@ -239,8 +239,8 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     </div>
                   </td>
 
-                  {/* Документы: да / нет */}
-                  <td className="px-2 py-2 align-top">
+                  {/* Документы */}
+                  <td className="px-2 py-2.align-top">
                     <span
                       className={
                         "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
@@ -253,21 +253,21 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     </span>
                   </td>
 
-                  {/* Оплата: да / нет, цветом */}
-                  <td className="px-2 py-2 align-top">
+                  {/* Оплата */}
+                  <td className="px-2 py-2.align-top">
                     <span
                       className={
                         "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
                         (isPaid
                           ? "bg-emerald-50 text-emerald-700"
-                          : "bg-gray-100 text-gray-600")
+                          : "bg-red-50 text-red-700")
                       }
                     >
                       {isPaid ? "да" : "нет"}
                     </span>
                   </td>
 
-                  {/* Статус: цветной бейдж */}
+                  {/* Статус */}
                   <td className="px-2 py-2 align-top">
                     <span
                       className={
