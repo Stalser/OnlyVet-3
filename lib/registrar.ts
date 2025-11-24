@@ -72,8 +72,11 @@ export type RegistrarAppointmentRow = {
   videoPlatform?: string | null;
   videoUrl?: string | null;
 
-  // Жалоба/описание проблемы
+  // Жалоба/описание проблемы (текущая, отредактированная регистратором/врачом)
   complaint?: string | null;
+
+  // Исходная жалоба, которую писал клиент в заявке
+  requestedComplaint?: string | null;
 };
 
 /**
@@ -139,7 +142,10 @@ async function loadRawAppointments() {
       video_url,
       complaint,
       requested_doctor_code,
-      requested_service_code
+      requested_service_code,
+      requested_pet_name,
+      requested_pet_species,
+      requested_complaint
     `
     )
     .order("starts_at", { ascending: false });
@@ -272,7 +278,7 @@ function mapToRegistrarRow(
   const clientName = ownerFullName ?? "Без имени";
   const clientContact = ownerPhone || ownerTg || null;
 
-  // Услуга
+  // Услуга (текущая)
   const serviceCode = (row.service_code ?? null) as string | null;
   const service = lookupService(serviceCode);
   const serviceName = service?.name ?? null;
@@ -291,12 +297,19 @@ function mapToRegistrarRow(
       ? doctors.find((d) => d.id === chosenDoctorId)?.name ?? null
       : null;
 
-  // Услуга, выбранная клиентом (на будущее)
+  // Услуга, выбранная клиентом
   const chosenServiceCode = (row.requested_service_code ?? null) as
     | string
     | null;
   const chosenService =
     chosenServiceCode != null ? lookupService(chosenServiceCode) : null;
+
+  // Питомец, выбранный клиентом
+  const requestedPetName: string | null = row.requested_pet_name ?? null;
+  const requestedPetSpecies: string | null = row.requested_pet_species ?? null;
+
+  // Жалоба, написанная клиентом
+  const requestedComplaint: string | null = row.requested_complaint ?? null;
 
   // Флаги документов/оплат
   const hasDocuments = (docsByAppointmentId.get(id) ?? 0) > 0;
@@ -321,16 +334,17 @@ function mapToRegistrarRow(
     petName: row.pet_name ?? null,
     petSpecies: row.species ?? null,
 
-    // пока в БД нет исходного выбора питомца — задел на будущее
-    chosenPetName: null,
-    chosenPetSpecies: null,
-    requestedPetName: null,
-    requestedPetSpecies: null,
+    // исходный выбор питомца клиентом
+    chosenPetName: requestedPetName,
+    chosenPetSpecies: requestedPetSpecies,
+    requestedPetName,
+    requestedPetSpecies,
 
     serviceCode,
     serviceName,
 
-    chosenServiceCode: chosenService?.code ?? null,
+    // выбор клиента по услуге
+    chosenServiceCode,
     chosenServiceName: chosenService?.name ?? null,
     requestedServiceName: chosenService?.name ?? null,
 
@@ -349,6 +363,7 @@ function mapToRegistrarRow(
     videoUrl: row.video_url ?? null,
 
     complaint: row.complaint ?? null,
+    requestedComplaint,
   };
 }
 
