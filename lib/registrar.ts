@@ -1,176 +1,99 @@
 // lib/registrar.ts
+// Централизованный слой доступа к данным по приёмам/заявкам для регистратуры и врачей.
 
 import { supabase } from "./supabaseClient";
 import { doctors } from "./data";
 import { servicesPricing } from "./pricing";
 
 /**
- * Основной тип консультации для регистратуры и врача.
+ * Основной тип строки приёма/заявки для регистратуры/врача.
  */
 export type RegistrarAppointmentRow = {
   id: string;
 
-  // дата/время
-  dateLabel: string;
-  createdLabel?: string;
+  // Время
   startsAt: string | null;
+  dateLabel: string;
+  createdLabel: string | null;
 
-  // клиент
-  clientName: string;
-  clientContact?: string;
+  // Владелец
+  ownerId: number | null;
+  ownerFullName: string | null; // ФИО из owner_profiles
+  ownerContactPhone?: string | null;
+  ownerTelegram?: string | null;
 
-  // пациент (текущие значения)
-  petName?: string;
-  petSpecies?: string;
+  // Питомец (фактически записанный в приём)
+  petId?: number | null;
+  petName?: string | null;
+  petSpecies?: string | null;
 
-  // пациент — исходный выбор клиента
-  requestedPetName?: string | null;
-  requestedPetSpecies?: string | null;
+  // Питомец, выбранный клиентом при создании (на будущее)
+  chosenPetName?: string | null;
+  chosenPetSpecies?: string | null;
 
-  // врач (фактически назначенный)
-  doctorId?: string;
-  doctorName?: string;
+  // Услуга
+  serviceCode?: string | null;
+  serviceName: string | null;
 
-  // врач, которого выбрал клиент при заявке
-  requestedDoctorCode?: string | null;
-  requestedDoctorName?: string | null;
+  // Услуга, которую выбрал клиент (на будущее)
+  chosenServiceCode?: string | null;
+  chosenServiceName?: string | null;
 
-  // услуга (текущее значение)
-  serviceName: string;
-  serviceCode?: string;
+  // Врач, у которого сейчас назначен приём
+  doctorId?: string | null;
+  doctorName?: string | null;
 
-  // услуга — исходный выбор клиента
-  requestedServiceCode?: string | null;
-  requestedServiceName?: string | null;
+  // Врач, которого выбрал клиент (по doctor_id, если пришёл с формы)
+  chosenDoctorId?: string | null;
+  chosenDoctorName?: string | null;
 
-  // статус
+  // Статус приёма
   statusLabel: string;
 
-  // формат связи
+  // Наличие документов/оплаты
+  hasDocuments: boolean;
+  hasPayments: boolean;
+
+  // Формат связи
   videoPlatform?: string | null;
   videoUrl?: string | null;
 
-  // жалоба
-  complaint?: string;
-
-  // наличие документов / оплат (пока заглушки false, подготовлено для будущего)
-  hasDocuments: boolean;
-  hasPayments: boolean;
+  // Жалоба/описание проблемы
+  complaint?: string | null;
 };
 
 /**
- * Преобразование строки appointments в RegistrarAppointmentRow.
+ * Вспомогательная функция: формирует человеко-читаемую дату.
  */
-function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
-  // --- Дата / время ---
-  let dateLabel = "—";
-  if (row.starts_at) {
-    const d = new Date(row.starts_at);
-    dateLabel = d.toLocaleString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  const createdLabel = row.created_at
-    ? new Date(row.created_at).toLocaleString("ru-RU")
-    : "";
-
-  // --- Врач (фактический) ---
-  const doc = doctors.find((d: any) => d.id === row.doctor_id);
-  const doctorName = doc?.name ?? "Не назначен";
-
-  // --- Врач, выбранный клиентом при записи ---
-  const requestedDoctorCode: string | null =
-    row.requested_doctor_code ?? null;
-  let requestedDoctorName: string | null = null;
-  if (requestedDoctorCode) {
-    const reqDoc = doctors.find((d: any) => d.id === requestedDoctorCode);
-    requestedDoctorName = reqDoc?.name ?? null;
-  }
-
-  // --- Услуга (текущая) ---
-  const service = servicesPricing.find(
-    (s: any) => s.code === row.service_code
-  );
-  const serviceName = service?.name ?? "Услуга";
-
-  // --- Услуга, выбранная клиентом ---
-  const requestedServiceCode: string | null =
-    row.requested_service_code ?? null;
-  let requestedServiceName: string | null = null;
-  if (requestedServiceCode) {
-    const reqService = servicesPricing.find(
-      (s: any) => s.code === requestedServiceCode
-    );
-    requestedServiceName = reqService?.name ?? null;
-  }
-
-  // --- Питомец (текущий) ---
-  const petName: string | undefined = row.pet_name ?? undefined;
-  const petSpecies: string | undefined = row.species ?? undefined;
-
-  // --- Питомец, выбранный клиентом ---
-  const requestedPetName: string | null = row.requested_pet_name ?? null;
-  const requestedPetSpecies: string | null =
-    row.requested_pet_species ?? null;
-
-  // ⚠ Клиентские данные пока не связаны явно с owner_profiles
-  const clientName = "Без имени";
-  const clientContact = "";
-
-  return {
-    id: String(row.id ?? index),
-
-    dateLabel,
-    createdLabel,
-    startsAt: row.starts_at ?? null,
-
-    clientName,
-    clientContact,
-
-    petName,
-    petSpecies,
-
-    requestedPetName,
-    requestedPetSpecies,
-
-    doctorId: row.doctor_id ?? undefined,
-    doctorName,
-
-    requestedDoctorCode,
-    requestedDoctorName,
-
-    serviceName,
-    serviceCode: row.service_code ?? "",
-    requestedServiceCode,
-    requestedServiceName,
-
-    statusLabel: row.status ?? "неизвестно",
-
-    videoPlatform: row.video_platform ?? null,
-    videoUrl: row.video_url ?? null,
-
-    complaint: row.complaint ?? "",
-
-    // заглушки до полноценной реализации документов/оплат
-    hasDocuments: false,
-    hasPayments: false,
-  };
+function formatDateTime(value: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
- * Грузим все консультации для регистратуры.
+ * Загрузка сырых данных по приёмам + связанных сущностей
+ * (owner_profiles, appointment_documents, payments).
  */
-export async function getRegistrarAppointments(): Promise<
-  RegistrarAppointmentRow[]
-> {
-  if (!supabase) return [];
+async function loadRawAppointments() {
+  if (!supabase) {
+    return {
+      appointments: [] as any[],
+      ownersById: new Map<number, any>(),
+      docsByAppointmentId: new Map<string, number>(),
+      paymentsByAppointmentId: new Map<string, number>(),
+    };
+  }
 
-  const { data, error } = await supabase
+  // 1) Основные данные по приёмам
+  const { data: appointments, error: apptErr } = await supabase
     .from("appointments")
     .select(
       `
@@ -178,73 +101,253 @@ export async function getRegistrarAppointments(): Promise<
       starts_at,
       created_at,
       status,
+      owner_id,
+      pet_id,
       pet_name,
       species,
       service_code,
       doctor_id,
-      owner_id,
       video_platform,
       video_url,
       complaint,
       requested_doctor_code,
-      requested_service_code,
-      requested_pet_name,
-      requested_pet_species
+      requested_service_code
     `
     )
     .order("starts_at", { ascending: false });
 
-  if (error || !data) {
-    console.error("getRegistrarAppointments error:", error);
-    return [];
+  if (apptErr) {
+    console.error("getRegistrarAppointments: error loading appointments", apptErr);
+    return {
+      appointments: [] as any[],
+      ownersById: new Map<number, any>(),
+      docsByAppointmentId: new Map<string, number>(),
+      paymentsByAppointmentId: new Map<string, number>(),
+    };
   }
 
-  return (data as any[]).map(mapRowToRegistrar);
+  const ownerIds = Array.from(
+    new Set(
+      (appointments ?? [])
+        .map((a) => a.owner_id as number | null)
+        .filter((v) => v != null)
+    )
+  ) as number[];
+
+  const apptIds = Array.from(
+    new Set((appointments ?? []).map((a) => a.id as string))
+  );
+
+  // 2) Профили владельцев
+  const ownersById = new Map<number, any>();
+  if (ownerIds.length > 0) {
+    const { data: owners, error: ownersErr } = await supabase
+      .from("owner_profiles")
+      .select("user_id, full_name, extra_contacts")
+      .in("user_id", ownerIds);
+
+    if (ownersErr) {
+      console.error("getRegistrarAppointments: error loading owner_profiles", ownersErr);
+    } else {
+      for (const row of owners ?? []) {
+        ownersById.set(row.user_id as number, row);
+      }
+    }
+  }
+
+  // 3) Документы по приёмам
+  const docsByAppointmentId = new Map<string, number>();
+  if (apptIds.length > 0) {
+    const { data: docs, error: docsErr } = await supabase
+      .from("appointment_documents")
+      .select("appointment_id, id")
+      .in("appointment_id", apptIds);
+
+    if (docsErr) {
+      console.error("getRegistrarAppointments: error loading appointment_documents", docsErr);
+    } else {
+      for (const d of docs ?? []) {
+        const key = d.appointment_id as string;
+        const prev = docsByAppointmentId.get(key) ?? 0;
+        docsByAppointmentId.set(key, prev + 1);
+      }
+    }
+  }
+
+  // 4) Платежи по приёмам
+  const paymentsByAppointmentId = new Map<string, number>();
+  if (apptIds.length > 0) {
+    const { data: pays, error: paysErr } = await supabase
+      .from("payments")
+      .select("appointment_id, id")
+      .in("appointment_id", apptIds);
+
+    if (paysErr) {
+      console.error("getRegistrarAppointments: error loading payments", paysErr);
+    } else {
+      for (const p of pays ?? []) {
+        const key = p.appointment_id as string;
+        const prev = paymentsByAppointmentId.get(key) ?? 0;
+        paymentsByAppointmentId.set(key, prev + 1);
+      }
+    }
+  }
+
+  return {
+    appointments: appointments ?? [],
+    ownersById,
+    docsByAppointmentId,
+    paymentsByAppointmentId,
+  };
 }
 
 /**
- * Одна консультация по ID (для регистратуры и врача).
+ * Формирование итоговой строки приёма.
+ */
+function mapToRegistrarRow(
+  row: any,
+  ownersById: Map<number, any>,
+  docsByAppointmentId: Map<string, number>,
+  paymentsByAppointmentId: Map<string, number>
+): RegistrarAppointmentRow {
+  const id = String(row.id);
+  const startsAt = row.starts_at ?? null;
+  const createdAt = row.created_at ?? null;
+
+  // Владелец
+  const ownerId = (row.owner_id ?? null) as number | null;
+  const owner = ownerId ? ownersById.get(ownerId) : null;
+  const ownerFullName = owner?.full_name ?? null;
+
+  let ownerPhone: string | null = null;
+  let ownerTg: string | null = null;
+
+  if (owner?.extra_contacts) {
+    try {
+      const extra =
+        typeof owner.extra_contacts === "string"
+          ? JSON.parse(owner.extra_contacts)
+          : owner.extra_contacts;
+      ownerPhone =
+        extra?.phone ??
+        extra?.phone_main ??
+        extra?.whatsapp ??
+        extra?.telegram_phone ??
+        null;
+      ownerTg = extra?.telegram ?? extra?.tg ?? extra?.telegram_username ?? null;
+    } catch {
+      // игнорируем ошибки парсинга
+    }
+  }
+
+  // Услуга
+  const serviceCode = (row.service_code ?? null) as string | null;
+  const service = servicesInterop(serviceCode);
+  const serviceName = service?.name ?? null;
+
+  // Врач
+  const doctorId = (row.doctor_id ?? null) as string | null;
+  const doctorName = doctorId
+    ? doctors.find((d) => d.id === doctorId)?.name ?? null
+    : null;
+
+  // Врач, выбранный клиентом (requested_doctor_code)
+  const chosenDoctorId = (row.requested_doctor_code ?? null) as string | null;
+  const chosenDoctorName = chosenDoctorId
+    ? doctors.find((d) => d.id === chosenDoctorId)?.name ?? null
+    : null;
+
+  // Услуга, выбранная клиентом (requested_service_code) — на будущее
+  const chosenServiceCode = (row.requested_service_code ?? null) as
+    | string
+    | null;
+  const chosenService =
+    chosenServiceCode != null ? servicesInterop(chosenServiceCode) : null;
+
+  const hasDocs = (docsByAppointmentId.get(id) ?? 0) > 0;
+  const hasPays = (paymentsByAppointmentId.get(id) ?? 0) > 0;
+
+  return {
+    id,
+    startsAt,
+    dateLabel: formatDateTime(startsAt),
+    createdLabel: createdAt ? formatDateTime(createdAt) : null,
+
+    ownerId,
+    ownerFullName,
+    ownerContactPhone: ownerPhone,
+    ownerTelegram: ownerTg,
+
+    petId: (row.pet_id ?? null) as number | null,
+    petName: row.pet_name ?? null,
+    petSpecies: row.species ?? null,
+
+    chosenPetName: null, // будет заполняться после доработки логики
+    chosenPetSpecies: null,
+
+    serviceCode,
+    serviceName,
+    chosenServiceCode: chosenService?.code ?? null,
+    chosenServiceName: chosenService?.name ?? null,
+
+    doctorId,
+    doctorName,
+    chosenDoctorId,
+    chosenDoctorName,
+
+    statusLabel: row.status ?? "неизвестно",
+
+    hasDocuments: hasDocs,
+    hasPayments: hasPays,
+
+    videoPlatform: row.video_platform ?? null,
+    videoUrl: row.video_url ?? null,
+
+    complaint: row.complaint ?? null,
+  };
+}
+
+/**
+ * Утилита для поиска услуги по коду.
+ */
+function servicesInterop(code: string | null): { code: string; name: string } | null {
+  if (!code) return null;
+  const s = servicesPricing.find((x) => x.code === code);
+  if (!s) return null;
+  return { code: s.code, name: s.name ?? s.code };
+}
+
+/**
+ * Публичный метод: получить все приёмы для регистратуры.
+ */
+export async function getRegistrarAppointments(): Promise<RegistrarAppointmentRow[]> {
+  const { appointments, ownersById, docsByAppointmentId, paymentsByAppointmentId } =
+    await loadRawAppointments();
+
+  return appointments.map((row) =>
+    mapToRegistrarRow(row, ownersById, docsByAppointmentId, paymentsByAppointmentId)
+  );
+}
+
+/**
+ * Публичный метод: один приём по id.
  */
 export async function getRegistrarAppointmentById(
   id: string
 ): Promise<RegistrarAppointmentRow | null> {
   if (!supabase) return null;
 
-  const { data, error } = await supabase
-    .from("appointments")
-    .select(
-      `
-      id,
-      starts_at,
-      created_at,
-      status,
-      pet_name,
-      species,
-      service_code,
-      doctor_id,
-      owner_id,
-      video_platform,
-      video_url,
-      complaint,
-      requested_doctor_code,
-      requested_service_code,
-      requested_pet_name,
-      requested_pet_species
-    `
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const { appointments, ownersById, docsByAppointmentId, paymentsByAppointmentId } =
+    await loadRawAppointments();
 
-  if (error || !data) {
-    console.error("getRegistrarAppointmentById error:", error);
-    return null;
-  }
+  const row = appointments.find((a) => String(a.id) === String(id));
+  if (!row) return null;
 
-  return mapRowToRegistrar(data, 0);
+  return mapToRegistrarRow(row, ownersById, docsByAppointmentId, paymentsByAppointmentId);
 }
 
 /**
- * Последние N консультаций (для дашборда регистратуры).
+ * Публичный метод: последние N приёмов (для дашборда регистратуры).
  */
 export async function getRecentRegistrarAppointments(
   limit: number = 50
@@ -254,9 +357,10 @@ export async function getRecentRegistrarAppointments(
 }
 
 /**
- * Приёмы для конкретного врача по doctor_id (для кабинета врача).
+ * Публичный метод: приёмы конкретного врача по doctor_id
+ * (для кабинета врача).
  */
-export async function getAppointmentsForDoctor(
+export async function getRegistrarAppointmentsForDoctor(
   doctorId: string
 ): Promise<RegistrarAppointmentRow[]> {
   const all = await getRegistrarAppointments();
