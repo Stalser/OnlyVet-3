@@ -14,111 +14,81 @@ type StatusBadge = {
   className: string;
 };
 
-function getStatusBadge(status: string): StatusBadge {
+function statusBadgeClass(status: string): string {
   const s = (status || "").toLowerCase();
 
-  if (s.includes("отмен")) {
-    return {
-      label: status,
-      className:
-        "inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700",
-    };
-  }
-  if (s.includes("заверш")) {
-    return {
-      label: status,
-      className:
-        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700",
-    };
-  }
-  if (s.includes("запрош")) {
-    return {
-      label: status,
-      className:
-        "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700",
-    };
-  }
+  if (s.includes("отмен")) return "bg-red-50 text-red-700";
+  if (s.includes("запрош")) return "bg-amber-50 text-amber-700";
+  if (s.includes("подтверж")) return "bg-blue-50 text-blue-700";
+  if (s.includes("заверш")) return "bg-gray-100 text-gray-700";
 
-  // всё остальное считаем «нормальным» зелёным статусом
-  return {
-    label: status || "неизвестен",
-    className:
-      "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700",
-  };
+  return "bg-emerald-50 text-emerald-700";
 }
 
-/**
- * Полная таблица «Все консультации и заявки» для /backoffice/registrar/consultations.
- * Показывает: клиент, питомец, врач (и кого выбрал клиент), услуга (и исходный выбор),
- * жалобу, наличие документов, оплату и статус.
- */
 export function RegistrarConsultationsClient({ appointments }: Props) {
-  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">(
-    "all"
-  );
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
 
-  const statusOptions: { key: "all" | "open" | "closed"; label: string }[] = [
-    { key: "all", label: "Все статусы" },
-    { key: "open", label: "Запрошена / в работе" },
-    { key: "closed", label: "Завершена / отменена" },
-  ];
+  const statuses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          appointments
+            .map((a) => a.statusLabel || "")
+            .filter((s) => s.trim().length > 0)
+        )
+      ),
+    [appointments]
+  );
 
-  const doctorOptions = useMemo(
-    () => [
-      { key: "all", label: "Все врачи" },
-      ...Array.from(
-        new Map(
+  const doctors = useMemo(
+    () =>
+      Array.from(
+        new Set(
           appointments
             .map((a) => a.doctorName || "")
-            .filter((name) => name.trim().length > 0)
-            .map((name) => [name, name])
-        ).entries()
-      ).map(([value, label]) => ({ key: value, label })),
-    ],
+            .filter((d) => d.trim().length > 0 && d !== "Не назначен")
+        )
+      ),
     [appointments]
   );
 
   const filtered = useMemo(() => {
     return appointments.filter((a) => {
-      const s = a.statusLabel.toLowerCase();
-
-      // фильтр по статусу (открытые / закрытые)
-      if (statusFilter === "open") {
-        if (s.includes("отмен") || s.includes("заверш")) return false;
-      } else if (statusFilter === "closed") {
-        if (!s.includes("отмен") && !s.includes("заверш")) return false;
+      if (
+        statusFilter !== "all" &&
+        a.statusLabel.toLowerCase() !== statusFilter.toLowerCase()
+      ) {
+        return false;
       }
 
-      // фильтр по врачу
-      if (doctorFilter !== "all") {
-        if (!a.doctorName || a.doctorName !== doctorFilter) return false;
+      if (
+        doctorFilter !== "all" &&
+        (a.doctorName || "").toLowerCase() !== doctorFilter.toLowerCase()
+      ) {
+        return false;
       }
 
-      // поисковая строка
       if (search.trim().length > 0) {
         const q = search.trim().toLowerCase();
         const haystack = [
           a.clientName,
-          a.clientContact,
-          a.petName,
-          a.petSpecies,
-          a.requestedPetName,
-          a.requestedPetSpecies,
-          a.doctorName,
-          a.requestedDoctorName,
-          a.serviceName,
-          a.requestedServiceName,
-          a.serviceCode,
-          a.requestedServiceCode,
-          a.complaint,
+          a.clientContact || "",
+          a.petName || "",
+          a.petSpecies || "",
+          a.doctorName || "",
+          a.requestedDoctorName || "",
+          a.serviceName || "",
+          a.serviceCode || "",
+          a.complaint || "",
         ]
-          .filter(Boolean)
           .join(" ")
           .toLowerCase();
 
-        if (!haystack.includes(q)) return false;
+        if (!haystack.includes(q)) {
+          return false;
+        }
       }
 
       return true;
@@ -127,56 +97,51 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      {/* Заголовок + фильтры */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">
             Все консультации и заявки
           </h2>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-xs text-gray-500">
             Всего записей: {appointments.length}. После фильтрации:{" "}
             {filtered.length}.
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap gap-2 text-xs">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
-            className="h-8 w-64 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
+            className="w-60 rounded-xl border px-2 py-1.5 text-xs"
           />
-
           <select
-            className="h-8 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
             value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as "all" | "open" | "closed")
-            }
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-xl border px-2 py-1.5 text-xs"
           >
-            {statusOptions.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {opt.label}
+            <option value="all">Все статусы</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
-
           <select
-            className="h-8 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
             value={doctorFilter}
             onChange={(e) => setDoctorFilter(e.target.value)}
+            className="rounded-xl border px-2 py-1.5 text-xs"
           >
-            {doctorOptions.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {opt.label}
+            <option value="all">Все врачи</option>
+            {doctors.map((d) => (
+              <option key={d} value={d}>
+                {d}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Таблица */}
       <div className="overflow-x-auto">
         <table className="min-w-full text-xs">
           <thead>
@@ -188,36 +153,23 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
               <th className="px-2 py-2">Врач</th>
               <th className="px-2 py-2">Услуга</th>
               <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
-              <th className="px-2 py-2 text-center">Документы</th>
-              <th className="px-2 py-2 text-center">Оплата</th>
+              <th className="px-2 py-2">Документы</th>
+              <th className="px-2 py-2">Оплата</th>
               <th className="px-2 py-2">Статус</th>
               <th className="px-2 py-2 text-right">Действия</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((a, index) => {
-              const status = getStatusBadge(a.statusLabel);
               const hasDocs = a.hasDocuments === true;
               const isPaid = a.hasPayments === true;
-
-              const petChanged =
-                a.requestedPetName &&
-                (a.requestedPetName !== a.petName ||
-                  a.requestedPetSpecies !== a.petSpecies);
-
-              const serviceChanged =
-                a.requestedServiceName &&
-                a.requestedServiceName !== a.serviceName;
 
               return (
                 <tr
                   key={a.id}
                   className="border-b last:border-0 hover:bg-gray-50"
                 >
-                  {/* № */}
-                  <td className="px-2 py-2 align-top text-[11px] text-gray-500">
-                    {index + 1}
-                  </td>
+                  <td className="px-2 py-2 align-top">{index + 1}</td>
 
                   {/* Дата / время */}
                   <td className="px-2 py-2 align-top text-[11px] text-gray-700">
@@ -241,47 +193,49 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Питомец + «выбрал клиент» */}
+                  {/* Питомец: текущий + и исходный выбор клиента */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">
-                      {a.petName || "Без имени"}
-                      {a.petSpecies ? ` (${a.petSpecies})` : ""}
+                      {a.petName || "—"}
                     </div>
-                    {petChanged && (
-                      <div className="mt-0.5 text-[10px] text-gray-500">
-                        выбрал клиент: {a.requestedPetName}
-                        {a.requestedPetSpecies
-                          ? ` (${a.requestedPetSpecies})`
-                          : ""}
+                    {a.petSpecies && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.petSpecies}
+                      </div>
+                    )}
+                    {(a.requestedPetName || a.requestedPetSpecies) && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">
+                        выбрал клиент:{" "}
+                        {a.requestedPetName ||
+                          a.requestedPetSpecies ||
+                          "—"}
                       </div>
                     )}
                   </td>
 
-                  {/* Врач + «выбрал клиент» */}
-                  <td className="px-2 py-2.align-top">
-                    <div className="text-[11px] font-medium">
-                      {a.doctorName || "Врач не назначен"}
+                  {/* Врач: текущий + «выбрал клиент» */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.doctorName || "Не назначен"}
                     </div>
                     {a.requestedDoctorName && (
-                      <div className="mt-0.5 text-[10px] text-gray-500">
+                      <div className="mt-0.5 text-[10px] text-gray-400">
                         выбрал клиент: {a.requestedDoctorName}
                       </div>
                     )}
                   </td>
 
-                  {/* Услуга + «выбрано клиентом» */}
-                  <td className="px-2 py-2.align-top">
+                  {/* Услуга: текущая + «выбрал клиент» */}
+                  <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">{a.serviceName}</div>
                     {a.serviceCode && (
                       <div className="text-[10px] text-gray-500">
-                        код: {a.serviceCode}
+                        {a.serviceCode}
                       </div>
                     )}
-                    {serviceChanged && (
-                      <div className="mt-0.5 text-[10px] text-gray-500">
-                        выбрано клиентом: {a.requestedServiceName}
-                        {a.requestedServiceCode &&
-                          ` (${a.requestedServiceCode})`}
+                    {a.requestedServiceName && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">
+                        выбрал клиент: {a.requestedServiceName}
                       </div>
                     )}
                   </td>
@@ -296,45 +250,52 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                   </td>
 
                   {/* Документы */}
-                  <td className="px-2 py-2 align-top text-center">
+                  <td className="px-2 py-2 align-top">
                     <span
                       className={
-                        "inline-flex rounded-full px-2 py-0.5 text-[10px] " +
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
                         (hasDocs
                           ? "bg-emerald-50 text-emerald-700"
-                          : "bg-gray-100 text-gray-500")
+                          : "bg-gray-100 text-gray-600")
                       }
                     >
-                      {hasDocs ? "есть" : "нет"}
+                      {hasDocs ? "да" : "нет"}
                     </span>
                   </td>
 
                   {/* Оплата */}
-                  <td className="px-2 py-2 align-top text-center">
+                  <td className="px-2 py-2 align-top">
                     <span
                       className={
-                        "inline-flex rounded-full px-2 py-0.5 text-[10px] " +
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
                         (isPaid
                           ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-700")
+                          : "bg-gray-100 text-gray-600")
                       }
                     >
-                      {isPaid ? "оплачено" : "нет"}
+                      {isPaid ? "да" : "нет"}
                     </span>
                   </td>
 
                   {/* Статус */}
                   <td className="px-2 py-2 align-top">
-                    <span className={status.className}>{status.label}</span>
+                    <span
+                      className={
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                        statusBadgeClass(a.statusLabel || "")
+                      }
+                    >
+                      {a.statusLabel}
+                    </span>
                   </td>
 
                   {/* Действия */}
-                  <td className="px-2 py-2.align-top text-right">
+                  <td className="px-2 py-2 align-top text-right">
                     <Link
                       href={`/backoffice/registrar/consultations/${a.id}`}
                       className="text-[11px] font-medium text-emerald-700 hover:underline"
                     >
-                      Открыть →
+                      Открыть
                     </Link>
                   </td>
                 </tr>
@@ -347,7 +308,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                   colSpan={11}
                   className="px-2 py-8 text-center text-xs text-gray-400"
                 >
-                  Нет записей, удовлетворяющих выбранным фильтрам.
+                  Нет записей, удовлетворяющих фильтру.
                 </td>
               </tr>
             )}
