@@ -3,11 +3,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-import { supabase } from "@/lib/supabaseClient";
-import { servicesPricing } from "@/lib/pricing";
-import { doctors } from "@/lib/data";
+import { servicesPricing } from "../../lib/pricing";
+import { doctors } from "../../lib/data";
 
 type AuthRole = "guest" | "user" | "staff";
 
@@ -53,15 +52,14 @@ export default function BookingPage() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
-  // Услуга и предпочтительный врач
+  // Услуга и врач
   const [serviceCode, setServiceCode] = useState("");
-  const [doctorCode, setDoctorCode] = useState<"any" | string>("any");
+  const [doctorId, setDoctorId] = useState<string | "any">("any");
 
   // Галочки согласий
   const [agreePersonalData, setAgreePersonalData] = useState(false);
   const [agreeOffer, setAgreeOffer] = useState(false);
 
-  // --- защита от отсутствующего supabase ---
   if (!supabase) {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center">
@@ -75,9 +73,7 @@ export default function BookingPage() {
     );
   }
 
-  const client = supabase as SupabaseClient;
-
-  // ================== ИНИЦИАЛИЗАЦИЯ ==================
+  const client: SupabaseClient = supabase;
 
   useEffect(() => {
     const init = async () => {
@@ -101,8 +97,7 @@ export default function BookingPage() {
       }
 
       setIsLoggedIn(true);
-      const metaRole =
-        (user.user_metadata?.role as AuthRole | undefined) ?? "user";
+      const metaRole = (user.user_metadata?.role as AuthType | undefined) ?? "user";
       setRole(metaRole === "staff" ? "staff" : "user");
 
       // 2. Пытаемся найти owner_profile по auth_id
@@ -126,7 +121,7 @@ export default function BookingPage() {
         setOwnerProfile(o);
         ownerId = o.user_id;
 
-        // Разобрать ФИО
+        // Разложим ФИО
         if (o.full_name) {
           const parts = o.full_name.trim().split(/\s+/);
           if (parts.length >= 1) setLastName(parts[0]);
@@ -142,7 +137,7 @@ export default function BookingPage() {
           setNoMiddleName(true);
         }
 
-        // Контакты из extra_contacts
+        // Контакты
         if (o.extra_contacts) {
           try {
             const extra =
@@ -156,15 +151,11 @@ export default function BookingPage() {
               extra?.telegram_phone ??
               "";
             const tgCandidate =
-              extra?.telegram ??
-              extra?.tg ??
-              extra?.telegram_username ??
-              "";
-
+              extra?.telegram ?? extra?.tg ?? extra?.telegram_username ?? "";
             if (phoneCandidate && !phone) setPhone(String(phoneCandidate));
             if (tgCandidate && !telegram) setTelegram(String(tgCandidate));
           } catch {
-            // игнорируем, если JSON кривой
+            // игнорируем некорректный JSON
           }
         }
       } else {
@@ -172,7 +163,7 @@ export default function BookingPage() {
         setNoMiddleName(true);
       }
 
-      // 3. Питомцы
+      // 3. Питомцы владельца
       if (ownerId !== null) {
         const { data: petsData, error: petsErr } = await client
           .from("pets")
@@ -206,7 +197,7 @@ export default function BookingPage() {
     void init();
   }, [client]);
 
-  // При выборе существующего питомца подставляем его данные
+  // При выборе существующего питомца подставляем его кличку и вид
   useEffect(() => {
     if (selectedPetId === "new") return;
     const pet = existingPets.find((p) => p.id === selectedPetId);
@@ -226,8 +217,6 @@ export default function BookingPage() {
       .filter(Boolean)
       .join(" ");
   };
-
-  // ================== SUBMIT ==================
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,8 +269,8 @@ export default function BookingPage() {
         setSubmitting(false);
         return;
       }
-      const user = userData.user;
 
+      const user = userData.user;
       const fullName = buildFullName();
 
       // Ищем/создаём owner_profile
@@ -304,7 +293,7 @@ export default function BookingPage() {
 
         if (Object.keys(updates).length > 0) {
           await client
-            .from("owner_profiles")
+            .frичуем("owner_profiles")
             .update(updates)
             .eq("user_id", ownerProfile.user_id);
         }
@@ -343,21 +332,27 @@ export default function BookingPage() {
       const startsAt = new Date(`${date}T${time}:00`);
       const startsIso = startsAt.toISOString();
 
-      // doctorCode мы сохраняем в requested_doctor_code,
-      // реальный doctor_id регистратура проставит позже
-      const requestedDoctorCode =
-        doctorCode === "any" ? null : (doctorCode as string);
+      const petNameValue = petName.trim() || null;
+      const petSpeciesValue = species.trim() || null;
+      const svcCode = serviceCode || null;
+      const requestedDoctorId = doctorId === "any" ? null : doctorId;
 
+      // ➊ Создаём запись о приёме с текущими полями + requested_*
       const { error: apptErr } = await client.from("appointments").insert({
         owner_id: ownerId,
-        pet_name: petName,
-        species,
+        // текущие поля
+        pet_name: petNameValue,
+        species: petSpeciesValue,
         starts_at: startsIso,
         status: "запрошена",
-        complaint: complaint || null,
-        service_code: serviceCode || null,
-        doctor_id: null,
-        requested_doctor_code: requestedDoctorCode,
+        complaint: complaint.trim() || null,
+        service_code: svcCode,
+        doctor_id: null, // фактически врач ещё не назначен
+        // исходный выбор клиента — сохраняем отдельно, чтобы показывать "выбрал клиент …"
+        requested_service_code: svcCode,
+        requested_pet_name: petNameValue,
+        requested_pet_species: petNameValue ? petSpeciesValue : null,
+        requested_doctor_id: requestedDoctorId,
       });
 
       if (apptErr) {
@@ -395,8 +390,7 @@ export default function BookingPage() {
     !agreePersonalData ||
     !agreeOffer;
 
-  // ================== UI ==================
-
+  // Если не авторизован — заглушка
   if (!loading && !isLoggedIn) {
     return (
       <main className="bg-slate-50 min-h-screen flex items-center justify-center py-12">
@@ -454,7 +448,7 @@ export default function BookingPage() {
             <p className="text-xs text-gray-500">Загружаем ваши данные…</p>
           )}
           {error && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px чин py-2 text-xs text-red-700">
               {error}
             </div>
           )}
@@ -520,7 +514,9 @@ export default function BookingPage() {
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setNoMiddleName(checked);
-                            if (checked) setMiddleName("");
+                            if (checked) {
+                              setMiddleName("");
+                            }
                           }}
                         />
                         <span>Нет отчества</span>
@@ -566,7 +562,7 @@ export default function BookingPage() {
 
               {/* Питомец */}
               <section className="space-y-3 pb-4 border-b border-gray-100">
-                <h2 className="font-semibold text-base">Питомец</h2>
+                <h2 className="font-semibold text-база">Питомец</h2>
 
                 {existingPets.length > 0 && (
                   <div className="space-y-1">
@@ -611,7 +607,7 @@ export default function BookingPage() {
                     </label>
                     <input
                       type="text"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-б зеркало..."
                       value={species}
                       onChange={(e) => setSpecies(e.target.value)}
                       placeholder="Кот, собака, хорёк…"
@@ -621,8 +617,8 @@ export default function BookingPage() {
               </section>
 
               {/* Врач и услуга */}
-              <section className="space-y-3 pb-4 border-b border-gray-100">
-                <h2 className="font-semibold text-base">Врач и услуга</h2>
+              <section className="space-y-3 pb-4 border-б border-gray-100">
+                <h2 className="text-base font-semibold">Врач и услуга</h2>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1">
@@ -649,11 +645,9 @@ export default function BookingPage() {
                     </label>
                     <select
                       className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
-                      value={doctorCode}
+                      value={doctorId}
                       onChange={(e) =>
-                        setDoctorCode(
-                          (e.target.value || "any") as "any" | string
-                        )
+                        setDoctorId(e.target.value as "any" | string)
                       }
                     >
                       <option value="any">Любой врач</option>
@@ -668,14 +662,14 @@ export default function BookingPage() {
 
                 <p className="text-[11px] text-gray-400">
                   На этом этапе вы выбираете предпочтительную услугу и врача.
-                  Точное время и запись к конкретному специалисту подтвердит
+                  Точное время и запись к конкретному специалисту подтверждает
                   регистратор.
                 </p>
               </section>
 
               {/* Проблема и время */}
-              <section className="space-y-3 pb-4 border-b border-gray-100">
-                <h2 className="font-semibold text-base">Проблема и время</h2>
+              <section className="space-y-3 pb-4 border-б border-gray-100">
+                <h2 className="text-base font-semibold">Проблема и время</h2>
 
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600">
@@ -719,7 +713,7 @@ export default function BookingPage() {
 
               {/* Согласия + кнопка */}
               <section className="space-y-3">
-                <h2 className="font-semibold text-base">Согласия</h2>
+                <h2 className="text-base font-semibold">Согласия</h2>
 
                 <div className="space-y-1 text-[11px] text-gray-600">
                   <label className="flex items-start gap-2">
@@ -768,7 +762,8 @@ export default function BookingPage() {
                 <p className="text-[11px] text-gray-400">
                   Поля, отмеченные{" "}
                   <span className="text-red-500">*</span>, обязательны для
-                  заполнения. Без согласий кнопка «Записаться» будет недоступна.
+                  заполнения. Без согласий кнопка «Записаться» будет
+                  недоступна.
                 </p>
 
                 <div className="pt-4 flex justify-end">
