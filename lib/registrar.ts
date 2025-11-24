@@ -31,9 +31,13 @@ export type RegistrarAppointmentRow = {
   petName?: string | null;
   petSpecies?: string | null;
 
-  // Питомец, выбранный клиентом при создании (на будущее)
+  // Питомец, выбранный клиентом при создании (задел на будущее)
   chosenPetName?: string | null;
   chosenPetSpecies?: string | null;
+
+  // Алиасы под UI «выбрал клиент»
+  requestedPetName?: string | null;
+  requestedPetSpecies?: string | null;
 
   // Услуга (текущее значение)
   serviceCode?: string | null;
@@ -43,6 +47,9 @@ export type RegistrarAppointmentRow = {
   chosenServiceCode?: string | null;
   chosenServiceName?: string | null;
 
+  // Алиас под UI
+  requestedServiceName?: string | null;
+
   // Врач, у которого сейчас назначен приём
   doctorId?: string | null;
   doctorName?: string | null;
@@ -50,6 +57,9 @@ export type RegistrarAppointmentRow = {
   // Врач, которого выбрал клиент при заявке
   chosenDoctorId?: string | null;
   chosenDoctorName?: string | null;
+
+  // Алиас под UI
+  requestedDoctorName?: string | null;
 
   // Статус приёма
   statusLabel: string;
@@ -311,19 +321,24 @@ function mapToRegistrarRow(
     petName: row.pet_name ?? null,
     petSpecies: row.species ?? null,
 
+    // пока в БД нет исходного выбора питомца — задел на будущее
     chosenPetName: null,
     chosenPetSpecies: null,
+    requestedPetName: null,
+    requestedPetSpecies: null,
 
     serviceCode,
     serviceName,
 
     chosenServiceCode: chosenService?.code ?? null,
     chosenServiceName: chosenService?.name ?? null,
+    requestedServiceName: chosenService?.name ?? null,
 
     doctorId,
     doctorName,
     chosenDoctorId,
     chosenDoctorName,
+    requestedDoctorName: chosenDoctorName ?? null,
 
     statusLabel: row.status ?? "неизвестно",
 
