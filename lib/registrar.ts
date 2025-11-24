@@ -19,21 +19,29 @@ export type RegistrarAppointmentRow = {
   clientName: string;
   clientContact?: string;
 
-  // пациент
+  // пациент (текущие значения)
   petName?: string;
   petSpecies?: string;
+
+  // пациент — исходный выбор клиента
+  requestedPetName?: string | null;
+  requestedPetSpecies?: string | null;
 
   // врач (фактически назначенный)
   doctorId?: string;
   doctorName?: string;
 
-  // врач, которого выбрал клиент при заявке (requested_doctor_code)
+  // врач, которого выбрал клиент при заявке
   requestedDoctorCode?: string | null;
   requestedDoctorName?: string | null;
 
-  // услуга
+  // услуга (текущее значение)
   serviceName: string;
   serviceCode?: string;
+
+  // услуга — исходный выбор клиента
+  requestedServiceCode?: string | null;
+  requestedServiceName?: string | null;
 
   // статус
   statusLabel: string;
@@ -45,13 +53,13 @@ export type RegistrarAppointmentRow = {
   // жалоба
   complaint?: string;
 
-  // признаки наличия документов и оплат (пока заглушки)
+  // наличие документов / оплат (пока заглушки false, подготовлено для будущего)
   hasDocuments: boolean;
   hasPayments: boolean;
 };
 
 /**
- * Преобразуем строку из таблицы appointments в общий формат
+ * Преобразование строки appointments в RegistrarAppointmentRow.
  */
 function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
   // --- Дата / время ---
@@ -75,7 +83,7 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
   const doc = doctors.find((d: any) => d.id === row.doctor_id);
   const doctorName = doc?.name ?? "Не назначен";
 
-  // --- Врач, выбранный клиентом при записи (requested_doctor_code) ---
+  // --- Врач, выбранный клиентом при записи ---
   const requestedDoctorCode: string | null =
     row.requested_doctor_code ?? null;
   let requestedDoctorName: string | null = null;
@@ -84,11 +92,31 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
     requestedDoctorName = reqDoc?.name ?? null;
   }
 
-  // --- Услуга ---
+  // --- Услуга (текущая) ---
   const service = servicesPricing.find(
     (s: any) => s.code === row.service_code
   );
   const serviceName = service?.name ?? "Услуга";
+
+  // --- Услуга, выбранная клиентом ---
+  const requestedServiceCode: string | null =
+    row.requested_service_code ?? null;
+  let requestedServiceName: string | null = null;
+  if (requestedServiceCode) {
+    const reqService = servicesPricing.find(
+      (s: any) => s.code === requestedServiceCode
+    );
+    requestedServiceName = reqService?.name ?? null;
+  }
+
+  // --- Питомец (текущий) ---
+  const petName: string | undefined = row.pet_name ?? undefined;
+  const petSpecies: string | undefined = row.species ?? undefined;
+
+  // --- Питомец, выбранный клиентом ---
+  const requestedPetName: string | null = row.requested_pet_name ?? null;
+  const requestedPetSpecies: string | null =
+    row.requested_pet_species ?? null;
 
   // ⚠ Клиентские данные пока не связаны явно с owner_profiles
   const clientName = "Без имени";
@@ -104,8 +132,11 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
     clientName,
     clientContact,
 
-    petName: row.pet_name ?? "",
-    petSpecies: row.species ?? "",
+    petName,
+    petSpecies,
+
+    requestedPetName,
+    requestedPetSpecies,
 
     doctorId: row.doctor_id ?? undefined,
     doctorName,
@@ -115,6 +146,8 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
 
     serviceName,
     serviceCode: row.service_code ?? "",
+    requestedServiceCode,
+    requestedServiceName,
 
     statusLabel: row.status ?? "неизвестно",
 
@@ -123,14 +156,14 @@ function mapRowToRegistrar(row: any, index: number): RegistrarAppointmentRow {
 
     complaint: row.complaint ?? "",
 
-    // Пока заглушки: реальную логику по документам и оплатам добавим позже
+    // заглушки до полноценной реализации документов/оплат
     hasDocuments: false,
     hasPayments: false,
   };
 }
 
 /**
- * Грузим все консультации для регистратуры (простая версия, только appointments).
+ * Грузим все консультации для регистратуры.
  */
 export async function getRegistrarAppointments(): Promise<
   RegistrarAppointmentRow[]
@@ -153,7 +186,10 @@ export async function getRegistrarAppointments(): Promise<
       video_platform,
       video_url,
       complaint,
-      requested_doctor_code
+      requested_doctor_code,
+      requested_service_code,
+      requested_pet_name,
+      requested_pet_species
     `
     )
     .order("starts_at", { ascending: false });
@@ -190,7 +226,10 @@ export async function getRegistrarAppointmentById(
       video_platform,
       video_url,
       complaint,
-      requested_doctor_code
+      requested_doctor_code,
+      requested_service_code,
+      requested_pet_name,
+      requested_pet_species
     `
     )
     .eq("id", id)
