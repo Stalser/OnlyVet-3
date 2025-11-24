@@ -84,6 +84,11 @@ export async function getPetDetails(petId: string): Promise<PetDetails> {
 
       return {
         id: String(row.id ?? index),
+
+        // ОБЯЗАТЕЛЬНЫЕ поля для RegistrarAppointmentRow
+        ownerId: owner?.user_id ?? null,
+        ownerFullName: owner?.full_name ?? "Без имени",
+
         dateLabel,
         createdLabel,
         startsAt: row.starts_at ?? null,
