@@ -29,7 +29,7 @@ function getStatusBadge(status: string) {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700",
+        "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700",
     };
   }
   if (s.includes("отмен")) {
@@ -43,15 +43,29 @@ function getStatusBadge(status: string) {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600",
+        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700",
     };
   }
 
   return {
     label: status || "неизвестен",
     className:
-        "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700",
+      "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700",
   };
+}
+
+function PaymentBadge({ hasPayment }: { hasPayment: boolean }) {
+  return (
+    <span
+      className={
+        hasPayment
+          ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+          : "inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700"
+      }
+    >
+      {hasPayment ? "да" : "нет"}
+    </span>
+  );
 }
 
 export function RegistrarRecentConsultationsClient({ appointments }: Props) {
@@ -99,8 +113,8 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 <th className="px-2 py-2">Питомец</th>
                 <th className="px-2 py-2">Врач</th>
                 <th className="px-2 py-2">Услуга</th>
-                <th className="px-2 py-2">Статус</th>
-                <th className="px-2 py-2 text-right">Действия</th>
+                <th className="px-2 py-2 text-center">Оплата</th>
+                <th className="px-2 py-2 text-right">Статус</th>
               </tr>
             </thead>
             <tbody>
@@ -146,11 +160,16 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       )}
                     </td>
 
-                    {/* Врач */}
+                    {/* Врач + «выбрал клиент» */}
                     <td className="px-2 py-2 align-top">
                       <div className="text-[11px] text-gray-800">
                         {a.doctorName || "Не назначен"}
                       </div>
+                      {a.requestedDoctorName && (
+                        <div className="text-[10px] text-gray-500">
+                          выбрал клиент: {a.requestedDoctorName}
+                        </div>
+                      )}
                     </td>
 
                     {/* Услуга */}
@@ -163,19 +182,14 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       )}
                     </td>
 
-                    {/* Статус */}
-                    <td className="px-2 py-2 align-top">
-                      <span className={badge.className}>{badge.label}</span>
+                    {/* Оплата */}
+                    <td className="px-2 py-2 align-top text-center">
+                      <PaymentBadge hasPayment={!!a.hasPayments} />
                     </td>
 
-                    {/* Действия */}
+                    {/* Статус */}
                     <td className="px-2 py-2 align-top text-right">
-                      <Link
-                        href={`/backoffice/registrar/consultations/${a.id}`}
-                        className="text-[11px] font-medium text-emerald-700 hover:underline"
-                      >
-                        Открыть →
-                      </Link>
+                      <span className={badge.className}>{badge.label}</span>
                     </td>
                   </tr>
                 );
