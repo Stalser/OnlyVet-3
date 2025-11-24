@@ -1,13 +1,13 @@
 // components/registrar/RegistrarConsultationsClient.tsx
 "use client";
 
-import { useMemo, useState, ReactNode } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
-type Props = {
+interface Props {
   appointments: RegistrarAppointmentRow[];
-};
+}
 
 type StatusBadge = {
   label: string;
@@ -15,7 +15,7 @@ type StatusBadge = {
 };
 
 function getStatusBadge(status: string): StatusBadge {
-  const s = status.toLowerCase();
+  const s = (status || "").toLowerCase();
 
   if (s.includes("отмен")) {
     return {
@@ -39,6 +39,7 @@ function getStatusBadge(status: string): StatusBadge {
     };
   }
 
+  // всё остальное считаем «нормальным» зелёным статусом
   return {
     label: status || "неизвестен",
     className:
@@ -46,34 +47,17 @@ function getStatusBadge(status: string): StatusBadge {
   };
 }
 
-type FilterLinkProps = {
-  href: string;
-  active: boolean;
-  children: ReactNode;
-};
-
-function FilterLink({ href, active, children }: FilterLinkProps) {
-  return (
-    <Link
-      href={href}
-      className={
-        "px-3 py-1.5 rounded-xl text-xs border " +
-        (active
-          ? "bg-emerald-600 text-white border-emerald-600"
-          : "text-gray-700 border-gray-300 hover:bg-gray-50")
-      }
-    >
-      {children}
-    </Link>
-  );
-}
-
-export function StaffAppointmentsTable({ appointments }: Props) {
+/**
+ * Полная таблица «Все консультации и заявки» для /backoffice/registrar/consultations.
+ * Показывает: клиент, питомец, врач (и кого выбрал клиент), услуга (и исходный выбор),
+ * жалобу, наличие документов, оплату и статус.
+ */
+export function RegistrarConsultationsClient({ appointments }: Props) {
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">(
     "all"
   );
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
-  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState<string>("");
 
   const statusOptions: { key: "all" | "open" | "closed"; label: string }[] = [
     { key: "all", label: "Все статусы" },
@@ -88,7 +72,7 @@ export function StaffAppointmentsTable({ appointments }: Props) {
         new Map(
           appointments
             .map((a) => a.doctorName || "")
-            .filter(Boolean)
+            .filter((name) => name.trim().length > 0)
             .map((name) => [name, name])
         ).entries()
       ).map(([value, label]) => ({ key: value, label })),
@@ -98,26 +82,23 @@ export function StaffAppointmentsTable({ appointments }: Props) {
 
   const filtered = useMemo(() => {
     return appointments.filter((a) => {
-      const status = a.statusLabel.toLowerCase();
+      const s = a.statusLabel.toLowerCase();
 
+      // фильтр по статусу (открытые / закрытые)
       if (statusFilter === "open") {
-        if (status.includes("отмен") || status.includes("заверш")) {
-          return false;
-        }
+        if (s.includes("отмен") || s.includes("заверш")) return false;
       } else if (statusFilter === "closed") {
-        if (!status.includes("отмен") && !status.includes("заверш")) {
-          return false;
-        }
+        if (!s.includes("отмен") && !s.includes("заверш")) return false;
       }
 
+      // фильтр по врачу
       if (doctorFilter !== "all") {
-        if (!a.doctorName || a.doctorName !== doctorFilter) {
-          return false;
-        }
+        if (!a.doctorName || a.doctorName !== doctorFilter) return false;
       }
 
-      if (query.trim()) {
-        const q = query.toLowerCase();
+      // поисковая строка
+      if (search.trim().length > 0) {
+        const q = search.trim().toLowerCase();
         const haystack = [
           a.clientName,
           a.clientContact,
@@ -130,6 +111,7 @@ export function StaffAppointmentsTable({ appointments }: Props) {
           a.serviceName,
           a.requestedServiceName,
           a.serviceCode,
+          a.requestedServiceCode,
           a.complaint,
         ]
           .filter(Boolean)
@@ -141,11 +123,12 @@ export function StaffAppointmentsTable({ appointments }: Props) {
 
       return true;
     });
-  }, [appointments, statusFilter, doctorFilter, query]);
+  }, [appointments, statusFilter, doctorFilter, search]);
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+      {/* Заголовок + фильтры */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-base font-semibold">
             Все консультации и заявки
@@ -156,31 +139,20 @@ export function StaffAppointmentsTable({ appointments }: Props) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="hidden sm:inline-flex items-center gap-1">
-            <span className="text-[11px] text-gray-500">Питомцы</span>
-            {/* здесь пока просто подпись, фильтры по питомцам можно добавить позже */}
-          </div>
-
-          <select
-            className="h-8 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
-            value={doctorFilter}
-            onChange={(e) =>
-              setDoctorFilter(e.target.value as typeof doctorFilter)
-            }
-          >
-            {doctorOptions.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
+            className="h-8 w-64 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
+          />
 
           <select
             className="h-8 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
             value={statusFilter}
             onChange={(e) =>
-              setStatusFilter(e.target.value as typeof statusFilter)
+              setStatusFilter(e.target.value as "all" | "open" | "closed")
             }
           >
             {statusOptions.map((opt) => (
@@ -190,16 +162,21 @@ export function StaffAppointmentsTable({ appointments }: Props) {
             ))}
           </select>
 
-          <input
-            type="text"
-            placeholder="Поиск по клиенту, питомцу, врачу, услуге, жалобе…"
-            className="h-8 w-56 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <select
+            className="h-8 rounded-full border border-gray-300 bg-gray-50 px-3 text-[11px]"
+            value={doctorFilter}
+            onChange={(e) => setDoctorFilter(e.target.value)}
+          >
+            {doctorOptions.map((opt) => (
+              <option key={opt.key} value={opt.key}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
+      {/* Таблица */}
       <div className="overflow-x-auto">
         <table className="min-w-full text-xs">
           <thead>
@@ -210,7 +187,7 @@ export function StaffAppointmentsTable({ appointments }: Props) {
               <th className="px-2 py-2">Питомец</th>
               <th className="px-2 py-2">Врач</th>
               <th className="px-2 py-2">Услуга</th>
-              <th className="px-2 py-2">Жалоба</th>
+              <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
               <th className="px-2 py-2 text-center">Документы</th>
               <th className="px-2 py-2 text-center">Оплата</th>
               <th className="px-2 py-2">Статус</th>
@@ -220,6 +197,9 @@ export function StaffAppointmentsTable({ appointments }: Props) {
           <tbody>
             {filtered.map((a, index) => {
               const status = getStatusBadge(a.statusLabel);
+              const hasDocs = a.hasDocuments === true;
+              const isPaid = a.hasPayments === true;
+
               const petChanged =
                 a.requestedPetName &&
                 (a.requestedPetName !== a.petName ||
@@ -234,10 +214,12 @@ export function StaffAppointmentsTable({ appointments }: Props) {
                   key={a.id}
                   className="border-b last:border-0 hover:bg-gray-50"
                 >
+                  {/* № */}
                   <td className="px-2 py-2 align-top text-[11px] text-gray-500">
                     {index + 1}
                   </td>
 
+                  {/* Дата / время */}
                   <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                     <div>{a.dateLabel}</div>
                     {a.createdLabel && (
@@ -247,6 +229,7 @@ export function StaffAppointmentsTable({ appointments }: Props) {
                     )}
                   </td>
 
+                  {/* Клиент */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px] font-medium">
                       {a.clientName || "Без имени"}
@@ -258,6 +241,7 @@ export function StaffAppointmentsTable({ appointments }: Props) {
                     )}
                   </td>
 
+                  {/* Питомец + «выбрал клиент» */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">
                       {a.petName || "Без имени"}
@@ -273,7 +257,8 @@ export function StaffAppointmentsTable({ appointments }: Props) {
                     )}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  {/* Врач + «выбрал клиент» */}
+                  <td className="px-2 py-2.align-top">
                     <div className="text-[11px] font-medium">
                       {a.doctorName || "Врач не назначен"}
                     </div>
@@ -284,7 +269,8 @@ export function StaffAppointmentsTable({ appointments }: Props) {
                     )}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  {/* Услуга + «выбрано клиентом» */}
+                  <td className="px-2 py-2.align-top">
                     <div className="text-[11px]">{a.serviceName}</div>
                     {a.serviceCode && (
                       <div className="text-[10px] text-gray-500">
@@ -293,48 +279,57 @@ export function StaffAppointmentsTable({ appointments }: Props) {
                     )}
                     {serviceChanged && (
                       <div className="mt-0.5 text-[10px] text-gray-500">
-                        выбрано клиентом: {a.requestedServiceName}{" "}
+                        выбрано клиентом: {a.requestedServiceName}
                         {a.requestedServiceCode &&
-                          `(${a.requestedServiceCode})`}
+                          ` (${a.requestedServiceCode})`}
                       </div>
                     )}
                   </td>
 
-                  <td className="px-2 py-2.align-top text-[11px] text-gray-700">
-                    {a.complaint || "—"}
+                  {/* Жалоба */}
+                  <td className="px-2 py-2 align-top max-w-[220px]">
+                    <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
+                      {a.complaint && a.complaint.trim().length > 0
+                        ? a.complaint
+                        : "—"}
+                    </div>
                   </td>
 
-                  <td className="px-2 py-2 text-center">
+                  {/* Документы */}
+                  <td className="px-2 py-2 align-top text-center">
                     <span
                       className={
                         "inline-flex rounded-full px-2 py-0.5 text-[10px] " +
-                        (a.hasDocuments
+                        (hasDocs
                           ? "bg-emerald-50 text-emerald-700"
                           : "bg-gray-100 text-gray-500")
                       }
                     >
-                      {a.hasDocuments ? "есть" : "нет"}
+                      {hasDocs ? "есть" : "нет"}
                     </span>
                   </td>
 
-                  <td className="px-2 py-2 text-center">
+                  {/* Оплата */}
+                  <td className="px-2 py-2 align-top text-center">
                     <span
                       className={
                         "inline-flex rounded-full px-2 py-0.5 text-[10px] " +
-                        (a.hasPayments
+                        (isPaid
                           ? "bg-emerald-50 text-emerald-700"
                           : "bg-red-50 text-red-700")
                       }
                     >
-                      {a.hasPayments ? "оплачено" : "нет"}
+                      {isPaid ? "оплачено" : "нет"}
                     </span>
                   </td>
 
-                  <td className="px-2 py-2.align-top">
+                  {/* Статус */}
+                  <td className="px-2 py-2 align-top">
                     <span className={status.className}>{status.label}</span>
                   </td>
 
-                  <td className="px-2 py-2 align-top text-right">
+                  {/* Действия */}
+                  <td className="px-2 py-2.align-top text-right">
                     <Link
                       href={`/backoffice/registrar/consultations/${a.id}`}
                       className="text-[11px] font-medium text-emerald-700 hover:underline"
