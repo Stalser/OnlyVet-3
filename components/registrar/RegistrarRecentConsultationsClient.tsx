@@ -6,7 +6,7 @@ import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
 /**
  * Мини-таблица «Последние консультации и заявки» на /backoffice/registrar.
- * Берёт список приёмов (RegistrarAppointmentRow[]) и показывает последние N штук.
+ * Показывает последние N приёмов с краткой информацией.
  */
 
 type Props = {
@@ -30,7 +30,6 @@ function getStatusBadge(status: string): StatusBadge {
         "inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700",
     };
   }
-
   if (s.includes("запрош")) {
     return {
       label: status,
@@ -38,7 +37,13 @@ function getStatusBadge(status: string): StatusBadge {
         "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700",
     };
   }
-
+  if (s.includes("подтверж")) {
+    return {
+      label: status,
+      className:
+        "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700",
+    };
+  }
   if (s.includes("заверш")) {
     return {
       label: status,
@@ -47,7 +52,7 @@ function getStatusBadge(status: string): StatusBadge {
     };
   }
 
-  // всё остальное считаем «нормальным» зелёным статусом
+  // всё остальное считаем нормальным зелёным статусом
   return {
     label: status || "неизвестен",
     className:
@@ -73,7 +78,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             Последние консультации и заявки
           </h2>
           <p className="text-[11px] text-gray-500">
-            Показаны последние {rows.length} записей. Полный список — в разделе
+            Показаны последние {rows.length} записей. Полный список — в разделе{" "}
             «Консультации и заявки».
           </p>
         </div>
@@ -109,7 +114,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             </thead>
             <tbody>
               {rows.map((a) => {
-                const status = getStatusBadge(a.statusLabel);
+                const badge = getStatusBadge(a.statusLabel);
                 const hasDocs = a.hasDocuments === true;
                 const isPaid = a.hasPayments === true;
 
@@ -118,7 +123,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     key={a.id}
                     className="border-b last:border-0 hover:bg-gray-50"
                   >
-                    {/* Дата / время + подпись «создано» */}
+                    {/* Дата / время */}
                     <td className="px-2 py-2 align-top text-[11px] text-gray-700">
                       <div>{a.dateLabel}</div>
                       {a.createdLabel && (
@@ -140,31 +145,39 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       )}
                     </td>
 
-                    {/* Питомец */}
+                    {/* Питомец: текущий + «выбрал клиент» */}
                     <td className="px-2 py-2 align-top">
                       <div className="text-[11px]">
-                        {a.petName || "Не указан"}
+                        {a.petName || "—"}
                       </div>
                       {a.petSpecies && (
                         <div className="text-[10px] text-gray-500">
                           {a.petSpecies}
                         </div>
                       )}
+                      {(a.requestedPetName || a.requestedPetSpecies) && (
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          выбрал клиент:{" "}
+                          {a.requestedPetName ||
+                            a.requestedPetSpecies ||
+                            "—"}
+                        </div>
+                      )}
                     </td>
 
-                    {/* Врач: назначенный + кого выбрал клиент */}
+                    {/* Врач: текущий + «выбрал клиент» */}
                     <td className="px-2 py-2 align-top">
-                      <div className="text-[11px] text-gray-800">
+                      <div className="text-[11px]">
                         {a.doctorName || "Не назначен"}
                       </div>
                       {a.requestedDoctorName && (
-                        <div className="text-[10px] text-gray-500">
+                        <div className="mt-0.5 text-[10px] text-gray-400">
                           выбрал клиент: {a.requestedDoctorName}
                         </div>
                       )}
                     </td>
 
-                    {/* Услуга */}
+                    {/* Услуга: текущая + «выбрал клиент» */}
                     <td className="px-2 py-2 align-top">
                       <div className="text-[11px]">{a.serviceName}</div>
                       {a.serviceCode && (
@@ -172,9 +185,14 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                           {a.serviceCode}
                         </div>
                       )}
+                      {a.requestedServiceName && (
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          выбрал клиент: {a.requestedServiceName}
+                        </div>
+                      )}
                     </td>
 
-                    {/* Жалоба (две строки, остальное «…») */}
+                    {/* Жалоба */}
                     <td className="px-2 py-2 align-top max-w-[220px]">
                       <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                         {a.complaint && a.complaint.trim().length > 0
@@ -183,7 +201,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       </div>
                     </td>
 
-                    {/* Документы: да / нет */}
+                    {/* Документы: да/нет */}
                     <td className="px-2 py-2 align-top">
                       <span
                         className={
@@ -197,7 +215,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       </span>
                     </td>
 
-                    {/* Оплата: да / нет */}
+                    {/* Оплата: да/нет */}
                     <td className="px-2 py-2 align-top">
                       <span
                         className={
@@ -212,8 +230,8 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Статус */}
-                    <td className="px-2 py-2.align-top">
-                      <span className={status.className}>{status.label}</span>
+                    <td className="px-2 py-2 align-top">
+                      <span className={badge.className}>{badge.label}</span>
                     </td>
 
                     {/* Действия */}
