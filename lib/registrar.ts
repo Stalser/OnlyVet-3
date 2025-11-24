@@ -22,6 +22,10 @@ export type RegistrarAppointmentRow = {
   ownerContactPhone?: string | null;
   ownerTelegram?: string | null;
 
+  // Для совместимости со старым кодом:
+  clientName: string;
+  clientContact?: string | null;
+
   // Питомец (фактически записанный в приём)
   petId?: number | null;
   petName?: string | null;
@@ -31,11 +35,11 @@ export type RegistrarAppointmentRow = {
   chosenPetName?: string | null;
   chosenPetSpecies?: string | null;
 
-  // Услуга
+  // Услуга (текущее значение)
   serviceCode?: string | null;
   serviceName: string | null;
 
-  // Услуга, которую выбрал клиент (на будущее)
+  // Услуга, которую выбрал клиент (по requested_service_code; задел на будущее)
   chosenServiceCode?: string | null;
   chosenServiceName?: string | null;
 
@@ -43,7 +47,7 @@ export type RegistrarAppointmentRow = {
   doctorId?: string | null;
   doctorName?: string | null;
 
-  // Врач, которого выбрал клиент (по doctor_id, если пришёл с формы)
+  // Врач, которого выбрал клиент при заявке
   chosenDoctorId?: string | null;
   chosenDoctorName?: string | null;
 
@@ -63,7 +67,7 @@ export type RegistrarAppointmentRow = {
 };
 
 /**
- * Вспомогательная функция: формирует человеко-читаемую дату.
+ * Форматирование даты/времени.
  */
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
@@ -79,8 +83,22 @@ function formatDateTime(value: string | null): string {
 }
 
 /**
- * Загрузка сырых данных по приёмам + связанных сущностей
- * (owner_profiles, appointment_documents, payments).
+ * Утилита для поиска услуги по коду.
+ */
+function lookupService(
+  code: string | null
+): { code: string; name: string } | null {
+  if (!code) return null;
+  const s = servicesPricing.find((x: any) => x.code === code);
+  if (!s) return null;
+  return { code: s.code, name: s.name ?? s.code };
+}
+
+/**
+ * Загружаем сырые приёмы + связанные сущности:
+ *  - owner_profiles (ФИО/контакты владельца),
+ *  - appointment_documents (наличие документов),
+ *  - payments (наличие оплат).
  */
 async function loadRawAppointments() {
   if (!supabase) {
@@ -92,7 +110,7 @@ async function loadRawAppointments() {
     };
   }
 
-  // 1) Основные данные по приёмам
+  // 1) Сырые приёмы
   const { data: appointments, error: apptErr } = await supabase
     .from("appointments")
     .select(
@@ -117,7 +135,7 @@ async function loadRawAppointments() {
     .order("starts_at", { ascending: false });
 
   if (apptErr) {
-    console.error("getRegistrarAppointments: error loading appointments", apptErr);
+    console.error("getRegistrarAppointments: error appointments", apptErr);
     return {
       appointments: [] as any[],
       ownersById: new Map<number, any>(),
@@ -126,19 +144,19 @@ async function loadRawAppointments() {
     };
   }
 
+  const appts = appointments ?? [];
+
   const ownerIds = Array.from(
     new Set(
-      (appointments ?? [])
+      appts
         .map((a) => a.owner_id as number | null)
         .filter((v) => v != null)
     )
   ) as number[];
 
-  const apptIds = Array.from(
-    new Set((appointments ?? []).map((a) => a.id as string))
-  );
+  const apptIds = Array.from(new Set(appts.map((a) => a.id as string)));
 
-  // 2) Профили владельцев
+  // 2) owner_profiles
   const ownersById = new Map<number, any>();
   if (ownerIds.length > 0) {
     const { data: owners, error: ownersErr } = await supabase
@@ -147,7 +165,7 @@ async function loadRawAppointments() {
       .in("user_id", ownerIds);
 
     if (ownersErr) {
-      console.error("getRegistrarAppointments: error loading owner_profiles", ownersErr);
+      console.error("getRegistrarAppointments: error owner_profiles", ownersErr);
     } else {
       for (const row of owners ?? []) {
         ownersById.set(row.user_id as number, row);
@@ -155,7 +173,7 @@ async function loadRawAppointments() {
     }
   }
 
-  // 3) Документы по приёмам
+  // 3) appointment_documents
   const docsByAppointmentId = new Map<string, number>();
   if (apptIds.length > 0) {
     const { data: docs, error: docsErr } = await supabase
@@ -164,7 +182,7 @@ async function loadRawAppointments() {
       .in("appointment_id", apptIds);
 
     if (docsErr) {
-      console.error("getRegistrarAppointments: error loading appointment_documents", docsErr);
+      console.error("getRegistrarAppointments: error appointment_documents", docsErr);
     } else {
       for (const d of docs ?? []) {
         const key = d.appointment_id as string;
@@ -174,7 +192,7 @@ async function loadRawAppointments() {
     }
   }
 
-  // 4) Платежи по приёмам
+  // 4) payments
   const paymentsByAppointmentId = new Map<string, number>();
   if (apptIds.length > 0) {
     const { data: pays, error: paysErr } = await supabase
@@ -183,7 +201,7 @@ async function loadRawAppointments() {
       .in("appointment_id", apptIds);
 
     if (paysErr) {
-      console.error("getRegistrarAppointments: error loading payments", paysErr);
+      console.error("getRegistrarAppointments: error payments", paysErr);
     } else {
       for (const p of pays ?? []) {
         const key = p.appointment_id as string;
@@ -194,7 +212,7 @@ async function loadRawAppointments() {
   }
 
   return {
-    appointments: appointments ?? [],
+    appointments: appts,
     ownersById,
     docsByAppointmentId,
     paymentsByAppointmentId,
@@ -202,7 +220,7 @@ async function loadRawAppointments() {
 }
 
 /**
- * Формирование итоговой строки приёма.
+ * Преобразуем сырую строку приёма в RegistrarAppointmentRow.
  */
 function mapToRegistrarRow(
   row: any,
@@ -217,7 +235,7 @@ function mapToRegistrarRow(
   // Владелец
   const ownerId = (row.owner_id ?? null) as number | null;
   const owner = ownerId ? ownersById.get(ownerId) : null;
-  const ownerFullName = owner?.full_name ?? null;
+  const ownerFullName: string | null = owner?.full_name ?? null;
 
   let ownerPhone: string | null = null;
   let ownerTg: string | null = null;
@@ -236,39 +254,47 @@ function mapToRegistrarRow(
         null;
       ownerTg = extra?.telegram ?? extra?.tg ?? extra?.telegram_username ?? null;
     } catch {
-      // игнорируем ошибки парсинга
+      // игнорируем кривой JSON
     }
   }
 
+  // Для совместимости со старым кодом:
+  const clientName = ownerFullName ?? "Без имени";
+  const clientContact = ownerPhone || ownerTg || null;
+
   // Услуга
   const serviceCode = (row.service_code ?? null) as string | null;
-  const service = servicesInterop(serviceCode);
+  const service = lookupService(serviceCode);
   const serviceName = service?.name ?? null;
 
-  // Врач
+  // Врач (назначенный)
   const doctorId = (row.doctor_id ?? null) as string | null;
-  const doctorName = doctorId
-    ? doctors.find((d) => d.id === doctorId)?.name ?? null
-    : null;
+  const doctorName =
+    doctorId != null
+      ? doctors.find((d) => d.id === doctorId)?.name ?? null
+      : null;
 
-  // Врач, выбранный клиентом (requested_doctor_code)
+  // Врач, выбранный клиентом
   const chosenDoctorId = (row.requested_doctor_code ?? null) as string | null;
-  const chosenDoctorName = chosenDoctorId
-    ? doctors.find((d) => d.id === chosenDoctorId)?.name ?? null
-    : null;
+  const chosenDoctorName =
+    chosenDoctorId != null
+      ? doctors.find((d) => d.id === chosenDoctorId)?.name ?? null
+      : null;
 
-  // Услуга, выбранная клиентом (requested_service_code) — на будущее
+  // Услуга, выбранная клиентом (на будущее)
   const chosenServiceCode = (row.requested_service_code ?? null) as
     | string
     | null;
   const chosenService =
-    chosenServiceCode != null ? servicesInterop(chosenServiceCode) : null;
+    chosenServiceCode != null ? lookupService(chosenServiceCode) : null;
 
-  const hasDocs = (docsByAppointmentId.get(id) ?? 0) > 0;
-  const hasPays = (paymentsByAppointmentId.get(id) ?? 0) > 0;
+  // Флаги документов/оплат
+  const hasDocuments = (docsByAppointmentId.get(id) ?? 0) > 0;
+  const hasPayments = (paymentsByAppointmentId.get(id) ?? 0) > 0;
 
   return {
     id,
+
     startsAt,
     dateLabel: formatDateTime(startsAt),
     createdLabel: createdAt ? formatDateTime(createdAt) : null,
@@ -278,15 +304,19 @@ function mapToRegistrarRow(
     ownerContactPhone: ownerPhone,
     ownerTelegram: ownerTg,
 
+    clientName,
+    clientContact,
+
     petId: (row.pet_id ?? null) as number | null,
     petName: row.pet_name ?? null,
     petSpecies: row.species ?? null,
 
-    chosenPetName: null, // будет заполняться после доработки логики
+    chosenPetName: null,
     chosenPetSpecies: null,
 
     serviceCode,
     serviceName,
+
     chosenServiceCode: chosenService?.code ?? null,
     chosenServiceName: chosenService?.name ?? null,
 
@@ -297,8 +327,8 @@ function mapToRegistrarRow(
 
     statusLabel: row.status ?? "неизвестно",
 
-    hasDocuments: hasDocs,
-    hasPayments: hasPays,
+    hasDocuments,
+    hasPayments,
 
     videoPlatform: row.video_platform ?? null,
     videoUrl: row.video_url ?? null,
@@ -308,21 +338,17 @@ function mapToRegistrarRow(
 }
 
 /**
- * Утилита для поиска услуги по коду.
- */
-function servicesInterop(code: string | null): { code: string; name: string } | null {
-  if (!code) return null;
-  const s = servicesPricing.find((x) => x.code === code);
-  if (!s) return null;
-  return { code: s.code, name: s.name ?? s.code };
-}
-
-/**
  * Публичный метод: получить все приёмы для регистратуры.
  */
-export async function getRegistrarAppointments(): Promise<RegistrarAppointmentRow[]> {
-  const { appointments, ownersById, docsByAppointmentId, paymentsByAppointmentId } =
-    await loadRawAppointments();
+export async function getRegistrarAppointments(): Promise<
+  RegistrarAppointmentRow[]
+> {
+  const {
+    appointments,
+    ownersById,
+    docsByAppointmentId,
+    paymentsByAppointmentId,
+  } = await loadRawAppointments();
 
   return appointments.map((row) =>
     mapToRegistrarRow(row, ownersById, docsByAppointmentId, paymentsByAppointmentId)
@@ -335,10 +361,12 @@ export async function getRegistrarAppointments(): Promise<RegistrarAppointmentRo
 export async function getRegistrarAppointmentById(
   id: string
 ): Promise<RegistrarAppointmentRow | null> {
-  if (!supabase) return null;
-
-  const { appointments, ownersById, docsByAppointmentId, paymentsByAppointmentId } =
-    await loadRawAppointments();
+  const {
+    appointments,
+    ownersById,
+    docsByAppointmentId,
+    paymentsByAppointmentId,
+  } = await loadRawAppointments();
 
   const row = appointments.find((a) => String(a.id) === String(id));
   if (!row) return null;
@@ -347,7 +375,7 @@ export async function getRegistrarAppointmentById(
 }
 
 /**
- * Публичный метод: последние N приёмов (для дашборда регистратуры).
+ * Последние N консультаций (для дашборда регистратуры).
  */
 export async function getRecentRegistrarAppointments(
   limit: number = 50
@@ -357,10 +385,9 @@ export async function getRecentRegistrarAppointments(
 }
 
 /**
- * Публичный метод: приёмы конкретного врача по doctor_id
- * (для кабинета врача).
+ * Приёмы для конкретного врача по doctor_id (для кабинета врача).
  */
-export async function getRegistrarAppointmentsForDoctor(
+export async function getAppointmentsForDoctor(
   doctorId: string
 ): Promise<RegistrarAppointmentRow[]> {
   const all = await getRegistrarAppointments();
