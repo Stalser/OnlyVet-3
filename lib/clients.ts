@@ -204,63 +204,101 @@ async function getOwnerAppointments(
     return [];
   }
 
-  return (data as any[]).map((row: any, index: number): RegistrarAppointmentRow => {
-    let dateLabel = "—";
-    if (row.starts_at) {
-      const d = new Date(row.starts_at);
-      dateLabel = d.toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  return (data as any[]).map(
+    (row: any, index: number): RegistrarAppointmentRow => {
+      // Дата/время приёма
+      let dateLabel = "—";
+      if (row.starts_at) {
+        const d = new Date(row.starts_at);
+        dateLabel = d.toLocaleString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      const createdLabel: string | null = row.created_at
+        ? new Date(row.created_at).toLocaleString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null;
+
+      const doc = doctors.find((d: any) => d.id === row.doctor_id);
+      const doctorName = doc?.name ?? "Не назначен";
+
+      const service = servicesPricing.find(
+        (s: any) => s.code === row.service_code
+      );
+      const serviceName = service?.name ?? "Услуга";
+
+      const clientName = "Без имени";
+
+      return {
+        id: String(row.id ?? index),
+
+        // обязательные поля владельца для RegistrarAppointmentRow
+        ownerId: row.owner_id ?? null,
+        ownerFullName: null,
+
+        // время и метки
+        startsAt: row.starts_at ?? null,
+        dateLabel,
+        createdLabel,
+
+        // контакты владельца (в этом контексте не загружаем — оставляем пустыми)
+        ownerContactPhone: null,
+        ownerTelegram: null,
+
+        // для совместимости со старым кодом
+        clientName,
+        clientContact: "",
+
+        // питомец
+        petId: null,
+        petName: row.pet_name ?? "",
+        petSpecies: row.species ?? "",
+
+        // задел на будущее: исходный выбор питомца клиентом
+        chosenPetName: null,
+        chosenPetSpecies: null,
+        requestedPetName: null,
+        requestedPetSpecies: null,
+
+        // услуга
+        serviceCode: row.service_code ?? "",
+        serviceName,
+
+        chosenServiceCode: null,
+        chosenServiceName: null,
+        requestedServiceName: null,
+
+        // врач
+        doctorId: row.doctor_id ?? null,
+        doctorName,
+        chosenDoctorId: null,
+        chosenDoctorName: null,
+        requestedDoctorName: undefined,
+
+        // статус + флаги документов/оплаты
+        statusLabel: row.status ?? "неизвестно",
+        hasDocuments: false,
+        hasPayments: false,
+
+        // формат связи
+        videoPlatform: null,
+        videoUrl: null,
+
+        // жалоба (здесь отдельно не храним)
+        complaint: "",
+      };
     }
-
-    const createdLabel = row.created_at
-      ? new Date(row.created_at).toLocaleString("ru-RU")
-      : "";
-
-    const doc = doctors.find((d: any) => d.id === row.doctor_id);
-    const doctorName = doc?.name ?? "Не назначен";
-
-    const service = servicesPricing.find(
-      (s: any) => s.code === row.service_code
-    );
-    const serviceName = service?.name ?? "Услуга";
-
-    const clientName = "Без имени";
-
-    return {
-      id: String(row.id ?? index),
-      dateLabel,
-      createdLabel,
-      startsAt: row.starts_at ?? null,
-
-      clientName,
-      clientContact: "",
-
-      petName: row.pet_name ?? "",
-      petSpecies: row.species ?? "",
-
-      doctorId: row.doctor_id ?? undefined,
-      doctorName,
-
-      serviceName,
-      serviceCode: row.service_code ?? "",
-
-      statusLabel: row.status ?? "неизвестно",
-
-      videoPlatform: null,
-      videoUrl: null,
-
-      // новые поля, чтобы совпасть с RegistrarAppointmentRow
-      complaint: "",
-      requestedDoctorName: undefined,
-      hasDocuments: false,
-      hasPayments: false,
-    };
-  });
+  );
 }
 
 /**
