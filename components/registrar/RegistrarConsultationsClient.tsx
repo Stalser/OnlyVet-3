@@ -168,10 +168,11 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
               const complaint = (a.complaint ?? "").trim();
               const requestedComplaint =
                 (a.requestedComplaint ?? "").trim();
-
-              // показываем исходный текст клиента, если он есть
               const showRequestedComplaint =
                 requestedComplaint.length > 0;
+
+              const isPending =
+                a.statusLabel.toLowerCase().includes("запрош");
 
               return (
                 <tr
@@ -202,33 +203,30 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Питомец: утверждённый регистратурой + выбор клиента */}
-<td className="px-2 py-2 align-top">
-
-  {/* Утверждённые поля */}
-  <div className="text-[11px]">
-    {a.petName || "—"}
-  </div>
-  {a.petSpecies && (
-    <div className="text-[10px] text-gray-500">
-      {a.petSpecies}
-    </div>
-  )}
-
-  {/* Подсказка, что регистратор ещё не трогал */}
-  {a.statusLabel.toLowerCase().includes("запрош") && !a.petName && (
-    <div className="mt-0.5 text-[10px] text-gray-400">
-      ещё не подтверждено регистратурой
-    </div>
-  )}
-
-  {/* Исходный выбор клиента */}
-  {(a.requestedPetName || a.requestedPetSpecies) && (
-    <div className="mt-0.5 text-[10px] text-gray-400">
-      выбрал клиент: {a.requestedPetName || a.requestedPetSpecies}
-    </div>
-  )}
-</td>
+                  {/* Питомец: утверждённый + исходный выбор клиента */}
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.petName || "—"}
+                    </div>
+                    {a.petSpecies && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.petSpecies}
+                      </div>
+                    )}
+                    {isPending && !a.petName && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">
+                        ещё не подтверждено регистратурой
+                      </div>
+                    )}
+                    {(a.requestedPetName || a.requestedPetSpecies) && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">
+                        выбрал клиент:{" "}
+                        {a.requestedPetName ||
+                          a.requestedPetSpecies ||
+                          "—"}
+                      </div>
+                    )}
+                  </td>
 
                   {/* Врач: текущий + «выбрал клиент» */}
                   <td className="px-2 py-2 align-top">
@@ -243,21 +241,21 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                   </td>
 
                   {/* Услуга: текущая + «выбрал клиент» */}
-<td className="px-2 py-2.align-top">
-  <div className="text-[11px]">
-    {a.serviceName || "—"}
-  </div>
-  {a.serviceCode && (
-    <div className="text-[10px] text-gray-500">
-      {a.serviceCode}
-    </div>
-  )}
-  {a.requestedServiceName && (
-    <div className="mt-0.5 text-[10px] text-gray-400">
-      выбрал клиент: {a.requestedServiceName}
-    </div>
-  )}
-</td>
+                  <td className="px-2 py-2 align-top">
+                    <div className="text-[11px]">
+                      {a.serviceName || "—"}
+                    </div>
+                    {a.serviceCode && (
+                      <div className="text-[10px] text-gray-500">
+                        {a.serviceCode}
+                      </div>
+                    )}
+                    {a.requestedServiceName && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">
+                        выбрал клиент: {a.requestedServiceName}
+                      </div>
+                    )}
+                  </td>
 
                   {/* Жалоба */}
                   <td className="px-2 py-2 align-top max-w-[220px]">
@@ -309,9 +307,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     >
                       {a.statusLabel}
                     </span>
-                    {a.statusLabel
-                      .toLowerCase()
-                      .includes("отмен") &&
+                    {a.statusLabel.toLowerCase().includes("отмен") &&
                       a.cancellationReason && (
                         <div className="mt-0.5 text-[10px] text-gray-400 max-w-[220px] whitespace-pre-line">
                           причина: {a.cancellationReason}
