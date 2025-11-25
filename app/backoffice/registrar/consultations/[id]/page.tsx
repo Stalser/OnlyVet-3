@@ -31,7 +31,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
   return (
     <RoleGuard allowed={["registrar", "admin"]}>
-      <main className="mx-auto max-w-4xl px-4 py-6 space-y-8">
+      <main className="mx-auto max-w-5xl px-4 py-6 space-y-8">
         {/* Навигация назад + шапка регистратуры */}
         <div className="flex items-center justify-between gap-3">
           <Link
@@ -68,7 +68,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
         {/* Если не нашли */}
         {!appointment && (
-          <section className="rounded-2xl border.bg-white p-4">
+          <section className="rounded-2xl border bg-white p-4">
             <p className="text-sm text-gray-500">
               Консультация с идентификатором{" "}
               <span className="font-mono">{params.id}</span> не найдена.
@@ -81,7 +81,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
           <>
             {/* ======= Блок "Основная информация" ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap items-center.justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">Основная информация</h2>
                 <div className="text-right text-xs text-gray-500">
                   <div>Дата / время консультации</div>
@@ -97,7 +97,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Левая часть: ID + клиент + доки/оплата */}
+                {/* Левая часть: ID + клиент */}
                 <div className="space-y-3">
                   <div>
                     <div className="text-xs text-gray-500">ID заявки</div>
@@ -125,91 +125,110 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                       </div>
                     </div>
                   </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold.uppercase text-gray-500">
-                      Документы и оплата
-                    </h3>
-                    <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-1">
-                      <div>
-                        <span className="text-xs text-gray-500">
-                          Документы по приёму:
-                        </span>{" "}
-                        <span className="font-medium">
-                          {appointment.hasDocuments ? "есть" : "нет"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-gray-500">
-                          Оплата по приёму:
-                        </span>{" "}
-                        <span className="font-medium">
-                          {appointment.hasPayments ? "есть" : "нет"}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-gray-400 mt-1">
-                        Позже здесь можно будет открыть список документов и
-                        платежей по этой консультации.
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Правая часть: статус обработки + формат связи */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase text-gray-500">
-                    Статус обработки
-                  </h3>
-                  <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-2">
-                    <div>
-                      <span className="text-xs text-gray-500">Статус:</span>{" "}
-                      <span className="font-medium">
-                        {appointment.statusLabel}
-                      </span>
-                    </div>
-                    {appointment.cancellationReason && (
-                      <div className="text-xs text-red-700">
-                        Причина отмены: {appointment.cancellationReason}
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase text-gray-500">
+                      Статус обработки
+                    </h3>
+                    <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
+                      <div>
+                        <span className="text-xs text-gray-500">Статус:</span>{" "}
+                        <span className="font-medium">
+                          {appointment.statusLabel}
+                        </span>
                       </div>
-                    )}
-                    <div className="text-[11px] text-gray-400">
-                      Изменения статуса и причины отмены будут отображаться в
-                      истории изменений и карточке клиента.
+                      {appointment.cancellationReason && (
+                        <div className="text-xs text-red-700">
+                          Причина отмены: {appointment.cancellationReason}
+                        </div>
+                      )}
+                      <div className="text-[11px] text-gray-400">
+                        Изменения статуса и причины отмены будут отображаться в
+                        истории изменений и карточке клиента.
+                      </div>
                     </div>
                   </div>
 
-                  <h3 className="text-xs font-semibold.uppercase text-gray-500">
-                    Формат связи
-                  </h3>
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
-                    <div>
-                      <div className="text-xs text-gray-500">Платформа</div>
-                      <div className="font-medium text-gray-900">
-                        {appointment.videoPlatform === "yandex_telemost" ||
-                        !appointment.videoPlatform
-                          ? "Яндекс Телемост"
-                          : appointment.videoPlatform}
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase text-gray-500">
+                      Формат связи
+                    </h3>
+                    <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
+                      <div>
+                        <div className="text-xs text-gray-500">Платформа</div>
+                        <div className="font-medium text-gray-900">
+                          {appointment.videoPlatform === "yandex_telemost" ||
+                          !appointment.videoPlatform
+                            ? "Яндекс Телемост"
+                            : appointment.videoPlatform}
+                        </div>
                       </div>
-                    </div>
 
-                    {appointment.videoUrl ? (
-                      <div className="text-[11px]">
-                        <a
-                          href={appointment.videoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-700 hover:underline"
-                        >
-                          Открыть ссылку Телемоста
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="text-[10px] text-gray-400">
-                        Ссылка на Телемост пока не указана. Можно добавить её
-                        позже при редактировании консультации или через кабинет
-                        врача.
-                      </div>
-                    )}
+                      {appointment.videoUrl ? (
+                        <div className="text-[11px]">
+                          <a
+                            href={appointment.videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-700 hover:underline"
+                          >
+                            Открыть ссылку Телемоста
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-400">
+                          Ссылка на Телемост пока не указана. Можно добавить её
+                          позже при редактировании консультации или через
+                          кабинет врача.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Документы и оплата — два подпблока рядом */}
+              <div className="grid gap-4 md:grid-cols-2 pt-2 border-t border-gray-100 mt-2">
+                <div>
+                  <h3 className="text-xs font-semibold uppercase text-gray-500">
+                    Документы
+                  </h3>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
+                    <div>
+                      <span className="text-xs text-gray-500">
+                        Документы по приёму:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {appointment.hasDocuments ? "есть" : "нет"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      В будущем здесь можно будет открыть список документов
+                      (чек, договор, анализы, заключения) по этой консультации.
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-semibold uppercase text-gray-500">
+                    Оплата
+                  </h3>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
+                    <div>
+                      <span className="text-xs text-gray-500">
+                        Оплата по приёму:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {appointment.hasPayments ? "есть" : "нет"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      Позже здесь будут отображаться статусы оплат, суммы и
+                      возможность открыть чек.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -217,98 +236,101 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
             {/* ======= Питомец, услуга и врач ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap.items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">
                   Питомец, услуга и врач
                 </h2>
                 <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex items-center.rounded-full bg-gray-100 px-2.py-0.5">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2 py-0.5">
                     Левая колонка — для работы регистратуры
                   </span>
-                  <span className="inline-flex items-center.rounded-full bg-gray-50 px-2.py-0.5">
+                  <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
                     Правая колонка — данные из заявки клиента
                   </span>
                 </div>
               </div>
 
-              <div className="grid.gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {/* Левая колонка: рабочий слой клиники */}
                 <div className="space-y-3">
-                  <h3 className="text-xs.font-semibold.uppercase text-gray-500">
+                  <h3 className="text-xs font-semibold.uppercase text-gray-500">
                     Данные для работы регистратуры
                   </h3>
 
-                  <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-3">
-                    {/* Питомец (редактируемый) */}
-                    <RegistrarPetEditor
-                      appointmentId={appointment.id}
-                      petName={appointment.petName ?? null}
-                      petSpecies={appointment.petSpecies ?? null}
-                    />
-                  </div>
+                  {/* Питомец и услуга/врач рядом на широком экране */}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                      <RegistrarPetEditor
+                        appointmentId={appointment.id}
+                        petName={appointment.petName ?? null}
+                        petSpecies={appointment.petSpecies ?? null}
+                      />
+                    </div>
 
-                  <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-3">
-                    {/* Услуга и врач (редактируемые) */}
-                    <RegistrarServiceDoctorEditor
-                      appointmentId={appointment.id}
-                      serviceCode={appointment.serviceCode ?? null}
-                      doctorId={appointment.doctorId ?? null}
-                    />
+                    <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                      <RegistrarServiceDoctorEditor
+                        appointmentId={appointment.id}
+                        serviceCode={appointment.serviceCode ?? null}
+                        doctorId={appointment.doctorId ?? null}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Правая колонка: данные клиента */}
+                {/* Правая колонка: данные клиента, тоже в два блока рядом */}
                 <div className="space-y-3">
-                  <h3 className="text-xs.font-semibold.uppercase text-gray-500">
+                  <h3 className="text-xs font-semibold.uppercase text-gray-500">
                     Данные из заявки клиента
                   </h3>
 
-                  {/* Питомец из заявки */}
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-1">
-                    <div className="text-xs text-gray-500">
-                      Питомец, выбранный клиентом
-                    </div>
-                    <div className="font-medium">
-                      {appointment.requestedPetName || "не указан"}
-                    </div>
-                    {appointment.requestedPetSpecies && (
-                      <div className="text-xs text-gray-600">
-                        {appointment.requestedPetSpecies}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {/* Питомец клиента */}
+                    <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-1">
+                      <div className="text-xs text-gray-500">
+                        Питомец, выбранный клиентом
                       </div>
-                    )}
-                    {!appointment.requestedPetName &&
-                      !appointment.requestedPetSpecies && (
-                        <div className="text-[10px] text-gray-400 mt-1">
-                          Клиент не указал питомца при записи.
+                      <div className="font-medium">
+                        {appointment.requestedPetName || "не указан"}
+                      </div>
+                      {appointment.requestedPetSpecies && (
+                        <div className="text-xs text-gray-600">
+                          {appointment.requestedPetSpecies}
                         </div>
                       )}
-                  </div>
-
-                  {/* Услуга и врач из заявки */}
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-3">
-                    <div>
-                      <div className="text-xs text-gray-500">
-                        Услуга, выбранная клиентом
-                      </div>
-                      <div className="font-medium">
-                        {appointment.requestedServiceName ||
-                          "клиент не выбрал услугу"}
-                      </div>
+                      {!appointment.requestedPetName &&
+                        !appointment.requestedPetSpecies && (
+                          <div className="text-[10px] text-gray-400 mt-1">
+                            Клиент не указал питомца при записи.
+                          </div>
+                        )}
                     </div>
 
-                    <div>
-                      <div className="text-xs text-gray-500">
-                        Врач, выбранный клиентом
+                    {/* Услуга/врач клиента */}
+                    <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-2">
+                      <div>
+                        <div className="text-xs text-gray-500">
+                          Услуга, выбранная клиентом
+                        </div>
+                        <div className="font-medium">
+                          {appointment.requestedServiceName ||
+                            "клиент не выбрал услугу"}
+                        </div>
                       </div>
-                      <div className="font-medium">
-                        {appointment.requestedDoctorName ||
-                          "клиент не выбрал врача"}
-                      </div>
-                    </div>
 
-                    <div className="text-[10px] text-gray-400">
-                      Эти данные не редактируются. Регистратура может назначить
-                      другую услугу или врача слева.
+                      <div>
+                        <div className="text-xs text-gray-500">
+                          Врач, выбранный.clientом
+                        </div>
+                        <div className="font-medium">
+                          {appointment.requestedDoctorName ||
+                            "клиент не выбрал врача"}
+                        </div>
+                      </div>
+
+                      <div className="text-[10px] text-gray-400">
+                        Эти данные не редактируются. Регистратура может
+                        назначить другую услугу или врача в блоке слева.
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -317,21 +339,21 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
             {/* ======= Жалоба / описание проблемы ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
-              <div className="flex flex-wrap.items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center.justify-between gap-3">
                 <h2 className="text-base font-semibold">
                   Жалоба / описание проблемы
                 </h2>
                 <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex items-center.rounded-full bg-gray-100 px-2.py-0.5">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
                     Слева — формулировка регистратуры
                   </span>
-                  <span className="inline-flex items-center.rounded-full bg-gray-50 px-2.py-0.5">
+                  <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
                     Справа — что писал клиент
                   </span>
                 </div>
               </div>
 
-              <div className="grid.gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {/* Лево: жалоба регистратуры (редактируемая) */}
                 <div className="space-y-1">
                   <RegistrarComplaintEditor
@@ -343,10 +365,10 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
                 {/* Право: исходный текст клиента */}
                 <div className="space-y-1">
-                  <div className="text-xs.font-semibold.uppercase text-gray-500">
+                  <div className="text-xs font-semibold.uppercase text-gray-500">
                     Писал клиент при записи
                   </div>
-                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm min-h-[60px] whitespace-pre-line">
+                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm min-h-[60px] whitespace-pre-line">
                     {appointment.requestedComplaint &&
                     appointment.requestedComplaint.trim()
                       ? appointment.requestedComplaint
@@ -361,7 +383,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
             </section>
 
             {/* ======= Действия регистратуры ======= */}
-            <section className="rounded-2xl.border bg-white p-4 space-y-4">
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
               <h2 className="text-base font-semibold">
                 Действия регистратуры
               </h2>
@@ -372,7 +394,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                 initialCancellationReason={appointment.cancellationReason}
               />
 
-              <div className="border-t.border-gray-100 pt-4 mt-2">
+              <div className="border-t border-gray-100 pt-4 mt-2">
                 <RegistrarAssignSlot
                   appointmentId={appointment.id}
                   doctorId={appointment.doctorId}
@@ -380,8 +402,8 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
 
               <p className="text-[11px] text-gray-400">
-                Далее сюда добавим историю изменений по заявке (кто и когда
-                изменил статус, врача, услугу или жалобу).
+                В дальнейшем здесь появится история изменений по заявке (кто и
+                когда изменил статус, врача, услугу или жалобу).
               </p>
             </section>
           </>
