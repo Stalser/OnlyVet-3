@@ -2,105 +2,181 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
-type Props = {
+interface RegistrarActionsProps {
   appointmentId: string;
   currentStatus: string;
-};
+  initialCancellationReason?: string | null;
+}
 
-type ActionStatus = "idle" | "loading" | "success" | "error";
+export function RegistrarActions({
+  appointmentId,
+  currentStatus,
+  initialCancellationReason,
+}: RegistrarActionsProps) {
+  const router = useRouter();
+  const [status, setStatus] = useState<string>(currentStatus);
+  const [cancellationReason, setCancellationReason] = useState<string>(
+    initialCancellationReason ?? ""
+  );
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-export function RegistrarActions({ appointmentId, currentStatus }: Props) {
-  const [actionState, setActionState] = useState<ActionStatus>("idle");
-  const [message, setMessage] = useState<string | null>(null);
-  const [statusNow, setStatusNow] = useState<string>(currentStatus);
+  const normalizedStatus = (status || "").toLowerCase();
 
-  const client: SupabaseClient | null = supabase;
+  const handleUpdateStatus = async (nextStatus: string) => {
+    setError(null);
 
-  const updateStatus = async (newStatus: string) => {
-    if (!client) {
-      setActionState("error");
-      setMessage("Supabase не сконфигурирован.");
+    if (!supabase) {
+      setError("Supabase не сконфигурирован.");
       return;
     }
 
-    setActionState("loading");
-    setMessage(null);
+    // Подтверждение действия
+    let question = "";
+    if (nextStatus.toLowerCase().includes("подтверж")) {
+      question = "Подтвердить запись и перевести её в работу?";
+    } else if (nextStatus.toLowerCase().includes("отмен")) {
+      question = "Отменить запись? Клиент увидит причину отмены.";
+    } else if (nextStatus.toLowerCase().includes("заверш")) {
+      question = "Отметить запись как завершённую?";
+    } else {
+      question = `Изменить статус записи на "${nextStatus}"?`;
+    }
 
-    const { error } = await client
-      .from("appointments")
-      .update({ status: newStatus })
-      .eq("id", appointmentId);
-
-    if (error) {
-      console.error("RegistrarActions updateStatus error:", error);
-      setActionState("error");
-      setMessage("Не удалось обновить статус приёма.");
+    if (!window.confirm(question)) {
       return;
     }
 
-    setStatusNow(newStatus);
-    setActionState("success");
-    setMessage(`Статус обновлён на: "${newStatus}".`);
+    // Для отмены статус без причины не допускаем
+    if (nextStatus.toLowerCase().includes("отмен")) {
+      if (!cancellationReason.trim()) {
+        setError("Нельзя отменить запись без указания причины.");
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const updateData: any = {
+        status: nextStatus,
+      };
+
+      if (nextStatus.toLowerCase().includes("отмен")) {
+        updateData.cancellation_reason = cancellationReason.trim();
+      }
+
+      const { error: updateError } = await supabase
+        .from("appointments")
+        .update(updateData)
+        .eq("id", appointmentId);
+
+      if (updateError) {
+        console.error(updateError);
+        setError(
+          "Не удалось обновить статус записи: " + updateError.message
+        );
+        setLoading(false);
+        return;
+      }
+
+      setStatus(nextStatus);
+      // Обновляем страницу, чтобы подтянулись свежие данные
+      router.refresh();
+    } catch (err: any) {
+      console.error(err);
+      setError("Ошибка при обновлении записи: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleConfirm = () => updateStatus("подтверждена");
-  const handleCancel = () => updateStatus("отменена");
-  const handleComplete = () => updateStatus("завершена");
+  const onConfirmClick = () => {
+    handleUpdateStatus("подтверждена");
+  };
 
-  const isLoading = actionState === "loading";
+  const onCancelClick = () => {
+    handleUpdateStatus("отменена");
+  };
+
+  const onFinishClick = () => {
+    handleUpdateStatus("завершена");
+  };
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 text-xs">
+    <div className="space-y-4">
+      {/* Кнопки статусов */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
         <button
           type="button"
-          onClick={handleConfirm}
-          disabled={isLoading || statusNow === "подтверждена"}
-          className="rounded-xl border border-emerald-600 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={onConfirmClick}
+          disabled={loading}
+          className={
+            "rounded-xl border px-3 py-1.5 font-medium " +
+            (normalizedStatus.includes("подтверж")
+              ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+              : "border-emerald-600 text-emerald-700 hover:bg-emerald-50")
+          }
         >
           Подтвердить
         </button>
 
         <button
           type="button"
-          onClick={handleCancel}
-          disabled={isLoading || statusNow === "отменена"}
-          className="rounded-xl border border-red-500 px-3 py-1.5 font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={onCancelClick}
+          disabled={loading}
+          className={
+            "rounded-xl border px-3 py-1.5 font-medium " +
+            (normalizedStatus.includes("отмен")
+              ? "border-red-600 bg-red-50 text-red-700"
+              : "border-red-600 text-red-700 hover:bg-red-50")
+          }
         >
           Отменить
         </button>
 
         <button
           type="button"
-          onClick={handleComplete}
-          disabled={isLoading || statusNow === "завершена"}
-          className="rounded-xl border border-gray-400 px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={onFinishClick}
+          disabled={loading}
+          className={
+            "rounded-xl border px-3 py-1.5 font-medium " +
+            (normalizedStatus.includes("заверш")
+              ? "border-gray-500 bg-gray-100 text-gray-700"
+              : "border-gray-400 text-gray-700 hover:bg-gray-50")
+          }
         >
           Отметить завершённым
         </button>
+
+        <div className="ml-auto text-[11px] text-gray-500">
+          Текущий статус: <span className="font-medium">{status}</span>
+        </div>
       </div>
 
-      <div className="text-[11px] text-gray-500">
-        Текущий статус:{" "}
-        <span className="font-semibold text-gray-800">
-          {statusNow || "неизвестен"}
-        </span>
+      {/* Причина отмены */}
+      <div className="space-y-1 text-xs">
+        <label className="font-medium text-gray-700">
+          Причина отмены (обязательна при статусе «отменена»)
+        </label>
+        <textarea
+          value={cancellationReason}
+          onChange={(e) => setCancellationReason(e.target.value)}
+          placeholder="Кратко объясните, почему запись отменена. Этот текст увидит клиент."
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-600 min-h-[70px]"
+        />
+        <p className="text-[11px] text-gray-400">
+          В будущем это поле будет использоваться для уведомлений клиенту и
+          внутреннего аудита работы регистратуры.
+        </p>
       </div>
 
-      {actionState !== "idle" && message && (
-        <div
-          className={`text-[11px] ${
-            actionState === "error"
-              ? "text-red-600"
-              : actionState === "success"
-              ? "text-emerald-700"
-              : "text-gray-500"
-          }`}
-        >
-          {message}
+      {/* Ошибки */}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+          {error}
         </div>
       )}
     </div>
