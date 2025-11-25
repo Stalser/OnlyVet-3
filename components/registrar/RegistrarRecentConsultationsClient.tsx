@@ -35,21 +35,21 @@ function getStatusBadge(status: string): StatusBadge {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700",
+        "inline-flex rounded-full bg-amber-50 px-2.py-0.5 text-[10px] font-medium text-amber-700",
     };
   }
   if (s.includes("подтверж")) {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700",
+        "inline-flex rounded-full bg-blue-50 px-2.py-0.5 text-[10px] font-medium text-blue-700",
     };
   }
   if (s.includes("заверш")) {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700",
+        "inline-flex rounded-full bg-gray-100 px-2.py-0.5 text-[10px] font-medium text-gray-700",
     };
   }
 
@@ -57,7 +57,7 @@ function getStatusBadge(status: string): StatusBadge {
   return {
     label: status || "неизвестен",
     className:
-      "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700",
+      "inline-flex rounded-full bg-emerald-50 px-2.py-0.5 text-[10px] font-medium text-emerald-700",
   };
 }
 
@@ -95,7 +95,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             <span>Показывать:</span>
             <select
               value={maxRows}
-             .onChange={(e) => setMaxRows(Number(e.target.value))}
+              onChange={(e) => setMaxRows(Number(e.target.value))}
               className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-emerald-600"
             >
               {ROW_OPTIONS.map((opt) => (
@@ -126,15 +126,15 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
             <thead>
               <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
                 <th className="px-2 py-2">Дата / время</th>
-                <th className="px-2.py-2">Клиент</th>
-                <th className="px-2.py-2">Питомец</th>
-                <th className="px-2.py-2">Врач</th>
-                <th className="px-2.py-2">Услуга</th>
-                <th className="px-2.py-2 max-w-[220px]">Жалоба</th>
-                <th className="px-2.py-2">Документы</th>
-                <th className="px-2.py-2">Оплата</th>
-                <th className="px-2.py-2">Статус</th>
-                <th className="px-2.py-2 text-right">Действия</th>
+                <th className="px-2 py-2">Клиент</th>
+                <th className="px-2 py-2">Питомец</th>
+                <th className="px-2 py-2">Врач</th>
+                <th className="px-2 py-2">Услуга</th>
+                <th className="px-2 py-2 max-w-[220px]">Жалоба</th>
+                <th className="px-2 py-2">Документы</th>
+                <th className="px-2 py-2">Оплата</th>
+                <th className="px-2 py-2">Статус</th>
+                <th className="px-2 py-2 text-right">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -195,7 +195,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Врач: текущий + «выбрал клиент» */}
-                    <td className="px-2 py-2.align-top">
+                    <td className="px-2 py-2 align-top">
                       <div className="text-[11px]">
                         {a.doctorName || "Не назначен"}
                       </div>
@@ -207,7 +207,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Услуга: текущая + «выбрал клиент» */}
-                    <td className="px-2.py-2.align-top">
+                    <td className="px-2 py-2 align-top">
                       <div className="text-[11px]">{a.serviceName}</div>
                       {a.serviceCode && (
                         <div className="text-[10px] text-gray-500">
@@ -222,7 +222,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Жалоба */}
-                    <td className="px-2 py-2.align-top max-w-[220px]">
+                    <td className="px-2 py-2 align-top max-w-[220px]">
                       <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
                         {complaint.length > 0 ? complaint : "—"}
                       </div>
@@ -234,7 +234,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Документы: да/нет */}
-                    <td className="px-2.py-2.align-top">
+                    <td className="px-2 py-2.align-top">
                       <span
                         className={
                           "inline-flex rounded-full px-2.py-0.5 text-[10px] font-medium " +
@@ -248,7 +248,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Оплата: да/нет */}
-                    <td className="px-2.py-2.align-top">
+                    <td className="px-2 py-2.align-top">
                       <span
                         className={
                           "inline-flex rounded-full px-2.py-0.5 text-[10px] font-medium " +
