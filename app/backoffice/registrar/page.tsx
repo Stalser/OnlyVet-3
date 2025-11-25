@@ -55,7 +55,7 @@ export default async function RegistrarDashboardPage() {
                 регистратором.
               </p>
             </div>
-            <div className="mt-4 flex items-end justify-between">
+            <div className="mt-4 flex.items-end justify-between">
               <div>
                 <div className="text-3xl font-bold">{newRequestsCount}</div>
                 <div className="text-[11px] text-gray-500">
@@ -90,13 +90,13 @@ export default async function RegistrarDashboardPage() {
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/backoffice/registrar/schedule"
-                  className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                  className="rounded-xl border border-gray-300 px-3.py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
                 >
                   Расписание врачей
                 </Link>
                 <Link
                   href="/backoffice/registrar/consultations"
-                  className="rounded-xl border border-gray-300 px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                  className="rounded-xl.border border-gray-300 px-3.py-1.5 text-[11px] text-gray-700 hover:bg-gray-50"
                 >
                   Календарь / список приёмов
                 </Link>
