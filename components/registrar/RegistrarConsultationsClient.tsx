@@ -8,6 +8,11 @@ interface Props {
   appointments: RegistrarAppointmentRow[];
 }
 
+type StatusBadge = {
+  label: string;
+  className: string;
+};
+
 function statusBadgeClass(status: string): string {
   const s = (status || "").toLowerCase();
 
@@ -77,6 +82,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
           a.serviceCode || "",
           a.complaint || "",
           a.requestedComplaint || "",
+          a.cancellationReason || "",
         ]
           .join(" ")
           .toLowerCase();
@@ -163,9 +169,9 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
               const requestedComplaint =
                 (a.requestedComplaint ?? "").trim();
 
+              // показываем исходный текст клиента, если он есть
               const showRequestedComplaint =
-                requestedComplaint.length > 0 &&
-                requestedComplaint !== complaint;
+                requestedComplaint.length > 0;
 
               return (
                 <tr
@@ -196,7 +202,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     )}
                   </td>
 
-                  {/* Питомец: текущий + и исходный выбор клиента */}
+                  {/* Питомец: текущий + исходный выбор клиента */}
                   <td className="px-2 py-2 align-top">
                     <div className="text-[11px]">
                       {a.petName || "—"}
@@ -283,7 +289,7 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     </span>
                   </td>
 
-                  {/* Статус */}
+                  {/* Статус + причина отмены */}
                   <td className="px-2 py-2 align-top">
                     <span
                       className={
@@ -293,6 +299,14 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                     >
                       {a.statusLabel}
                     </span>
+                    {a.statusLabel
+                      .toLowerCase()
+                      .includes("отмен") &&
+                      a.cancellationReason && (
+                        <div className="mt-0.5 text-[10px] text-gray-400 max-w-[220px] whitespace-pre-line">
+                          причина: {a.cancellationReason}
+                        </div>
+                      )}
                   </td>
 
                   {/* Действия */}
