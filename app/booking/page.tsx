@@ -343,28 +343,38 @@ export default function BookingPage() {
       const requestedDoctorCode =
         doctorCode === "any" ? null : (doctorCode as string);
 
-      // создаём appointment
-      const { error: apptErr } = await client.from("appointments").insert({
-        owner_id: ownerId,
-        pet_name: petName,
-        species,
-        starts_at: startsIso,
-        status: "запрошена",
-        complaint: complaint || null,
-        service_code: serviceCode || null,
+      // создаём appointment — сохраняем ИСХОДНЫЙ выбор клиента в requested_*
+      // а "боевые" поля (service_code, complaint и т.д.) остаются пустыми
+      // до обработки регистратурой
+      const { error: apptErr } = await.client
+        .from("appointments")
+        .insert({
+          owner_id: ownerId,
 
-        // фактически ответственный врач пока не назначен
-        doctor_id: null,
+          // пока считаем, что питомец будет этим же — регистратор при необходимости исправит
+          pet_name: null,
+          species: null,
 
-        // выбор клиента
-        requested_doctor_code: requestedDoctorCode,
-        requested_service_code: serviceCode || null,
-        requested_pet_name: petName,
-        requested_pet_species: species || null,
+          starts_at: startsIso,
+          status: "запрошена",
 
-        // формат связи — по умолчанию Яндекс Телемост
-        video_platform: "yandex_telemost",
-      });
+          // текущие (подтверждённые) жалоба и услуга ещё не выставлены
+          complaint: null,
+          service_code: null,
+
+          // фактически ответственный врач пока не назначен
+          doctor_id: null,
+
+          // выбор клиента
+          requested_doctor_code: requestedDoctorCode,
+          requested_service_code: serviceCode || null,
+          requested_pet_name: petName,
+          requested_pet_species: species || null,
+          requested_complaint: complaint || null,
+
+          // формат связи — по умолчанию Яндекс Телемост
+          video_platform: "yandex_telemost",
+        });
 
       if (apptErr) {
         console.error(apptErr);
@@ -413,7 +423,7 @@ export default function BookingPage() {
           <div className="flex justify-center gap-3 mt-2">
             <Link
               href="/auth/login"
-              className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium.hover:bg-gray-900"
+              className="rounded-xl px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-900"
             >
               Войти
             </Link>
@@ -433,7 +443,7 @@ export default function BookingPage() {
   return (
     <main className="bg-slate-50 min-h-screen py-12">
       <div className="container max-w-3xl mx-auto px-4">
-        <div className="rounded-3xl border bg-white shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-6">
+        <div className="rounded-3xl border bg-white shadow-sm px-6 py-6 md:px-8.md:py-8 space-y-6">
           {/* Назад */}
           <div>
             <Link
@@ -508,7 +518,7 @@ export default function BookingPage() {
                     </label>
                     <input
                       type="text"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none.focus:ring-1 focus:ring-black"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="Анна"
@@ -520,7 +530,7 @@ export default function BookingPage() {
                       <label className="text-xs text-gray-600">
                         Отчество
                       </label>
-                      <label className="flex.items-center gap-1 text-[11px] text-gray-500">
+                      <label className="flex items-center gap-1 text-[11px] text-gray-500">
                         <input
                           type="checkbox"
                           className="rounded"
@@ -613,7 +623,7 @@ export default function BookingPage() {
                       type="text"
                       className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-black"
                       value={petName}
-                      onChange={(e) => setPetName(e.target.value)}
+                     .onChange={(e) => setPetName(e.target.value)}
                       placeholder="Например: Барсик"
                     />
                   </div>
