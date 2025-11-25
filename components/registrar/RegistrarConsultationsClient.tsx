@@ -235,19 +235,21 @@ export function RegistrarConsultationsClient({ appointments }: Props) {
                   </td>
 
                   {/* Услуга: текущая + «выбрал клиент» */}
-                  <td className="px-2 py-2 align-top">
-                    <div className="text-[11px]">{a.serviceName}</div>
-                    {a.serviceCode && (
-                      <div className="text-[10px] text-gray-500">
-                        {a.serviceCode}
-                      </div>
-                    )}
-                    {a.requestedServiceName && (
-                      <div className="mt-0.5 text-[10px] text-gray-400">
-                        выбрал клиент: {a.requestedServiceName}
-                      </div>
-                    )}
-                  </td>
+<td className="px-2 py-2.align-top">
+  <div className="text-[11px]">
+    {a.serviceName || "—"}
+  </div>
+  {a.serviceCode && (
+    <div className="text-[10px] text-gray-500">
+      {a.serviceCode}
+    </div>
+  )}
+  {a.requestedServiceName && (
+    <div className="mt-0.5 text-[10px] text-gray-400">
+      выбрал клиент: {a.requestedServiceName}
+    </div>
+  )}
+</td>
 
                   {/* Жалоба */}
                   <td className="px-2 py-2 align-top max-w-[220px]">
