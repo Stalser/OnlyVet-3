@@ -1,3 +1,4 @@
+// app/backoffice/registrar/consultations/[id]/page.tsx
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
@@ -9,6 +10,17 @@ interface PageProps {
   params: {
     id: string;
   };
+}
+
+function statusBadgeClass(status: string): string {
+  const s = (status || "").toLowerCase();
+
+  if (s.includes("отмен")) return "bg-red-50 text-red-700";
+  if (s.includes("запрош")) return "bg-amber-50 text-amber-700";
+  if (s.includes("подтверж")) return "bg-blue-50 text-blue-700";
+  if (s.includes("заверш")) return "bg-gray-100 text-gray-700";
+
+  return "bg-emerald-50 text-emerald-700";
 }
 
 export default async function RegistrarConsultationPage({ params }: PageProps) {
@@ -39,7 +51,12 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
           </div>
 
           {appointment && (
-            <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700">
+            <span
+              className={
+                "inline-flex rounded-full px-3 py-1 text-[11px] font-medium " +
+                statusBadgeClass(appointment.statusLabel)
+              }
+            >
               Статус: {appointment.statusLabel}
             </span>
           )}
@@ -63,7 +80,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               <h2 className="text-base font-semibold">Основная информация</h2>
 
               {/* ID + дата */}
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
                 <div>
                   <div className="text-xs text-gray-500">ID заявки</div>
                   <div className="font-mono text-sm text-gray-900">
@@ -109,13 +126,33 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Питомец
                   </h3>
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
+                    {/* утверждённый регистратурой */}
                     <div className="font-medium">
                       {appointment.petName || "Не указан"}
                     </div>
                     {appointment.petSpecies && (
-                      <div className="mt-1 text-xs text-gray-600">
+                      <div className="text-xs text-gray-600">
                         {appointment.petSpecies}
+                      </div>
+                    )}
+                    {/* подсказка, что регистратор ещё не подтвердил */}
+                    {appointment.statusLabel
+                      .toLowerCase()
+                      .includes("запрош") &&
+                      !appointment.petName && (
+                        <div className="text-[10px] text-gray-400">
+                          Питомец ещё не подтверждён регистратурой.
+                        </div>
+                      )}
+                    {/* выбор клиента */}
+                    {(appointment.requestedPetName ||
+                      appointment.requestedPetSpecies) && (
+                      <div className="text-[11px] text-gray-400 mt-1">
+                        выбрал клиент:{" "}
+                        {appointment.requestedPetName ||
+                          appointment.requestedPetSpecies ||
+                          "—"}
                       </div>
                     )}
                     <div className="mt-2 text-[11px] text-gray-400">
@@ -127,26 +164,37 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
                 {/* Услуга + врач + платформа связи */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-semibold.uppercase text-gray-500">
+                  <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Услуга и врач
                   </h3>
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-3">
                     <div>
                       <div className="text-xs text-gray-500">Услуга</div>
                       <div className="font-medium">
-                        {appointment.serviceName}
+                        {appointment.serviceName || "Не выбрана"}
                       </div>
                       {appointment.serviceCode && (
                         <div className="text-[11px] text-gray-500">
                           код: {appointment.serviceCode}
                         </div>
                       )}
+                      {appointment.requestedServiceName && (
+                        <div className="mt-1 text-[11px] text-gray-400">
+                          выбрал клиент: {appointment.requestedServiceName}
+                        </div>
+                      )}
                     </div>
-                    <div className="pt-2">
+
+                    <div>
                       <div className="text-xs text-gray-500">Врач</div>
                       <div className="font-medium">
                         {appointment.doctorName || "Не назначен"}
                       </div>
+                      {appointment.requestedDoctorName && (
+                        <div className="mt-1 text-[11px] text-gray-400">
+                          выбрал клиент: {appointment.requestedDoctorName}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -185,23 +233,100 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Документы и оплата */}
+              <div className="grid gap-4 md:grid-cols-2 pt-2 border-t border-gray-100 mt-2">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-semibold uppercase text-gray-500">
+                    Документы и оплата
+                  </h3>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
+                    <div>
+                      <span className="text-xs text-gray-500">
+                        Документы по приёму:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {appointment.hasDocuments ? "есть" : "нет"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500">
+                        Оплата по приёму:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {appointment.hasPayments ? "есть" : "нет"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      Здесь позже можно будет открыть список документов и
+                      платежей по этой консультации.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Индикатор редактирования + причина отмены */}
+                <div className="space-y-1">
+                  <h3 className="text-xs font-semibold uppercase text-gray-500">
+                    Статус обработки
+                  </h3>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
+                    <div>
+                      <span className="text-xs text-gray-500">Статус:</span>{" "}
+                      <span className="font-medium">
+                        {appointment.statusLabel}
+                      </span>
+                    </div>
+                    {appointment.cancellationReason && (
+                      <div className="text-xs text-red-700">
+                        Причина отмены: {appointment.cancellationReason}
+                      </div>
+                    )}
+                    {/* позже тут можно добавить индикатор "карточка редактировалась регистратурой" */}
+                  </div>
+                </div>
+              </div>
             </section>
 
-            {/* ======= Блок "Жалоба клиента" ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-2">
+            {/* ======= Блок "Жалоба / описание проблемы" ======= */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
               <h2 className="text-base font-semibold">
                 Жалоба / описание проблемы
               </h2>
-              {appointment.complaint ? (
-                <p className="text-sm text-gray-700 whitespace-pre-line">
-                  {appointment.complaint}
-                </p>
-              ) : (
-                <p className="text-xs text-gray-500">
-                  Жалоба клиента не указана. Позже здесь будет отображаться
-                  текст из формы записи на консультацию.
-                </p>
-              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Жалоба регистратора (пока только отображение) */}
+                <div className="space-y-1">
+                  <div className="text-xs font-semibold uppercase text-gray-500">
+                    Формулировка регистратуры
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm min-h-[60px] whitespace-pre-line">
+                    {appointment.complaint && appointment.complaint.trim()
+                      ? appointment.complaint
+                      : "— пока не заполнено"}
+                  </div>
+                  <div className="text-[11px] text-gray-400">
+                    В будущем эта формулировка будет редактироваться
+                    регистратурой и отображаться врачу.
+                  </div>
+                </div>
+
+                {/* Исходный текст клиента */}
+                <div className="space-y-1">
+                  <div className="text-xs font-semibold uppercase text-gray-500">
+                    Писал клиент при записи
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm min-h-[60px] whitespace-pre-line">
+                    {appointment.requestedComplaint &&
+                    appointment.requestedComplaint.trim()
+                      ? appointment.requestedComplaint
+                      : "Клиент не указал жалобу при записи."}
+                  </div>
+                  <div className="text-[11px] text-gray-400">
+                    Это исходный текст владельца из формы записи. Он не
+                    изменяется регистратурой.
+                  </div>
+                </div>
+              </div>
             </section>
 
             {/* ======= Блок "Действия регистратуры" ======= */}
@@ -213,6 +338,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               <RegistrarActions
                 appointmentId={appointment.id}
                 currentStatus={appointment.statusLabel}
+                initialCancellationReason={appointment.cancellationReason}
               />
 
               <div className="border-t border-gray-100 pt-4 mt-2">
