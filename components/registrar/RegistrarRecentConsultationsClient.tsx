@@ -118,6 +118,14 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 const hasDocs = a.hasDocuments === true;
                 const isPaid = a.hasPayments === true;
 
+                const complaint = (a.complaint ?? "").trim();
+                const requestedComplaint =
+                  (a.requestedComplaint ?? "").trim();
+
+                const showRequestedComplaint =
+                  requestedComplaint.length > 0 &&
+                  requestedComplaint !== complaint;
+
                 return (
                   <tr
                     key={a.id}
@@ -195,10 +203,13 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     {/* Жалоба */}
                     <td className="px-2 py-2 align-top max-w-[220px]">
                       <div className="text-[11px] text-gray-700 whitespace-pre-line line-clamp-2">
-                        {a.complaint && a.complaint.trim().length > 0
-                          ? a.complaint
-                          : "—"}
+                        {complaint.length > 0 ? complaint : "—"}
                       </div>
+                      {showRequestedComplaint && (
+                        <div className="mt-0.5 text-[10px] text-gray-400 whitespace-pre-line line-clamp-2">
+                          писал клиент: {requestedComplaint}
+                        </div>
+                      )}
                     </td>
 
                     {/* Документы: да/нет */}
