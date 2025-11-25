@@ -35,21 +35,21 @@ function getStatusBadge(status: string): StatusBadge {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-amber-50 px-2.py-0.5 text-[10px] font-medium text-amber-700",
+        "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700",
     };
   }
   if (s.includes("подтверж")) {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-blue-50 px-2.py-0.5 text-[10px] font-medium text-blue-700",
+        "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700",
     };
   }
   if (s.includes("заверш")) {
     return {
       label: status,
       className:
-        "inline-flex rounded-full bg-gray-100 px-2.py-0.5 text-[10px] font-medium text-gray-700",
+        "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700",
     };
   }
 
@@ -57,7 +57,7 @@ function getStatusBadge(status: string): StatusBadge {
   return {
     label: status || "неизвестен",
     className:
-      "inline-flex rounded-full bg-emerald-50 px-2.py-0.5 text-[10px] font-medium text-emerald-700",
+      "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700",
   };
 }
 
@@ -147,6 +147,9 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 const requestedComplaint = (a.requestedComplaint ?? "").trim();
                 const showRequestedComplaint = requestedComplaint.length > 0;
 
+                const isPending =
+                  a.statusLabel.toLowerCase().includes("запрош");
+
                 return (
                   <tr
                     key={a.id}
@@ -174,34 +177,32 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       )}
                     </td>
 
-                   {/* Питомец: утверждённый регистратурой + выбор клиента */}
-<td className="px-2 py-2 align-top">
-
-  {/* Утверждённая версия регистратуры */}
-  <div className="text-[11px]">
-    {a.petName || "—"}
-  </div>
-  {a.petSpecies && (
-    <div className="text-[10px] text-gray-500">
-      {a.petSpecies}
-    </div>
-  )}
-
-  {/* Если регистратор не работал (статус = запрошена) — подсказка */}
-  {a.statusLabel.toLowerCase().includes("запрош") && !a.petName && (
-    <div className="mt-0.5 text-[10px] text-gray-400">
-      ещё не подтверждено регистратурой
-    </div>
-  )}
-
-  {/* Исходный выбор клиента */}
-  {(a.requestedPetName || a.requestedPetSpecies) && (
-    <div className="mt-0.5 text-[10px] text-gray-400">
-      выбрал клиент:{" "}
-      {a.requestedPetName || a.requestedPetSpecies || "—"}
-    </div>
-  )}
-</td>
+                    {/* Питомец: утверждённый + «выбрал клиент» */}
+                    <td className="px-2 py-2 align-top">
+                      {/* утверждённый регистратурой (или пусто) */}
+                      <div className="text-[11px]">
+                        {a.petName || "—"}
+                      </div>
+                      {a.petSpecies && (
+                        <div className="text-[10px] text-gray-500">
+                          {a.petSpecies}
+                        </div>
+                      )}
+                      {isPending && !a.petName && (
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          ещё не подтверждено регистратурой
+                        </div>
+                      )}
+                      {/* выбор клиента */}
+                      {(a.requestedPetName || a.requestedPetSpecies) && (
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          выбрал клиент:{" "}
+                          {a.requestedPetName ||
+                            a.requestedPetSpecies ||
+                            "—"}
+                        </div>
+                      )}
+                    </td>
 
                     {/* Врач: текущий + «выбрал клиент» */}
                     <td className="px-2 py-2 align-top">
@@ -216,21 +217,21 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Услуга: текущая + «выбрал клиент» */}
-<td className="px-2 py-2.align-top">
-  <div className="text-[11px]">
-    {a.serviceName || "—"}
-  </div>
-  {a.serviceCode && (
-    <div className="text-[10px] text-gray-500">
-      {a.serviceCode}
-    </div>
-  )}
-  {a.requestedServiceName && (
-    <div className="mt-0.5 text-[10px] text-gray-400">
-      выбрал клиент: {a.requestedServiceName}
-    </div>
-  )}
-</td>
+                    <td className="px-2 py-2 align-top">
+                      <div className="text-[11px]">
+                        {a.serviceName || "—"}
+                      </div>
+                      {a.serviceCode && (
+                        <div className="text-[10px] text-gray-500">
+                          {a.serviceCode}
+                        </div>
+                      )}
+                      {a.requestedServiceName && (
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          выбрал клиент: {a.requestedServiceName}
+                        </div>
+                      )}
+                    </td>
 
                     {/* Жалоба */}
                     <td className="px-2 py-2 align-top max-w-[220px]">
@@ -245,10 +246,10 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Документы: да/нет */}
-                    <td className="px-2 py-2.align-top">
+                    <td className="px-2 py-2 align-top">
                       <span
                         className={
-                          "inline-flex rounded-full px-2.py-0.5 text-[10px] font-medium " +
+                          "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
                           (hasDocs
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-gray-100 text-gray-600")
@@ -259,10 +260,10 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Оплата: да/нет */}
-                    <td className="px-2 py-2.align-top">
+                    <td className="px-2 py-2 align-top">
                       <span
                         className={
-                          "inline-flex rounded-full px-2.py-0.5 text-[10px] font-medium " +
+                          "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
                           (isPaid
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-gray-100 text-gray-600")
@@ -273,7 +274,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Статус + причина отмены */}
-                    <td className="px-2.py-2.align-top">
+                    <td className="px-2 py-2 align-top">
                       <span className={badge.className}>{badge.label}</span>
                       {a.statusLabel.toLowerCase().includes("отмен") &&
                         a.cancellationReason && (
@@ -284,7 +285,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Действия */}
-                    <td className="px-2.py-2.align-top text-right">
+                    <td className="px-2 py-2 align-top text-right">
                       <Link
                         href={`/backoffice/registrar/consultations/${a.id}`}
                         className="text-[11px] font-medium text-emerald-700 hover:underline"
