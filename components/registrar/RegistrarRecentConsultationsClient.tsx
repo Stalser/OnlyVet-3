@@ -1,4 +1,3 @@
-// components/registrar/RegistrarRecentConsultationsClient.tsx
 "use client";
 
 import Link from "next/link";
@@ -122,9 +121,9 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                 const requestedComplaint =
                   (a.requestedComplaint ?? "").trim();
 
+                // Теперь показываем "писал клиент", если вообще есть исходный текст
                 const showRequestedComplaint =
-                  requestedComplaint.length > 0 &&
-                  requestedComplaint !== complaint;
+                  requestedComplaint.length > 0;
 
                 return (
                   <tr
@@ -240,9 +239,17 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                       </span>
                     </td>
 
-                    {/* Статус */}
+                    {/* Статус + причина отмены */}
                     <td className="px-2 py-2 align-top">
                       <span className={badge.className}>{badge.label}</span>
+                      {a.statusLabel
+                        .toLowerCase()
+                        .includes("отмен") &&
+                        a.cancellationReason && (
+                          <div className="mt-0.5 text-[10px] text-gray-400 max-w-[220px] whitespace-pre-line">
+                            причина: {a.cancellationReason}
+                          </div>
+                        )}
                     </td>
 
                     {/* Действия */}
