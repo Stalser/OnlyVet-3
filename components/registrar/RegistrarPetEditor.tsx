@@ -79,7 +79,8 @@ export function RegistrarPetEditor({
     setError(null);
   };
 
-  const displayName = petName && petName.trim().length > 0 ? petName : "Не указан";
+  const displayName =
+    petName && petName.trim().length > 0 ? petName : "Не указан";
 
   return (
     <div className="space-y-1">
@@ -97,12 +98,10 @@ export function RegistrarPetEditor({
         </button>
       </div>
 
-      {/* Режим просмотра */}
+      {/* просмотр */}
       {!editing && (
         <>
-          <div className="font-medium text-sm">
-            {displayName}
-          </div>
+          <div className="font-medium text-sm">{displayName}</div>
           {petSpecies && (
             <div className="text-xs text-gray-600">{petSpecies}</div>
           )}
@@ -116,19 +115,17 @@ export function RegistrarPetEditor({
           </div>
           {wasEdited && (
             <div className="text-[11px] text-gray-400">
-              отредактировано регистратурой (точное время появится позже по
-              истории изменений)
+              отредактировано регистратурой (точное время будет видно в истории
+              изменений)
             </div>
           )}
           {error && (
-            <div className="text-[11px] text-red-600 mt-1">
-              {error}
-            </div>
+            <div className="text-[11px] text-red-600 mt-1">{error}</div>
           )}
         </>
       )}
 
-      {/* Режим редактирования */}
+      {/* редактирование */}
       {editing && (
         <div className="space-y-2">
           <div className="space-y-1">
@@ -168,13 +165,11 @@ export function RegistrarPetEditor({
             >
               Отменить
             </button>
-            {error && (
-              <span className="text-red-600">{error}</span>
-            )}
+            {error && <span className="text-red-600">{error}</span>}
           </div>
           <div className="text-[11px] text-gray-400">
-            Эти данные формируют “официального” питомца приёма. Справа показано,
-            что указывал клиент.
+            Это официальные данные по питомцу для врачей. Справа отображается
+            исходный выбор клиента.
           </div>
         </div>
       )}
