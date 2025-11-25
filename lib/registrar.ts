@@ -31,7 +31,7 @@ export type RegistrarAppointmentRow = {
   petName?: string | null;
   petSpecies?: string | null;
 
-  // Питомец, выбранный клиентом при создании (задел на будущее)
+  // Питомец, выбранный клиентом при создании (используем для UI)
   chosenPetName?: string | null;
   chosenPetSpecies?: string | null;
 
@@ -43,11 +43,11 @@ export type RegistrarAppointmentRow = {
   serviceCode?: string | null;
   serviceName: string | null;
 
-  // Услуга, которую выбрал клиент (по requested_service_code; задел на будущее)
+  // Услуга, которую выбрал клиент (по requested_service_code)
   chosenServiceCode?: string | null;
   chosenServiceName?: string | null;
 
-  // Алиас под UI
+  // Алиас под UI «выбрал клиент»
   requestedServiceName?: string | null;
 
   // Врач, у которого сейчас назначен приём
@@ -58,11 +58,14 @@ export type RegistrarAppointmentRow = {
   chosenDoctorId?: string | null;
   chosenDoctorName?: string | null;
 
-  // Алиас под UI
+  // Алиас под UI «выбрал клиент»
   requestedDoctorName?: string | null;
 
   // Статус приёма
   statusLabel: string;
+
+  // Причина отмены (если статус «отменена»)
+  cancellationReason?: string | null;
 
   // Наличие документов/оплаты
   hasDocuments: boolean;
@@ -75,7 +78,7 @@ export type RegistrarAppointmentRow = {
   // Жалоба/описание проблемы (текущая, отредактированная регистратором/врачом)
   complaint?: string | null;
 
-  // Исходная жалоба, которую писал клиент в заявке
+  // Исходная жалоба клиента из заявки
   requestedComplaint?: string | null;
 };
 
@@ -145,7 +148,8 @@ async function loadRawAppointments() {
       requested_service_code,
       requested_pet_name,
       requested_pet_species,
-      requested_complaint
+      requested_complaint,
+      cancellation_reason
     `
     )
     .order("starts_at", { ascending: false });
@@ -308,8 +312,11 @@ function mapToRegistrarRow(
   const requestedPetName: string | null = row.requested_pet_name ?? null;
   const requestedPetSpecies: string | null = row.requested_pet_species ?? null;
 
-  // Жалоба, написанная клиентом
+  // Жалоба клиента
   const requestedComplaint: string | null = row.requested_complaint ?? null;
+
+  // Причина отмены
+  const cancellationReason: string | null = row.cancellation_reason ?? null;
 
   // Флаги документов/оплат
   const hasDocuments = (docsByAppointmentId.get(id) ?? 0) > 0;
@@ -355,6 +362,7 @@ function mapToRegistrarRow(
     requestedDoctorName: chosenDoctorName ?? null,
 
     statusLabel: row.status ?? "неизвестно",
+    cancellationReason,
 
     hasDocuments,
     hasPayments,
