@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { RegistrarAppointmentRow } from "@/lib/registrar";
 
@@ -12,7 +13,8 @@ type Props = {
   appointments: RegistrarAppointmentRow[];
 };
 
-const MAX_ROWS = 7;
+const DEFAULT_MAX_ROWS = 5;
+const ROW_OPTIONS = [5, 10, 20];
 
 type StatusBadge = {
   label: string;
@@ -60,33 +62,62 @@ function getStatusBadge(status: string): StatusBadge {
 }
 
 export function RegistrarRecentConsultationsClient({ appointments }: Props) {
-  // Берём последние MAX_ROWS по дате начала приёма
-  const rows = [...appointments]
-    .sort((a, b) => {
-      const da = a.startsAt ? new Date(a.startsAt).getTime() : 0;
-      const db = b.startsAt ? new Date(b.startsAt).getTime() : 0;
-      return db - da;
-    })
-    .slice(0, MAX_ROWS);
+  const [maxRows, setMaxRows] = useState<number>(DEFAULT_MAX_ROWS);
+
+  // сортируем по дате и берём нужное количество
+  const sorted = [...appointments].sort((a, b) => {
+    const da = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+    const db = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+    return db - da;
+  });
+
+  const rows = sorted.slice(0, maxRows);
+  const total = appointments.length;
 
   return (
     <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
           <h2 className="text-base font-semibold">
             Последние консультации и заявки
           </h2>
           <p className="text-[11px] text-gray-500">
-            Показаны последние {rows.length} записей. Полный список — в разделе{" "}
-            «Консультации и заявки».
+            Показаны последние{" "}
+            <span className="font-medium">
+              {rows.length}
+            </span>{" "}
+            из{" "}
+            <span className="font-medium">
+              {total}
+            </span>{" "}
+            записей. Полный список доступен в разделе «Консультации и заявки».
           </p>
         </div>
-        <Link
-          href="/backoffice/registrar/consultations"
-          className="text-xs font-medium text-emerald-700 hover:underline"
-        >
-          Все консультации и заявки →
-        </Link>
+
+        <div className="flex items-center gap-3">
+          {/* Селектор количества строк */}
+          <div className="flex items-center gap-1 text-[11px] text-gray-500">
+            <span>Показывать:</span>
+            <select
+              value={maxRows}
+              onChange={(e) => setMaxRows(Number(e.target.value))}
+              className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-emerald-600"
+            >
+              {ROW_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Link
+            href="/backoffice/registrar/consultations"
+            className="text-xs font-medium text-emerald-700 hover:underline"
+          >
+            Все консультации и заявки →
+          </Link>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -115,13 +146,12 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
               {rows.map((a) => {
                 const badge = getStatusBadge(a.statusLabel);
                 const hasDocs = a.hasDocuments === true;
-                const isPaid = a.hasPayments === true;
+                const.isPaid = a.hasPayments === true;
 
                 const complaint = (a.complaint ?? "").trim();
                 const requestedComplaint =
                   (a.requestedComplaint ?? "").trim();
 
-                // Теперь показываем "писал клиент", если вообще есть исходный текст
                 const showRequestedComplaint =
                   requestedComplaint.length > 0;
 
@@ -226,13 +256,13 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     </td>
 
                     {/* Оплата: да/нет */}
-                    <td className="px-2 py-2 align-top">
+                    <td className="px-2 py-2.align-top">
                       <span
                         className={
-                          "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                          "inline-flex rounded-full px-2.py-0.5 text-[10px] font-medium " +
                           (isPaid
                             ? "bg-emerald-50 text-emerald-700"
-                            : "bg-gray-100 text-gray-600")
+                            : "bg-gray-100.text-gray-600")
                         }
                       >
                         {isPaid ? "да" : "нет"}
@@ -242,9 +272,7 @@ export function RegistrarRecentConsultationsClient({ appointments }: Props) {
                     {/* Статус + причина отмены */}
                     <td className="px-2 py-2 align-top">
                       <span className={badge.className}>{badge.label}</span>
-                      {a.statusLabel
-                        .toLowerCase()
-                        .includes("отмен") &&
+                      {a.statusLabel.toLowerCase().includes("отмен") &&
                         a.cancellationReason && (
                           <div className="mt-0.5 text-[10px] text-gray-400 max-w-[220px] whitespace-pre-line">
                             причина: {a.cancellationReason}
