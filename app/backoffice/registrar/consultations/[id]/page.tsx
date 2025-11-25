@@ -5,6 +5,7 @@ import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
 import { getRegistrarAppointmentById } from "@/lib/registrar";
 import { RegistrarActions } from "@/components/registrar/RegistrarActions";
 import { RegistrarAssignSlot } from "@/components/registrar/RegistrarAssignSlot";
+import { RegistrarComplaintEditor } from "@/components/registrar/RegistrarComplaintEditor";
 
 interface PageProps {
   params: {
@@ -92,9 +93,8 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                 </div>
               </div>
 
-              {/* ID + базовые данные */}
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Левая часть: ID + клиент (служебный слой) */}
+                {/* Левая часть: ID + клиент + доки/оплата */}
                 <div className="space-y-3">
                   <div>
                     <div className="text-xs text-gray-500">ID заявки</div>
@@ -117,8 +117,8 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                         </div>
                       )}
                       <div className="mt-2 text-[11px] text-gray-400">
-                        В будущем здесь будет явная привязка к карточке клиента
-                        из owner_profiles.
+                        Позже здесь будет явная привязка к карточке клиента из
+                        owner_profiles.
                       </div>
                     </div>
                   </div>
@@ -152,7 +152,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {/* Правая часть: статус обработки + причина отмены */}
+                {/* Правая часть: статус обработки + формат связи */}
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Статус обработки
@@ -212,32 +212,34 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* ======= Двухколоночный блок: Питомец / Услуга и врач ======= */}
+            {/* ======= Питомец, услуга и врач (две колонки) ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">Питомец, услуга и врач</h2>
+                <h2 className="text-base font-semibold">
+                  Питомец, услуга и врач
+                </h2>
                 <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
                   <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
                     Левая колонка — для работы регистратуры
                   </span>
                   <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
-                    Правая колонка — данные, указанные клиентом
+                    Правая колонка — данные из заявки клиента
                   </span>
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Левая колонка: рабочие данные для клиники */}
+                {/* Левая колонка: рабочий слой клиники */}
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Данные для работы регистратуры
                   </h3>
 
-                  {/* Питомец (рабочий слой) */}
+                  {/* Питомец (рабочий) */}
                   <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs text-gray-500">Питомец</div>
-                      {/* сюда позже добавим кнопку редактирования */}
+                      {/* сюда позже добавим ✎ */}
                     </div>
                     <div className="font-medium">
                       {appointment.petName || "Не указан"}
@@ -253,16 +255,15 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                       </div>
                     )}
                     <div className="text-[11px] text-gray-400 mt-1">
-                      Эти данные будут отображаться врачу в его кабинете и в
-                      медицинской карте.
+                      Эти данные будут отображаться врачу и в медкарте.
                     </div>
                   </div>
 
-                  {/* Услуга и врач (рабочий слой) */}
+                  {/* Услуга и врач (рабочий) */}
                   <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs text-gray-500">
-                        Услуга (для работы клиники)
+                        Услуга (назначена клиникой)
                       </div>
                     </div>
                     <div className="font-medium">
@@ -295,13 +296,13 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {/* Правая колонка: что указал клиент */}
+                {/* Правая колонка: данные клиента */}
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase text-gray-500">
                     Данные из заявки клиента
                   </h3>
 
-                  {/* Питомец, выбранный клиентом */}
+                  {/* Питомец из заявки */}
                   <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-1">
                     <div className="text-xs text-gray-500">
                       Питомец, выбранный клиентом
@@ -322,7 +323,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                       )}
                   </div>
 
-                  {/* Услуга и врач, выбранные клиентом */}
+                  {/* Услуга и врач из заявки */}
                   <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-3">
                     <div>
                       <div className="text-xs text-gray-500">
@@ -345,7 +346,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                     </div>
 
                     <div className="text-[10px] text-gray-400">
-                      Эти данные не редактируются. Регистратор может назначить
+                      Эти данные не редактируются. Регистратура может назначить
                       другую услугу или врача в рабочем блоке слева.
                     </div>
                   </div>
@@ -353,7 +354,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* ======= Блок "Жалоба / описание проблемы" ======= */}
+            {/* ======= Жалоба / описание проблемы (две колонки) ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">
@@ -370,24 +371,16 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Жалоба регистратора (рабочий слой) */}
+                {/* Лево: жалоба регистратуры (редактируемая) */}
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase text-gray-500">
-                    Формулировка регистратуры
-                  </div>
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm min-h-[60px] whitespace-pre-line">
-                    {appointment.complaint && appointment.complaint.trim()
-                      ? appointment.complaint
-                      : "— пока не заполнено"}
-                  </div>
-                  <div className="text-[11px] text-gray-400">
-                    Эта формулировка будет отображаться врачу и в медицинской
-                    карте. Позже здесь появится возможность редактировать её
-                    регистратуре.
-                  </div>
+                  <RegistrarComplaintEditor
+                    appointmentId={appointment.id}
+                    complaint={appointment.complaint ?? null}
+                    requestedComplaint={appointment.requestedComplaint ?? null}
+                  />
                 </div>
 
-                {/* Исходный текст клиента */}
+                {/* Право: исходный текст клиента */}
                 <div className="space-y-1">
                   <div className="text-xs font-semibold uppercase text-gray-500">
                     Писал клиент при записи
@@ -406,8 +399,8 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* ======= Блок "Действия регистратуры" ======= */}
-            <section className="rounded-2xl border.bg-white p-4 space-y-4">
+            {/* ======= Действия регистратуры ======= */}
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
               <h2 className="text-base font-semibold">
                 Действия регистратуры
               </h2>
@@ -427,8 +420,7 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
               <p className="text-[11px] text-gray-400">
                 В будущем здесь появится отдельный блок истории изменений по
-                заявке с указанием того, кто и когда изменил статус, врача,
-                услугу или жалобу.
+                заявке (кто и когда изменил статус, врача, услугу или жалобу).
               </p>
             </section>
           </>
