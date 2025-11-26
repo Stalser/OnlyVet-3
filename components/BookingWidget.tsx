@@ -73,7 +73,7 @@ export default function BookingWidget() {
           <option value="">Любой врач</option>
           {doctors.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.name} — {d.speciality}
+              {d.name} — {d.specialty || "Без специализации"}
             </option>
           ))}
         </select>
@@ -85,26 +85,20 @@ export default function BookingWidget() {
         <select
           value={serviceCode}
           onChange={(e) => setServiceCode(e.target.value)}
-          className="rounded-xl border bordered-gray-300 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
+          className="rounded-xl border border-gray-300 px-3 py-2 text-xs outline-none focus:border-black focus:ring-1 focus:ring-black bg-white"
         >
           <option value="">Выберите услугу</option>
           {services.map((s) => (
             <option key={s.code} value={s.code}>
               {s.name}
-              {typeof s.price !== "undefined" && ` — ${s.price} ₽`}
-              {typeof s.priceRUB !== "undefined" &&
-                typeof s.price === "undefined" &&
-                ` — ${s.priceRUB} ₽`}
+              {typeof s.priceRUB !== "undefined" && ` — ${s.priceRUB} ₽`}
             </option>
           ))}
         </select>
 
         {serviceCode && (
           <p className="text-[11px] text-gray-500">
-            {
-              services.find((s) => s.code === serviceCode)
-                ?.description
-            }
+            {services.find((s) => s.code === serviceCode)?.description}
           </p>
         )}
       </div>
@@ -180,7 +174,8 @@ export default function BookingWidget() {
       </button>
 
       <p className="text-[11px] text-gray-400 pt-1">
-        Нажимая «Записаться», вы соглашаетесь на обработку персональных данных и условия договора.
+        Нажимая «Записаться», вы соглашаетесь на обработку персональных данных
+        и условия договора.
       </p>
     </form>
   );
