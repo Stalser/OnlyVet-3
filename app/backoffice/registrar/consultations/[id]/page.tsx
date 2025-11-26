@@ -1,5 +1,3 @@
-// app/backoffice/registrar/consultations/[id]/page.tsx
-
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
@@ -205,19 +203,19 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
             {/* ======= Питомец ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">Питомец</h2>
                 <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
                     Слева — питомец для работы регистратуры
                   </span>
-                  <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
+                  <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
                     Справа — питомец из заявки клиента
                   </span>
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid.gap-4 md:grid-cols-2">
                 {/* Регистратура */}
                 <div className="space-y-1">
                   <RegistrarPetEditor
@@ -229,15 +227,15 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
                 {/* Клиент */}
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase text-gray-500">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
                     Питомец из заявки клиента
                   </div>
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm space-y-1">
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm space-y-1">
                     <div className="font-medium">
                       {appointment.requestedPetName || "не указан"}
                     </div>
                     {appointment.requestedPetSpecies && (
-                      <div className="text-xs text-gray-600">
+                      <div className="text-xs.text-gray-600">
                         {appointment.requestedPetSpecies}
                       </div>
                     )}
@@ -252,117 +250,35 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-                {/* Клиент */}
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase text-gray-500">
-                    Услуга из заявки клиента
-                  </div>
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm">
-                    <div className="font-medium">
-                      {appointment.requestedServiceName ||
-                        "клиент не выбрал услугу"}
-                    </div>
-                    <div className="text-[10px] text-gray-400 mt-1">
-                      Это исходный выбор клиента. Регистратура может назначить
-                      другую услугу слева.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
             {/* ======= Врач ======= */}
-<section className="rounded-2xl border bg-white p-4 space-y-4">
-  <div className="flex flex-wrap items-center justify-between gap-3">
-    <h2 className="text-base font-semibold">Врач</h2>
-    <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
-      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-        Слева — назначенный врач (регистратура)
-      </span>
-      <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
-        Справа — врач из заявки клиента
-      </span>
-    </div>
-  </div>
-
-  <div className="grid gap-4 md:grid-cols-2">
-    {/* Левая колонка: регистратура (редактируемый врач) */}
-    <div className="space-y-1">
-      <RegistrarDoctorEditor
-        appointmentId={appointment.id}
-        doctorId={appointment.doctorId ?? null}
-      />
-    </div>
-
-    {/* Правая колонка: клиент */}
-    <div className="space-y-1">
-      <div className="text-xs font-semibold uppercase text-gray-500">
-        Врач из заявки клиента
-      </div>
-      <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm">
-        <div className="font-medium">
-          {appointment.requestedDoctorName || "клиент не выбрал врача"}
-        </div>
-        <div className="text-[10px] text-gray-400 mt-1">
-          Это желаемый врач со стороны клиента. Регистратура может назначить
-          другого врача слева.
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-        {/* ======= Услуга ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">Услуга</h2>
-                <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-                    Слева — услуга, назначенная клиникой
+              <div className="flex.flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">Врач</h2>
+                <div className="flex.flex-wrap.gap-2 text-[10px] text-gray-500">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
+                    Слева — назначенный врач
                   </span>
-                  <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
-                    Справа — услуга из заявки клиента
+                  <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
+                    Справа — врач из заявки клиента
                   </span>
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid.gap-4 md:grid-cols-2">
                 {/* Регистратура */}
                 <div className="space-y-1">
-                  <RegistrarServiceEditor
+                  <RegistrarDoctorEditor
                     appointmentId={appointment.id}
-                    serviceCode={appointment.serviceCode ?? null}
+                    doctorId={appointment.doctorId ?? null}
                   />
                 </div>
-           {/* ======= Расписание консультации ======= */}
-<section className="rounded-2xl border bg-white p-4 space-y-3">
-  <div className="flex flex-wrap items-center justify-between gap-3">
-    <h2 className="text-base font-semibold">
-      Расписание консультации
-    </h2>
-    <div className="text-[11px] text-gray-500">
-      Обычно сначала выбирают врача, затем назначают дату и время
-    </div>
-  </div>
-
-  <div className="space-y-2">
-    <RegistrarAssignSlot
-      appointmentId={appointment.id}
-      doctorId={appointment.doctorId}
-    />
-  </div>
-
-  <p className="text-[11px] text-gray-400">
-    Эти настройки определяют, когда и с кем фактически пройдёт консультация.
-    Данные будут видны врачу в его рабочем кабинете.
-  </p>
-</section>
 
                 {/* Клиент */}
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase text-gray-500">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
                     Врач из заявки клиента
                   </div>
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm">
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm">
                     <div className="font-medium">
                       {appointment.requestedDoctorName ||
                         "клиент не выбрал врача"}
@@ -376,23 +292,89 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* ======= Жалоба / описание проблемы ======= */}
+            {/* ======= Расписание консультации ======= */}
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex.flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">
+                  Расписание консультации
+                </h2>
+                <div className="text-[11px] text-gray-500">
+                  Обычно сначала выбирают врача, затем назначают дату и время
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <RegistrarAssignSlot
+                  appointmentId={appointment.id}
+                  doctorId={appointment.doctorId}
+                />
+              </div>
+
+              <p className="text-[11px] text-gray-400">
+                Эти настройки определяют, когда и с кем фактически пройдёт
+                консультация. Данные будут видны врачу в его рабочем кабинете.
+              </p>
+            </section>
+
+            {/* ======= Услуга ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex.flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base.font-semibold">Услуга</h2>
+                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
+                    Слева — услуга, назначенная клиникой
+                  </span>
+                  <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
+                    Справа — услуга из заявки клиента
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid.gap-4 md:grid-cols-2">
+                {/* Регистратура */}
+                <div className="space-y-1">
+                  <RegistrarServiceEditor
+                    appointmentId={appointment.id}
+                    serviceCode={appointment.serviceCode ?? null}
+                  />
+                </div>
+
+                {/* Клиент */}
+                <div className="space-y-1">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
+                    Услуга из заявки клиента
+                  </div>
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm">
+                    <div className="font-medium">
+                      {appointment.requestedServiceName ||
+                        "клиент не выбрал услугу"}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      Это исходный выбор клиента. Регистратура может назначить
+                      другую услугу слева.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ======= Жалоба ======= */}
+            <section className="rounded-2xl.border bg-white p-4 space-y-4">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">
                   Жалоба / описание проблемы
                 </h2>
-                <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
                     Слева — формулировка регистратуры
                   </span>
-                  <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
+                  <span className="inline-flex.items-center rounded-full.bg-gray-50 px-2.py-0.5">
                     Справа — текст клиента
                   </span>
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid.gap-4 md:grid-cols-2">
                 {/* Регистратура */}
                 <div className="space-y-1">
                   <RegistrarComplaintEditor
@@ -404,10 +386,10 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
                 {/* Клиент */}
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase text-gray-500">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
                     Писал клиент при записи
                   </div>
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm min-h-[60px] whitespace-pre-line">
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm min-h-[60px] whitespace-pre-line">
                     {appointment.requestedComplaint &&
                     appointment.requestedComplaint.trim()
                       ? appointment.requestedComplaint
@@ -420,19 +402,20 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                 </div>
               </div>
             </section>
-            {/* ======= Действия регистратуры ======= */}
-<section className="rounded-2xl border bg-white p-4 space-y-4">
-  <RegistrarActions
-    appointmentId={appointment.id}
-    currentStatus={appointment.statusLabel}
-    initialCancellationReason={appointment.cancellationReason}
-  />
 
-  <p className="text-[11px] text-gray-400">
-    Позже здесь появится история изменений по заявке (кто и когда
-    изменил статус, врача, услугу или жалобу).
-  </p>
-</section>
+            {/* ======= Действия регистратуры ======= */}
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
+              <RegistrarActions
+                appointmentId={appointment.id}
+                currentStatus={appointment.statusLabel}
+                initialCancellationReason={appointment.cancellationReason}
+              />
+
+              <p className="text-[11px] text-gray-400">
+                Позже здесь появится история изменений по заявке (кто и когда
+                изменил статус, врача, услугу или жалобу).
+              </p>
+            </section>
           </>
         )}
       </main>
