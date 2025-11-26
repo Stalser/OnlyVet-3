@@ -1,3 +1,251 @@
+// app/backoffice/registrar/consultations/[id]/page.tsx
+import Link from "next/link";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+import { RegistrarHeader } from "@/components/registrar/RegistrarHeader";
+import { getRegistrarAppointmentById } from "@/lib/registrar";
+import { RegistrarActions } from "@/components/registrar/RegistrarActions";
+import { RegistrarAssignSlot } from "@/components/registrar/RegistrarAssignSlot";
+import { RegistrarComplaintEditor } from "@/components/registrar/RegistrarComplaintEditor";
+import { RegistrarPetEditor } from "@/components/registrar/RegistrarPetEditor";
+import { RegistrarServiceEditor } from "@/components/registrar/RegistrarServiceEditor";
+import { RegistrarDoctorEditor } from "@/components/registrar/RegistrarDoctorEditor";
+
+interface PageProps {
+  params: {
+    id: string;
+  };
+}
+
+function statusBadgeClass(status: string): string {
+  const s = (status || "").toLowerCase();
+
+  if (s.includes("отмен")) return "bg-red-50 text-red-700";
+  if (s.includes("запрош")) return "bg-amber-50 text-amber-700";
+  if (s.includes("подтверж")) return "bg-blue-50 text-blue-700";
+  if (s.includes("заверш")) return "bg-gray-100 text-gray-700";
+
+  return "bg-emerald-50 text-emerald-700";
+}
+
+export default async function RegistrarConsultationPage({ params }: PageProps) {
+  const appointment = await getRegistrarAppointmentById(params.id);
+
+  return (
+    <RoleGuard allowed={["registrar", "admin"]}>
+      <main className="mx-auto max-w-5xl px-4.py-6 space-y-8">
+        {/* Навигация назад + шапка */}
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/backoffice/registrar"
+            className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+          >
+            ← Назад к списку
+          </Link>
+          <RegistrarHeader />
+        </div>
+
+        {/* Шапка карточки */}
+        <header className="flex items-center.justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">
+              Карточка консультации
+            </h1>
+            <p className="text-sm text-gray-500">
+              Детальная информация по заявке и основные действия регистратуры.
+            </p>
+          </div>
+
+          {appointment && (
+            <span
+              className={
+                "inline-flex rounded-full px-3.py-1 text-[11px] font-medium " +
+                statusBadgeClass(appointment.statusLabel)
+              }
+            >
+              Статус: {appointment.statusLabel}
+            </span>
+          )}
+        </header>
+
+        {/* Если не нашли */}
+        {!appointment && (
+          <section className="rounded-2xl border.bg-white p-4">
+            <p className="text-sm text-gray-500">
+              Консультация с идентификатором{" "}
+              <span className="font-mono">{params.id}</span> не найдена.
+            </p>
+          </section>
+        )}
+
+        {/* Если нашли */}
+        {appointment && (
+          <>
+            {/* ======= Основная информация ======= */}
+            <section className="rounded-2xl border bg-white p-4 space-y-4">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">Основная информация</h2>
+                <div className="text-right text-xs text-gray-500">
+                  <div>Дата / время консультации</div>
+                  <div className="text-sm text-gray-900">
+                    {appointment.dateLabel}
+                  </div>
+                  {appointment.createdLabel && (
+                    <div className="text-[11px] text-gray-400">
+                      создано: {appointment.createdLabel}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Клиент */}
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-xs text-gray-500">ID заявки</div>
+                    <div className="font-mono text-sm text-gray-900">
+                      {appointment.id}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase.text-gray-500">
+                      Клиент
+                    </h3>
+                    <div className="rounded-xl.bg-gray-50 p-3 text-sm">
+                      <div className="font-medium">
+                        {appointment.clientName || "Без имени"}
+                      </div>
+                      {appointment.clientContact && (
+                        <div className="mt-1 text-xs.text-gray-600">
+                          {appointment.clientContact}
+                        </div>
+                      )}
+                      <div className="mt-2.text-[11px] text-gray-400">
+                        В будущем здесь будет явная привязка к карточке клиента
+                        из owner_profiles.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Статус + связь */}
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-xs.font-semibold.uppercase text-gray-500">
+                      Статус обработки
+                    </h3>
+                    <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-2">
+                      <div>
+                        <span className="text-xs.text-gray-500">
+                          Статус:
+                        </span>{" "}
+                        <span className="font-medium">
+                          {appointment.statusLabel}
+                        </span>
+                      </div>
+                      {appointment.cancellationReason && (
+                        <div className="text-xs.text-red-700">
+                          Причина отмены: {appointment.cancellationReason}
+                        </div>
+                      )}
+                      <div className="text-[11px] text-gray-400">
+                        Изменения статуса и причины отмены будут отображаться в
+                        истории изменений.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs.font-semibold.uppercase text-gray-500">
+                      Формат связи
+                    </h3>
+                    <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-2">
+                      <div>
+                        <div className="text-xs text-gray-500">Платформа</div>
+                        <div className="font-medium text-gray-900">
+                          {appointment.videoPlatform === "yandex_telemost" ||
+                          !appointment.videoPlatform
+                            ? "Яндекс Телемост"
+                            : appointment.videoPlatform}
+                        </div>
+                      </div>
+
+                      {appointment.videoUrl ? (
+                        <div className="text-[11px]">
+                          <a
+                            href={appointment.videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-700 hover:underline"
+                          >
+                            Открыть ссылку Телемоста
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-400">
+                          Ссылка на Телемост пока не указана. Можно добавить её
+                          позже при редактировании консультации или через
+                          кабинет врача.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Документы и оплата (без редактирования, только разделение ролей) */}
+              <div className="pt-4.border-t border-gray-100 space-y-3">
+                <div className="flex flex-wrap.items-center justify-between gap-3">
+                  <h3 className="text-xs.font-semibold.uppercase text-gray-500">
+                    Документы и оплата
+                  </h3>
+                  <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+                    <span className="inline-flex.items-center rounded-full.bg-gray-100 px-2.py-0.5">
+                      Слева — учёт клиники
+                    </span>
+                    <span className="inline-flex.items-center rounded-full.bg-gray-50 px-2.py-0.5">
+                      Справа — файлы/оплаты клиента (в будущем)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl.bg-gray-50 p-3 text-sm space-y-1">
+                    <div>
+                      <span className="text-xs.text-gray-500">
+                        Документы по приёму:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {appointment.hasDocuments ? "есть" : "нет"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs.text-gray-500">
+                        Оплата по приёму:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {appointment.hasPayments ? "есть" : "нет"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      Позже здесь можно будет открыть документы и платежи,
+                      добавленные клиникой.
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm">
+                    <div className="text-xs.text-gray-500">
+                      Файлы/оплаты со стороны клиента
+                    </div>
+                    <div className="text-[13px] text-gray-700">
+                      Сейчас все документы и оплаты вносит клиника. Позже здесь
+                      можно будет отображать файлы, которые клиент прислал при
+                      записи или в чате.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
 {/* ======= Питомец ======= */}
 <section className="rounded-2xl border bg-white p-4 space-y-4">
   <div className="flex flex-wrap.items-center justify-between gap-3">
@@ -45,3 +293,188 @@
     </div>
   </div>
 </section>
+
+                {/* правая колонка: клиент */}
+                <div className="space-y-1">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
+                    Питомец из заявки клиента
+                  </div>
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm space-y-1">
+                    <div className="font-medium">
+                      {appointment.requestedPetName || "не указан"}
+                    </div>
+                    {appointment.requestedPetSpecies && (
+                      <div className="text-xs.text-gray-600">
+                        {appointment.requestedPetSpecies}
+                      </div>
+                    )}
+                    {!appointment.requestedPetName &&
+                      !appointment.requestedPetSpecies && (
+                        <div className="text-[10px] text-gray-400 mt-1">
+                          Клиент не указал питомца при записи.
+                        </div>
+                      )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ======= Услуга ======= */}
+            <section className="rounded-2xl.border bg-white p-4 space-y-4">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">Услуга</h2>
+                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
+                    Слева — услуга, назначенная клиникой
+                  </span>
+                  <span className="inline-flex.items-center.rounded-full bg-gray-50 px-2.py-0.5">
+                    Справа — услуга, выбранная клиентом
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid.gap-4 md:grid-cols-2">
+                {/* левая колонка: регистратура */}
+                <div className="space-y-1">
+                  <RegistrarServiceEditor
+                    appointmentId={appointment.id}
+                    serviceCode={appointment.serviceCode ?? null}
+                  />
+                </div>
+
+                {/* правая колонка: клиент */}
+                <div className="space-y-1">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
+                    Услуга из заявки клиента
+                  </div>
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm">
+                    <div className="font-medium">
+                      {appointment.requestedServiceName ||
+                        "клиент не выбрал услугу"}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      Это исходный выбор клиента. Регистратура может назначить
+                      другую услугу слева.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ======= Врач ======= */}
+            <section className="rounded-2xl.border bg-white p-4 space-y-4">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">Врач</h2>
+                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
+                    Слева — назначенный врач
+                  </span>
+                  <span className="inline-flex.items-center.rounded-full bg-gray-50 px-2.py-0.5">
+                    Справа — врач из заявки клиента
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid.gap-4 md:grid-cols-2">
+                {/* левая колонка: регистратура */}
+                <div className="space-y-1">
+                  <RegistrarDoctorEditor
+                    appointmentId={appointment.id}
+                    doctorId={appointment.doctorId ?? null}
+                  />
+                </div>
+
+                {/* правая колонка: клиент */}
+                <div className="space-y-1">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
+                    Врач из заявки клиента
+                  </div>
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm">
+                    <div className="font-medium">
+                      {appointment.requestedDoctorName ||
+                        "клиент не выбрал врача"}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      Это желаемый врач со стороны клиента. Регистратура может
+                      назначить другого врача слева.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ======= Жалоба / описание проблемы ======= */}
+            <section className="rounded-2xl.border bg-white p-4 space-y-4">
+              <div className="flex flex-wrap.items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">
+                  Жалоба / описание проблемы
+                </h2>
+                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
+                    Слева — формулировка регистратуры
+                  </span>
+                  <span className="inline-flex.items-center.rounded-full bg-gray-50 px-2.py-0.5">
+                    Справа — текст клиента
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid.gap-4 md:grid-cols-2">
+                {/* левая колонка: регистратура */}
+                <div className="space-y-1">
+                  <RegistrarComplaintEditor
+                    appointmentId={appointment.id}
+                    complaint={appointment.complaint ?? null}
+                    requestedComplaint={appointment.requestedComplaint ?? null}
+                  />
+                </div>
+
+                {/* правая колонка: клиент */}
+                <div className="space-y-1">
+                  <div className="text-xs.font-semibold.uppercase text-gray-500">
+                    Писал клиент при записи
+                  </div>
+                  <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm min-h-[60px] whitespace-pre-line">
+                    {appointment.requestedComplaint &&
+                    appointment.requestedComplaint.trim()
+                      ? appointment.requestedComplaint
+                      : "Клиент не указал жалобу при записи."}
+                  </div>
+                  <div className="text-[11px] text-gray-400">
+                    Это исходный текст из онлайн-формы. Он не изменяется
+                    регистратурой.
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ======= Действия регистратуры ======= */}
+            <section className="rounded-2xl.border bg-white p-4 space-y-4">
+              <h2 className="text-base font-semibold">
+                Действия регистратуры
+              </h2>
+
+              <RegistrarActions
+                appointmentId={appointment.id}
+                currentStatus={appointment.statusLabel}
+                initialCancellationReason={appointment.cancellationReason}
+              />
+
+              <div className="border-t.border-gray-100 pt-4 mt-2">
+                <RegistrarAssignSlot
+                  appointmentId={appointment.id}
+                  doctorId={appointment.doctorId}
+                />
+              </div>
+
+              <p className="text-[11px] text-gray-400">
+                Позже здесь появится история изменений по заявке (кто и когда
+                изменил статус, врача, услугу или жалобу).
+              </p>
+            </section>
+          </>
+        )}
+      </main>
+    </RoleGuard>
+  );
+}
