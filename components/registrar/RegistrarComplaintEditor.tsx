@@ -92,22 +92,27 @@ export function RegistrarComplaintEditor({
         </button>
       </div>
 
-      {/* режим просмотра */}
       {!editing && (
         <>
           <div className="rounded-xl bg-gray-50 p-3 text-sm min-h-[60px] whitespace-pre-line">
             {displayText}
           </div>
+          <div className="text-[11px] text-gray-400">
+            Эта формулировка видна врачу и в медкарте. Справа показывается
+            исходный текст клиента, он не меняется регистратурой.
+          </div>
           {wasEdited && (
             <div className="text-[11px] text-gray-400">
-              отредактировано регистратурой (точное время появится позже по
-              истории изменений)
+              отредактировано регистратурой (точное время появится в истории
+              изменений)
             </div>
+          )}
+          {error && (
+            <div className="text-[11px] text-red-600 mt-1">{error}</div>
           )}
         </>
       )}
 
-      {/* режим редактирования */}
       {editing && (
         <div className="space-y-2">
           <textarea
@@ -121,7 +126,7 @@ export function RegistrarComplaintEditor({
               type="button"
               onClick={handleSave}
               disabled={loading}
-              className="inline-flex items-center rounded-xl bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex items-center rounded-xl bg-emerald-600 px-3 py-1.5.font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               Сохранить
             </button>
@@ -129,23 +134,17 @@ export function RegistrarComplaintEditor({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex.items-center rounded-xl border border-gray-300 bg-white px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
             >
               Отменить
             </button>
-            {error && (
-              <span className="text-red-600">
-                {error}
-              </span>
-            )}
+            {error && <span className="text-red-600">{error}</span>}
+          </div>
+          <div className="text-[11px] text-gray-400">
+            Справа всегда видно исходный текст клиента при записи.
           </div>
         </div>
       )}
-
-      <div className="text-[11px] text-gray-400">
-        Эта формулировка видна врачу и в медкарте. Справа показывается исходный
-        текст клиента, он не меняется регистратурой.
-      </div>
     </div>
   );
 }
