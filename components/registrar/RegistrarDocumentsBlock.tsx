@@ -163,16 +163,6 @@ export function RegistrarDocumentsBlock({
 
   return (
     <div className="space-y-4">
-      {/* Подписи слева/справа */}
-      <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 mb-1">
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-          Слева — документы клиники
-        </span>
-        <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
-          Справа — документы клиента
-        </span>
-      </div>
-
       <div className="grid gap-4 md:grid-cols-2">
         {/* Левая колонка: клиника */}
         <div className="space-y-3">
