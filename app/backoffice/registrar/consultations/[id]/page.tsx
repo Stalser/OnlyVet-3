@@ -60,127 +60,133 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
         {appointment && (
           <>
             {/* ======= Основная информация ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">
-                    Карточка консультации
-                  </h1>
-                  <p className="text-sm text-gray-500">
-                    Детальная информация по заявке и основные действия
-                    регистратуры.
-                  </p>
-                </div>
-                <span
-                  className={
-                    "inline-flex rounded-full px-3 py-1.text-[11px] font-medium " +
-                    statusBadgeClass(appointment.statusLabel)
-                  }
-                >
-                  Статус: {appointment.statusLabel}
-                </span>
-              </div>
+<section className="rounded-2xl border bg-white p-4 space-y-4">
+  {/* Заголовок + статус */}
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 className="text-xl font-bold tracking-tight">
+        Карточка консультации
+      </h1>
+      <p className="text-sm text-gray-500">
+        Заявка клиента и рабочие действия регистратуры.
+      </p>
+    </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* Клиент + ID */}
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-xs text-gray-500">ID заявки</div>
-                    <div className="font-mono text-sm text-gray-900">
-                      {appointment.id}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase text-gray-500">
-                      Клиент
-                    </h3>
-                    <div className="rounded-xl bg-gray-50 p-3 text-sm">
-                      <div className="font-medium">
-                        {appointment.clientName || "Без имени"}
-                      </div>
-                      {appointment.clientContact && (
-                        <div className="mt-1 text-xs text-gray-600">
-                          {appointment.clientContact}
-                        </div>
-                      )}
-                      <div className="mt-2 text-[11px] text-gray-400">
-                        В будущем здесь будет явная привязка к карточке клиента
-                        из owner_profiles.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase text-gray-500">
-                      Документы и оплата
-                    </h3>
-                    <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
-                      <div>
-                        <span className="text-xs text-gray-500">
-                          Документы по приёму:
-                        </span>{" "}
-                        <span className="font-medium">
-                          {appointment.hasDocuments ? "есть" : "нет"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-gray-500">
-                          Оплата по приёму:
-                        </span>{" "}
-                        <span className="font-medium">
-                          {appointment.hasPayments ? "есть" : "нет"}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-gray-400">
-                        Ниже можно открыть список документов и платежей по этой
-                        консультации.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Статус обработки + формат связи */}
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase text-gray-500">
-                      Статус обработки
-                    </h3>
-                    <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
-                      <div>
-                        <span className="text-xs text-gray-500">Статус:</span>{" "}
-                        <span className="font-medium">
-                          {appointment.statusLabel}
-                        </span>
-                      </div>
-                      {appointment.cancellationReason && (
-                        <div className="text-xs text-red-700">
-                          Причина отмены: {appointment.cancellationReason}
-                        </div>
-                      )}
-                      <div className="text-[11px] text-gray-400">
-                        Изменения статуса и причины отмены будут отображаться в
-                        истории изменений.
-                      </div>
-                    </div>
-                  </div>
-
-                 <div>
-  <h3 className="text-xs font-semibold uppercase text-gray-500">
-    Формат связи
-  </h3>
-  <div className="rounded-xl bg-gray-50 p-3 text-sm">
-    <RegistrarVideoEditor
-      appointmentId={appointment.id}
-      videoPlatform={appointment.videoPlatform ?? null}
-      videoUrl={appointment.videoUrl ?? null}
-    />
+    <span
+      className={
+        "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium " +
+        statusBadgeClass(appointment.statusLabel)
+      }
+    >
+      Статус: {appointment.statusLabel}
+    </span>
   </div>
-</div>
-                </div>
-              </div>
-            </section>
 
+  {/* Две колонки: слева клиент/документы, справа статус обработки и формат связи */}
+  <div className="grid gap-4 md:grid-cols-2">
+    {/* Левая колонка: ID + Клиент + Документы/оплата */}
+    <div className="space-y-3">
+      {/* ID заявки */}
+      <div>
+        <div className="text-xs text-gray-500">ID заявки</div>
+        <div className="font-mono text-sm text-gray-900">
+          {appointment.id}
+        </div>
+      </div>
+
+      {/* Клиент */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase text-gray-500">
+          Клиент
+        </h3>
+        <div className="rounded-xl bg-gray-50 p-3 text-sm">
+          <div className="font-medium">
+            {appointment.clientName || "Без имени"}
+          </div>
+          {appointment.clientContact && (
+            <div className="mt-1 text-xs text-gray-600">
+              {appointment.clientContact}
+            </div>
+          )}
+          <div className="mt-2 text-[11px] text-gray-400">
+            В будущем здесь будет явная привязка к карточке клиента из
+            owner_profiles.
+          </div>
+        </div>
+      </div>
+
+      {/* Документы и оплата */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase text-gray-500">
+          Документы и оплата
+        </h3>
+        <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1">
+          <div>
+            <span className="text-xs text-gray-500">
+              Документы по приёму:
+            </span>{" "}
+            <span className="font-medium">
+              {appointment.hasDocuments ? "есть" : "нет"}
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500">
+              Оплата по приёму:
+            </span>{" "}
+            <span className="font-medium">
+              {appointment.hasPayments ? "есть" : "нет"}
+            </span>
+          </div>
+          <div className="text-[11px] text-gray-400">
+            Ниже можно открыть список документов и платежей по этой
+            консультации.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Правая колонка: статус обработки + формат связи */}
+    <div className="space-y-3">
+      {/* Статус обработки */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase text-gray-500">
+          Статус обработки
+        </h3>
+        <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
+          <div>
+            <span className="text-xs text-gray-500">Статус:</span>{" "}
+            <span className="font-medium">
+              {appointment.statusLabel}
+            </span>
+          </div>
+          {appointment.cancellationReason && (
+            <div className="text-xs text-red-700">
+              Причина отмены: {appointment.cancellationReason}
+            </div>
+          )}
+          <div className="text-[11px] text-gray-400">
+            Изменения статуса и причины отмены будут отображаться в
+            истории изменений.
+          </div>
+        </div>
+      </div>
+
+      {/* Формат связи */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase text-gray-500">
+          Формат связи
+        </h3>
+        <div className="rounded-xl bg-gray-50 p-3 text-sm">
+          <RegistrarVideoEditor
+            appointmentId={appointment.id}
+            videoPlatform={appointment.videoPlatform ?? null}
+            videoUrl={appointment.videoUrl ?? null}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
             {/* ======= Документы ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
 
