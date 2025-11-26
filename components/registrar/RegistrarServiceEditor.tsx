@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { servicesPricing } from "@/lib/pricing";
+import { servicesPricing, type PriceItem } from "@/lib/pricing";
 
 interface AppointmentServiceRow {
   id: number;
@@ -181,13 +181,19 @@ export function RegistrarServiceEditor({
   }
 
   function renderServiceRow(r: AppointmentServiceRow) {
-    const svc =
-      r.service_code &&
-      servicesPricing.find((s) => s.code === r.service_code);
+    const svc: PriceItem | null =
+      r.service_code != null
+        ? servicesPricing.find((s) => s.code === r.service_code) || null
+        : null;
 
     const name = svc ? svc.name : r.service_code || "Неизвестная услуга";
-    const section = svc?.section;
-    const basePrice = r.price_per_unit ?? svc?.priceRUB ?? null;
+    const section = svc ? svc.section : null;
+    const basePrice =
+      r.price_per_unit != null
+        ? r.price_per_unit
+        : svc && typeof svc.priceRUB === "number"
+        ? svc.priceRUB
+        : null;
 
     return (
       <div
