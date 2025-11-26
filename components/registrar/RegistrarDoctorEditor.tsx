@@ -10,6 +10,15 @@ interface RegistrarDoctorEditorProps {
   doctorId: string | null;
 }
 
+/**
+ * Редактор врача для регистратуры.
+ * Слева в блоке «Врач»:
+ *  - сначала выбираем специальность,
+ *  - затем врача внутри этой специальности,
+ *  - сохраняем doctor_id в appointments.
+ *
+ * Справа в блоке показывается врач из заявки клиента (requested_doctor_code).
+ */
 export function RegistrarDoctorEditor({
   appointmentId,
   doctorId,
@@ -24,13 +33,16 @@ export function RegistrarDoctorEditor({
   const [error, setError] = useState<string | null>(null);
   const [wasEdited, setWasEdited] = useState<boolean>(!!doctorId);
 
-  // предполагаем, что в doctors есть поле specialty / specialisation / specialization
+  // Расширяем doctors локальным полем specialty
   const extendedDoctors = useMemo(
     () =>
-      doctors.map((d: any) => ({
+      (doctors as any[]).map((d) => ({
         ...d,
         specialty:
-          d.specialty || d.specialisation || d.specialization || "Без специализации",
+          d.specialty ||
+          d.specialisation ||
+          d.specialization ||
+          "Без специализации",
       })),
     []
   );
@@ -40,23 +52,23 @@ export function RegistrarDoctorEditor({
       Array.from(
         new Set(
           extendedDoctors
-            .map((d: any) => d.specialty as string)
+            .map((d) => d.specialty as string)
             .filter((s) => s && s.trim().length > 0)
         )
       ),
     [extendedDoctors]
   );
 
-  // Доктор из текущего doctorId
+  // Текущий врач по doctorId
   const currentDoctor =
-    extendedDoctors.find((d: any) => d.id === doctorId)?.name || "Не назначен";
+    extendedDoctors.find((d) => d.id === doctorId)?.name || "Не назначен";
   const currentDoctorSpecialty =
-    extendedDoctors.find((d: any) => d.id === doctorId)?.specialty || null;
+    extendedDoctors.find((d) => d.id === doctorId)?.specialty || null;
 
   // Доктора по выбранной специальности
   const filteredDoctors = useMemo(() => {
     if (!selectedSpecialty) return extendedDoctors;
-    return extendedDoctors.filter((d: any) => d.specialty === selectedSpecialty);
+    return extendedDoctors.filter((d) => d.specialty === selectedSpecialty);
   }, [extendedDoctors, selectedSpecialty]);
 
   const handleSave = async () => {
@@ -163,8 +175,8 @@ export function RegistrarDoctorEditor({
         {/* Редактирование */}
         {editing && (
           <>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="space-y-1 text-sm">
+            <div className="grid gap-2 md:grid-cols-2 text-sm">
+              <div className="space-y-1">
                 <div className="text-xs text-gray-500">Специальность</div>
                 <select
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
@@ -172,7 +184,6 @@ export function RegistrarDoctorEditor({
                   onChange={(e) => {
                     const value = e.target.value;
                     setSelectedSpecialty(value);
-                    // сбрасываем врача, если сменили спец.
                     setSelectedDoctorId("");
                   }}
                 >
@@ -185,7 +196,7 @@ export function RegistrarDoctorEditor({
                 </select>
               </div>
 
-              <div className="space-y-1 text-sm">
+              <div className="space-y-1">
                 <div className="text-xs text-gray-500">Врач</div>
                 <select
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
@@ -207,7 +218,7 @@ export function RegistrarDoctorEditor({
                 type="button"
                 onClick={handleSave}
                 disabled={loading}
-                className="inline-flex.items-center rounded-full bg-emerald-600 px-4.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 Сохранить
               </button>
@@ -215,7 +226,7 @@ export function RegistrarDoctorEditor({
                 type="button"
                 onClick={handleCancel}
                 disabled={loading}
-                className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-4.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center rounded-full border border-gray-300 bg-white px-4 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
               >
                 Отменить
               </button>
