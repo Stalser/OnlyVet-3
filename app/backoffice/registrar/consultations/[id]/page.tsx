@@ -380,28 +380,19 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                 </div>
               </div>
             </section>
-
             {/* ======= Действия регистратуры ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <RegistrarActions
-                appointmentId={appointment.id}
-                currentStatus={appointment.statusLabel}
-                initialCancellationReason={appointment.cancellationReason}
-              />
+<section className="rounded-2xl border bg-white p-4 space-y-4">
+  <RegistrarActions
+    appointmentId={appointment.id}
+    currentStatus={appointment.statusLabel}
+    initialCancellationReason={appointment.cancellationReason}
+  />
 
-              <p className="text-[11px] text-gray-400">
-                Позже здесь появится история изменений по заявке (кто и когда
-                изменил статус, врача, услугу или жалобу).
-              </p>
-
-              {/* Слот/дата/время приёма для врача */}
-              <div className="border-t border-gray-100 pt-4 mt-2">
-                <RegistrarAssignSlot
-                  appointmentId={appointment.id}
-                  doctorId={appointment.doctorId}
-                />
-              </div>
-            </section>
+  <p className="text-[11px] text-gray-400">
+    Позже здесь появится история изменений по заявке (кто и когда
+    изменил статус, врача, услугу или жалобу).
+  </p>
+</section>
           </>
         )}
       </main>
