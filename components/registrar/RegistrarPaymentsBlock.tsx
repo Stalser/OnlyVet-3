@@ -41,35 +41,32 @@ export function RegistrarPaymentsBlock({
   const [saving, setSaving] = useState(false);
 
   const canSave = amount.trim().length > 0;
+async function loadPayments() {
+  if (!supabase) return;
 
-  async function loadPayments() {
-    if (!supabase) return;
+  setLoading(true);
+  setError(null);
 
-    setLoading(true);
-    setError(null);
+  try {
+    const { data, error: payErr } = await supabase
+      .from("payments")
+      .select("id, amount, currency, status, note, source, created_at")
+      .eq("appointment_id", appointmentId)
+      .order("created_at", { ascending: true });
 
-    try {
-      const { data, error: payErr } = await supabase
-        .from("payments")
-        .select(
-          "id, amount, currency, status, note, source, created_at"
-        )
-        .eq("appointment_id", appointmentId)
-        .order("created_at", { ascending: true });
-
-      if (payErr) {
-        console.error(payErr);
-        setError("Не удалось загрузить данные об оплатах");
-      } else {
-        setPayments((data ?? []) as PaymentRecord[]);
-      }
-    } catch (e: any) {
-      console.error(e);
-      setError("Ошибка при загрузке оплат: " + e.message);
-    } finally {
-      setLoading(false);
+    if (payErr) {
+      console.error(payErr);
+      setError("Не удалось загрузить данные об оплатах: " + payErr.message);
+    } else {
+      setPayments((data ?? []) as PaymentRecord[]);
     }
+  } catch (e: any) {
+    console.error(e);
+    setError("Ошибка при загрузке оплат: " + e.message);
+  } finally {
+    setLoading(false);
   }
+}
 
   useEffect(() => {
     void loadPayments();
