@@ -219,10 +219,12 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                 {/* Регистратура */}
                 <div className="space-y-1">
                   <RegistrarPetEditor
-                    appointmentId={appointment.id}
-                    petName={appointment.petName ?? null}
-                    petSpecies={appointment.petSpecies ?? null}
-                  />
+  appointmentId={appointment.id}
+  ownerId={appointment.ownerId ?? null}
+  petId={appointment.petId ?? null}
+  petName={appointment.petName ?? null}
+  petSpecies={appointment.petSpecies ?? null}
+/>
                 </div>
 
                 {/* Клиент */}
