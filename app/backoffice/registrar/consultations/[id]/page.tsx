@@ -333,30 +333,28 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                     serviceCode={appointment.serviceCode ?? null}
                   />
                 </div>
-            {/* ======= Расписание консультации ======= */}
+           {/* ======= Расписание консультации ======= */}
 <section className="rounded-2xl border bg-white p-4 space-y-3">
   <div className="flex flex-wrap items-center justify-between gap-3">
     <h2 className="text-base font-semibold">
       Расписание консультации
     </h2>
     <div className="text-[11px] text-gray-500">
-      Сначала выберите врача, затем назначьте дату и время
+      Обычно сначала выбирают врача, затем назначают дату и время
     </div>
   </div>
 
-  {appointment.doctorId ? (
-    <div className="space-y-2">
-      <RegistrarAssignSlot
-        appointmentId={appointment.id}
-        doctorId={appointment.doctorId}
-      />
-    </div>
-  ) : (
-    <p className="text-xs text-gray-400">
-      Врач ещё не назначен. Выберите врача в блоке выше, чтобы открыть
-      расписание и назначить время консультации.
-    </p>
-  )}
+  <div className="space-y-2">
+    <RegistrarAssignSlot
+      appointmentId={appointment.id}
+      doctorId={appointment.doctorId}
+    />
+  </div>
+
+  <p className="text-[11px] text-gray-400">
+    Эти настройки определяют, когда и с кем фактически пройдёт консультация.
+    Данные будут видны врачу в его рабочем кабинете.
+  </p>
 </section>
 
                 {/* Клиент */}
