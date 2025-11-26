@@ -1,169 +1,133 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
 import { doctors } from "../lib/data";
-import { servicesPricing, doctorServicesMap } from "../lib/pricing";
-
-type Doctor = (typeof doctors)[number];
-
-function MiniPrice({ doctor }: { doctor: Doctor }) {
-  const codes = doctorServicesMap[doctor.id] || [];
-  const items = servicesPricing.filter((s) => codes.includes(s.code));
-
-  if (!items.length) return null;
-
-  return (
-    <div className="mt-2 text-xs text-gray-700">
-      <div className="font-semibold mb-1">Основные услуги:</div>
-      <ul className="space-y-0.5">
-        {items.map((s) => (
-          <li key={s.code} className="flex justify-between gap-2">
-            <span className="opacity-80">{s.name}</span>
-            <span className="font-semibold">
-              {s.priceRUB !== undefined
-                ? `${s.priceRUB.toLocaleString("ru-RU")} ₽`
-                : "уточняется"}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 export default function Doctors() {
-  const [specialtyFilter, setSpecialtyFilter] = useState<string | "all">("all");
-
+  // Все уникальные специализации
   const specialties = useMemo(
     () =>
       Array.from(
         new Set(
           doctors
-            .map((d) => d.speciality)
+            .map((d) => d.specialty)
             .filter((s): s is string => Boolean(s && s.trim()))
         )
       ),
     []
   );
 
-  const filtered = useMemo(() => {
-    let list = doctors;
-    if (specialtyFilter !== "all") {
-      list = list.filter((d) => d.speciality === specialtyFilter);
-    }
-    return list;
-  }, [specialtyFilter]);
+  const [activeSpecialty, setActiveSpecialty] = useState<string>("all");
 
-  const totalCount = doctors.length;
+  const filteredDoctors = useMemo(() => {
+    if (activeSpecialty === "all") return doctors;
+    return doctors.filter((d) => d.specialty === activeSpecialty);
+  }, [activeSpecialty]);
 
   return (
-    <section className="container py-12 sm:py-16 space-y-6">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-semibold">
-            Врачи OnlyVet
-          </h2>
-          <p className="opacity-80 text-sm sm:text-base max-w-xl mt-1">
-            Выберите врача по специализации. В мини-прайсе указаны основные
-            услуги, которые он оказывает.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center">
-          <Link
-            href="/doctors"
-            className="btn btn-outline"
-          >
-            Все врачи ({totalCount})
-          </Link>
-          <Link
-            href="/services"
-            className="btn btn-outline"
-          >
-            Услуги и цены
-          </Link>
-        </div>
+    <section className="space-y-4">
+      {/* Заголовок */}
+      <div className="space-y-1">
+        <h2 className="text-xl font-semibold">Наши врачи</h2>
+        <p className="text-sm text-gray-500">
+          Команда OnlyVet — онлайн-ветеринары с опытом, которые помогают вам и
+          вашим питомцам на расстоянии.
+        </p>
       </div>
 
+      {/* Фильтр по специальности */}
       {specialties.length > 0 && (
         <div className="flex flex-wrap gap-2 text-xs">
           <button
-            className={[
-              "badge",
-              specialtyFilter === "all" ? "badge-active" : "",
-            ].join(" ")}
-            onClick={() => setSpecialtyFilter("all")}
+            type="button"
+            onClick={() => setActiveSpecialty("all")}
+            className={
+              "rounded-full border px-3 py-1 " +
+              (activeSpecialty === "all"
+                ? "border-gray-900 bg-gray-900 text-white"
+                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")
+            }
           >
             Все специализации
           </button>
-          {specialties.map((sp) => (
+          {specialties.map((spec) => (
             <button
-              key={sp}
-              className={[
-                "badge",
-                specialtyFilter === sp ? "badge-active" : "",
-              ].join(" ")}
-              onClick={() => setSpecialtyFilter(sp)}
+              key={spec}
+              type="button"
+              onClick={() => setActiveSpecialty(spec)}
+              className={
+                "rounded-full border px-3 py-1 " +
+                (activeSpecialty === spec
+                  ? "border-gray-900 bg-gray-900 text-white"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")
+              }
             >
-              {sp}
+              {spec}
             </button>
           ))}
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((doctor) => (
+      {/* Список врачей */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {filteredDoctors.map((d) => (
           <article
-            key={doctor.id}
-            className="card p-4 flex flex-col gap-3"
+            key={d.id}
+            className="flex gap-3 rounded-2xl border border-gray-200 bg-white p-3"
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-4">
-                {doctor.avatar && (
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-100">
-                    <Image
-                      src={doctor.avatar}
-                      alt={doctor.name}
-                      width={64}
-                      height={64}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-semibold text-base">{doctor.name}</h3>
-                  <p className="text-xs text-gray-500">
-                    {doctor.speciality || "Врач"}
-                  </p>
-                  {doctor.experience && (
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      {doctor.experience}
-                    </p>
-                  )}
+            {/* Аватар */}
+            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full bg-gray-100">
+              {d.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={d.avatar}
+                  alt={d.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+                  фото
                 </div>
-              </div>
+              )}
             </div>
 
-            <MiniPrice doctor={doctor} />
+            {/* Инфо */}
+            <div className="flex flex-col gap-1 text-sm">
+              <div>
+                <div className="font-medium">{d.name}</div>
+                {d.specialty && (
+                  <div className="text-[11px] text-gray-500">
+                    {d.specialty}
+                  </div>
+                )}
+              </div>
 
-            <div className="flex justify-between items-center mt-3 text-xs">
-              <Link
-                href={`/doctors/${doctor.id}`}
-                className="text-blue-600 underline underline-offset-2"
-              >
-                Подробнее
-              </Link>
-              <Link
-                href={`/booking?doctorId=${doctor.id}`}
-                className="btn btn-primary px-3 py-1.5 text-xs"
-              >
-                Записаться
-              </Link>
+              {d.experience && (
+                <div className="text-[11px] text-gray-500">
+                  Стаж: {d.experience}
+                </div>
+              )}
+
+              {typeof d.rating === "number" && (
+                <div className="text-[11px] text-gray-500">
+                  Рейтинг: {d.rating.toFixed(1)}★
+                </div>
+              )}
+
+              {d.bio && (
+                <p className="text-[11px] text-gray-600 line-clamp-3">
+                  {d.bio}
+                </p>
+              )}
             </div>
           </article>
         ))}
+
+        {filteredDoctors.length === 0 && (
+          <p className="text-xs text-gray-400">
+            Врачей с такой специализацией пока нет.
+          </p>
+        )}
       </div>
     </section>
   );
