@@ -49,7 +49,6 @@ export function RegistrarActions({
       return;
     }
 
-    // Без причины отмены — статус «отменена» запрещён
     if (nextStatus.toLowerCase().includes("отмен")) {
       if (!cancellationReason.trim()) {
         setError("Нельзя отменить запись без указания причины.");
@@ -100,7 +99,7 @@ export function RegistrarActions({
           onClick={onConfirmClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3.py-1.5 font-medium " +
+            "rounded-xl border px-3 py-1.5 font-medium " +
             (normalizedStatus.includes("подтверж")
               ? "border-emerald-600 bg-emerald-50 text-emerald-700"
               : "border-emerald-600 text-emerald-700 hover:bg-emerald-50")
@@ -114,7 +113,7 @@ export function RegistrarActions({
           onClick={onCancelClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3.py-1.5 font-medium " +
+            "rounded-xl border px-3 py-1.5 font-medium " +
             (normalizedStatus.includes("отмен")
               ? "border-red-600 bg-red-50 text-red-700"
               : "border-red-600 text-red-700 hover:bg-red-50")
@@ -128,7 +127,7 @@ export function RegistrarActions({
           onClick={onFinishClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3.py-1.5 font-medium " +
+            "rounded-xl border px-3 py-1.5 font-medium " +
             (normalizedStatus.includes("заверш")
               ? "border-gray-500 bg-gray-100 text-gray-700"
               : "border-gray-400 text-gray-700 hover:bg-gray-50")
@@ -152,7 +151,7 @@ export function RegistrarActions({
           value={cancellationReason}
           onChange={(e) => setCancellationReason(e.target.value)}
           placeholder="Кратко объясните, почему запись отменена. Этот текст увидит клиент."
-          className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-600 min-h-[70px]"
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-600 min-h-[70px]"
         />
         <p className="text-[11px] text-gray-400">
           В будущем это поле будет использоваться для уведомлений клиенту и
@@ -161,7 +160,7 @@ export function RegistrarActions({
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3.py-2 text-[11px] text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
           {error}
         </div>
       )}
