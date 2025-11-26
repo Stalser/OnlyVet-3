@@ -49,6 +49,7 @@ export function RegistrarActions({
       return;
     }
 
+    // При отмене — причина обязательна
     if (nextStatus.toLowerCase().includes("отмен")) {
       if (!cancellationReason.trim()) {
         setError("Нельзя отменить запись без указания причины.");
@@ -90,8 +91,40 @@ export function RegistrarActions({
   const onCancelClick = () => handleUpdateStatus("отменена");
   const onFinishClick = () => handleUpdateStatus("завершена");
 
+  // Функция для красивого бейджа статуса
+  const statusBadge = (s: string) => {
+    const v = (s || "").toLowerCase();
+    let className =
+      "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium ";
+    if (v.includes("запрош")) {
+      className += "bg-amber-50 text-amber-700 border border-amber-200";
+    } else if (v.includes("подтверж")) {
+      className += "bg-emerald-50 text-emerald-700 border border-emerald-200";
+    } else if (v.includes("отмен")) {
+      className += "bg-red-50 text-red-700 border border-red-200";
+    } else if (v.includes("заверш")) {
+      className += "bg-gray-100 text-gray-700 border border-gray-200";
+    } else {
+      className += "bg-gray-50 text-gray-600 border border-gray-200";
+    }
+
+    return (
+      <span className={className}>
+        Текущий статус: <span className="ml-1 font-semibold">{s}</span>
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-4">
+      {/* Верхняя строка: заголовок и статус */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">
+          Действия регистратуры
+        </h2>
+        {statusBadge(status)}
+      </div>
+
       {/* Кнопки статуса */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <button
@@ -99,7 +132,7 @@ export function RegistrarActions({
           onClick={onConfirmClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3 py-1.5 font-medium " +
+            "rounded-xl border px-3 py-1.5 font-medium transition " +
             (normalizedStatus.includes("подтверж")
               ? "border-emerald-600 bg-emerald-50 text-emerald-700"
               : "border-emerald-600 text-emerald-700 hover:bg-emerald-50")
@@ -113,7 +146,7 @@ export function RegistrarActions({
           onClick={onCancelClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3 py-1.5 font-medium " +
+            "rounded-xl border px-3 py-1.5 font-medium transition " +
             (normalizedStatus.includes("отмен")
               ? "border-red-600 bg-red-50 text-red-700"
               : "border-red-600 text-red-700 hover:bg-red-50")
@@ -127,7 +160,7 @@ export function RegistrarActions({
           onClick={onFinishClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3 py-1.5 font-medium " +
+            "rounded-xl border px-3 py-1.5 font-medium transition " +
             (normalizedStatus.includes("заверш")
               ? "border-gray-500 bg-gray-100 text-gray-700"
               : "border-gray-400 text-gray-700 hover:bg-gray-50")
@@ -135,11 +168,6 @@ export function RegistrarActions({
         >
           Отметить завершённым
         </button>
-
-        <div className="ml-auto text-[11px] text-gray-500">
-          Текущий статус:{" "}
-          <span className="font-medium">{status || "неизвестен"}</span>
-        </div>
       </div>
 
       {/* Причина отмены */}
