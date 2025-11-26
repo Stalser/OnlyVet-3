@@ -1,4 +1,3 @@
-// components/registrar/RegistrarActions.tsx
 "use client";
 
 import { useState } from "react";
@@ -34,23 +33,23 @@ export function RegistrarActions({
       return;
     }
 
-    // Подтверждение действия
     let question = "";
     if (nextStatus.toLowerCase().includes("подтверж")) {
       question = "Подтвердить запись и перевести её в работу?";
     } else if (nextStatus.toLowerCase().includes("отмен")) {
-      question = "Отменить запись? Клиент увидит причину отмены.";
+      question =
+        "Отменить запись? Клиент увидит причину отмены, которую вы укажете ниже.";
     } else if (nextStatus.toLowerCase().includes("заверш")) {
       question = "Отметить запись как завершённую?";
     } else {
-      question = `Изменить статус записи на "${nextStatus}"?`;
+      question = `Изменить статус записи на «${nextStatus}»?`;
     }
 
     if (!window.confirm(question)) {
       return;
     }
 
-    // Для отмены статус без причины не допускаем
+    // Без причины отмены — статус «отменена» запрещён
     if (nextStatus.toLowerCase().includes("отмен")) {
       if (!cancellationReason.trim()) {
         setError("Нельзя отменить запись без указания причины.");
@@ -60,9 +59,7 @@ export function RegistrarActions({
 
     setLoading(true);
     try {
-      const updateData: any = {
-        status: nextStatus,
-      };
+      const updateData: any = { status: nextStatus };
 
       if (nextStatus.toLowerCase().includes("отмен")) {
         updateData.cancellation_reason = cancellationReason.trim();
@@ -75,46 +72,35 @@ export function RegistrarActions({
 
       if (updateError) {
         console.error(updateError);
-        setError(
-          "Не удалось обновить статус записи: " + updateError.message
-        );
+        setError("Не удалось обновить статус: " + updateError.message);
         setLoading(false);
         return;
       }
 
       setStatus(nextStatus);
-      // Обновляем страницу, чтобы подтянулись свежие данные
       router.refresh();
     } catch (err: any) {
       console.error(err);
-      setError("Ошибка при обновлении записи: " + err.message);
+      setError("Ошибка при обновлении статуса: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const onConfirmClick = () => {
-    handleUpdateStatus("подтверждена");
-  };
-
-  const onCancelClick = () => {
-    handleUpdateStatus("отменена");
-  };
-
-  const onFinishClick = () => {
-    handleUpdateStatus("завершена");
-  };
+  const onConfirmClick = () => handleUpdateStatus("подтверждена");
+  const onCancelClick = () => handleUpdateStatus("отменена");
+  const onFinishClick = () => handleUpdateStatus("завершена");
 
   return (
     <div className="space-y-4">
-      {/* Кнопки статусов */}
+      {/* Кнопки статуса */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <button
           type="button"
           onClick={onConfirmClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3 py-1.5 font-medium " +
+            "rounded-xl border px-3.py-1.5 font-medium " +
             (normalizedStatus.includes("подтверж")
               ? "border-emerald-600 bg-emerald-50 text-emerald-700"
               : "border-emerald-600 text-emerald-700 hover:bg-emerald-50")
@@ -128,7 +114,7 @@ export function RegistrarActions({
           onClick={onCancelClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3 py-1.5 font-medium " +
+            "rounded-xl border px-3.py-1.5 font-medium " +
             (normalizedStatus.includes("отмен")
               ? "border-red-600 bg-red-50 text-red-700"
               : "border-red-600 text-red-700 hover:bg-red-50")
@@ -142,7 +128,7 @@ export function RegistrarActions({
           onClick={onFinishClick}
           disabled={loading}
           className={
-            "rounded-xl border px-3 py-1.5 font-medium " +
+            "rounded-xl border px-3.py-1.5 font-medium " +
             (normalizedStatus.includes("заверш")
               ? "border-gray-500 bg-gray-100 text-gray-700"
               : "border-gray-400 text-gray-700 hover:bg-gray-50")
@@ -152,7 +138,8 @@ export function RegistrarActions({
         </button>
 
         <div className="ml-auto text-[11px] text-gray-500">
-          Текущий статус: <span className="font-medium">{status}</span>
+          Текущий статус:{" "}
+          <span className="font-medium">{status || "неизвестен"}</span>
         </div>
       </div>
 
@@ -165,7 +152,7 @@ export function RegistrarActions({
           value={cancellationReason}
           onChange={(e) => setCancellationReason(e.target.value)}
           placeholder="Кратко объясните, почему запись отменена. Этот текст увидит клиент."
-          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-600 min-h-[70px]"
+          className="w-full rounded-xl border border-gray-200 px-3.py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-600 min-h-[70px]"
         />
         <p className="text-[11px] text-gray-400">
           В будущем это поле будет использоваться для уведомлений клиенту и
@@ -173,9 +160,8 @@ export function RegistrarActions({
         </p>
       </div>
 
-      {/* Ошибки */}
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3.py-2 text-[11px] text-red-700">
           {error}
         </div>
       )}
