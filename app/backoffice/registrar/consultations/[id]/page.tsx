@@ -252,7 +252,66 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* ======= Услуга ======= */}
+                {/* Клиент */}
+                <div className="space-y-1">
+                  <div className="text-xs font-semibold uppercase text-gray-500">
+                    Услуга из заявки клиента
+                  </div>
+                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm">
+                    <div className="font-medium">
+                      {appointment.requestedServiceName ||
+                        "клиент не выбрал услугу"}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      Это исходный выбор клиента. Регистратура может назначить
+                      другую услугу слева.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ======= Врач ======= */}
+<section className="rounded-2xl border bg-white p-4 space-y-4">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <h2 className="text-base font-semibold">Врач</h2>
+    <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
+      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+        Слева — назначенный врач (регистратура)
+      </span>
+      <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
+        Справа — врач из заявки клиента
+      </span>
+    </div>
+  </div>
+
+  <div className="grid gap-4 md:grid-cols-2">
+    {/* Левая колонка: регистратура (редактируемый врач) */}
+    <div className="space-y-1">
+      <RegistrarDoctorEditor
+        appointmentId={appointment.id}
+        doctorId={appointment.doctorId ?? null}
+      />
+    </div>
+
+    {/* Правая колонка: клиент */}
+    <div className="space-y-1">
+      <div className="text-xs font-semibold uppercase text-gray-500">
+        Врач из заявки клиента
+      </div>
+      <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm">
+        <div className="font-medium">
+          {appointment.requestedDoctorName || "клиент не выбрал врача"}
+        </div>
+        <div className="text-[10px] text-gray-400 mt-1">
+          Это желаемый врач со стороны клиента. Регистратура может назначить
+          другого врача слева.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+        {/* ======= Услуга ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">Услуга</h2>
@@ -274,48 +333,31 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                     serviceCode={appointment.serviceCode ?? null}
                   />
                 </div>
+            {/* ======= Расписание консультации ======= */}
+<section className="rounded-2xl border bg-white p-4 space-y-3">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <h2 className="text-base font-semibold">
+      Расписание консультации
+    </h2>
+    <div className="text-[11px] text-gray-500">
+      Сначала выберите врача, затем назначьте дату и время
+    </div>
+  </div>
 
-                {/* Клиент */}
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase text-gray-500">
-                    Услуга из заявки клиента
-                  </div>
-                  <div className="rounded-xl bg-white border border-dashed border-gray-200 p-3 text-sm">
-                    <div className="font-medium">
-                      {appointment.requestedServiceName ||
-                        "клиент не выбрал услугу"}
-                    </div>
-                    <div className="text-[10px] text-gray-400 mt-1">
-                      Это исходный выбор клиента. Регистратура может назначить
-                      другую услугу слева.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* ======= Врач ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap.items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">Врач</h2>
-                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
-                    Слева — назначенный врач
-                  </span>
-                  <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
-                    Справа — врач из заявки клиента
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid.gap-4 md:grid-cols-2">
-                {/* Регистратура */}
-                <div className="space-y-1">
-                  <RegistrarDoctorEditor
-                    appointmentId={appointment.id}
-                    doctorId={appointment.doctorId ?? null}
-                  />
-                </div>
+  {appointment.doctorId ? (
+    <div className="space-y-2">
+      <RegistrarAssignSlot
+        appointmentId={appointment.id}
+        doctorId={appointment.doctorId}
+      />
+    </div>
+  ) : (
+    <p className="text-xs text-gray-400">
+      Врач ещё не назначен. Выберите врача в блоке выше, чтобы открыть
+      расписание и назначить время консультации.
+    </p>
+  )}
+</section>
 
                 {/* Клиент */}
                 <div className="space-y-1">
