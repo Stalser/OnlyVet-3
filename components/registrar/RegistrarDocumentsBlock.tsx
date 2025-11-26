@@ -17,16 +17,6 @@ interface RegistrarDocumentsBlockProps {
   appointmentId: string;
 }
 
-/**
- * Блок "Документы" для карточки консультации.
- *
- * - Сам загружает документы из appointment_documents по appointment_id.
- * - Делит на "clinic" / "client".
- * - Позволяет добавлять документ клиникой (с текстом + ссылкой на файл).
- *
- * Позже вместо ссылки file_path можно будет сделать реальную загрузку файлов
- * в Supabase Storage.
- */
 export function RegistrarDocumentsBlock({
   appointmentId,
 }: RegistrarDocumentsBlockProps) {
@@ -62,16 +52,13 @@ export function RegistrarDocumentsBlock({
         console.error(docsError);
         setError("Не удалось загрузить документы");
       } else {
-        const all = (data ?? []) as any[];
-        const clinic = all.filter(
-          (d) => (d.source ?? "clinic") === "clinic"
-        ) as DocumentRecord[];
-        const client = all.filter(
-          (d) => (d.source ?? "clinic") === "client"
-        ) as DocumentRecord[];
-
-        setDocsClinic(clinic);
-        setDocsClient(client);
+        const all = (data ?? []) as DocumentRecord[];
+        setDocsClinic(
+          all.filter((d) => (d.source ?? "clinic") === "clinic")
+        );
+        setDocsClient(
+          all.filter((d) => (d.source ?? "clinic") === "client")
+        );
       }
     } catch (e: any) {
       console.error(e);
@@ -138,11 +125,13 @@ export function RegistrarDocumentsBlock({
         <div className="font-medium">
           {doc.title || "Документ без названия"}
         </div>
+
         {doc.summary && (
           <div className="text-xs text-gray-600 whitespace-pre-line">
             {doc.summary}
           </div>
         )}
+
         {doc.file_path ? (
           <a
             href={doc.file_path}
@@ -157,6 +146,7 @@ export function RegistrarDocumentsBlock({
             Файл не прикреплён.
           </div>
         )}
+
         <div className="text-[10px] text-gray-400">
           Добавлено: {new Date(doc.created_at).toLocaleString("ru-RU")}
         </div>
@@ -165,111 +155,120 @@ export function RegistrarDocumentsBlock({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Документы клиники */}
-      <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase text-gray-500">
-          Документы клиники
-        </div>
-
-        {loading && (
-          <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs.text-gray-500">
-            Загружаем документы…
-          </div>
-        )}
-
-        {!loading && docsClinic.length === 0 && (
-          <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
-            Пока нет документов, добавленных клиникой.
-          </div>
-        )}
-
-        {!loading && docsClinic.length > 0 && (
-          <div className="space-y-2">
-            {docsClinic.map((d) => (
-              <DocumentItem key={d.id} doc={d} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Добавление документа клиникой */}
-      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 space-y-2">
-        <div className="text-xs.font-semibold text-gray-500">
-          Добавить документ
-        </div>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Документы</h2>
         <div className="text-[11px] text-gray-500">
-          Сюда можно добавить анализы, заключения, заметки по звонку и т.д.
-          Позже сюда привяжем загрузку файлов в систему.
-        </div>
-
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Название документа (например, 'Анализы крови от 24.11')"
-          className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
-        />
-
-        <textarea
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          placeholder="Краткое содержание / комментарий для врача..."
-          className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white min-h-[60px]"
-        />
-
-        <input
-          type="text"
-          value={filePath}
-          onChange={(e) => setFilePath(e.target.value)}
-          placeholder="Ссылка на файл (временно, пока не настроена загрузка)"
-          className="w-full.rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
-        />
-
-        {error && (
-          <div className="text-[11px] text-red-600">
-            {error}
-          </div>
-        )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!canSave || saving}
-            className="inline-flex items-center rounded-full bg-emerald-600 px-4.py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {saving ? "Сохраняем…" : "Сохранить документ"}
-          </button>
+          Слева — документы клиники, справа — документы клиента
         </div>
       </div>
 
-      {/* Документы клиента */}
-      <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase text-gray-500">
-          Документы от клиента
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Левая колонка: клиника */}
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase text-gray-500">
+            Документы клиники
+          </div>
+
+          {loading && (
+            <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              Загружаем документы…
+            </div>
+          )}
+
+          {!loading && docsClinic.length === 0 && (
+            <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              Пока нет документов, добавленных клиникой.
+            </div>
+          )}
+
+          {!loading && docsClinic.length > 0 && (
+            <div className="space-y-2">
+              {docsClinic.map((d) => (
+                <DocumentItem key={d.id} doc={d} />
+              ))}
+            </div>
+          )}
+
+          {/* Форма добавления */}
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 space-y-2">
+            <div className="text-xs font-semibold text-gray-500">
+              Добавить документ
+            </div>
+            <div className="text-[11px] text-gray-500">
+              Можно добавить анализы, заключения, заметки по звонку и т.д. Позже
+              сюда привяжем загрузку файлов.
+            </div>
+
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Название документа (например, 'Анализы крови от 24.11')"
+              className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
+            />
+
+            <textarea
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Краткое содержание / комментарий для врача..."
+              className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white min-h-[60px]"
+            />
+
+            <input
+              type="text"
+              value={filePath}
+              onChange={(e) => setFilePath(e.target.value)}
+              placeholder="Ссылка на файл (временно, пока не настроена загрузка)"
+              className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
+            />
+
+            {error && (
+              <div className="text-[11px] text-red-600">
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleAdd}
+                disabled={!canSave || saving}
+                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {saving ? "Сохраняем…" : "Сохранить документ"}
+              </button>
+            </div>
+          </div>
         </div>
 
-        {loading && (
-          <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
-            Загружаем документы клиента…
+        {/* Правая колонка: клиент */}
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase text-gray-500">
+            Документы от клиента
           </div>
-        )}
 
-        {!loading && docsClient.length === 0 && (
-          <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
-            Клиент пока не присылал документы через онлайн-систему.
-          </div>
-        )}
+          {loading && (
+            <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
+              Загружаем документы клиента…
+            </div>
+          )}
 
-        {!loading && docsClient.length > 0 && (
-          <div className="space-y-2">
-            {docsClient.map((d) => (
-              <DocumentItem key={d.id} doc={d} />
-            ))}
-          </div>
-        )}
+          {!loading && docsClient.length === 0 && (
+            <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
+              Клиент пока не присылал документы через онлайн-систему.
+            </div>
+          )}
+
+          {!loading && docsClient.length > 0 && (
+            <div className="space-y-2">
+              {docsClient.map((d) => (
+                <DocumentItem key={d.id} doc={d} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
