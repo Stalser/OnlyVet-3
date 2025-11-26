@@ -10,6 +10,7 @@ import { RegistrarServiceEditor } from "@/components/registrar/RegistrarServiceE
 import { RegistrarDoctorEditor } from "@/components/registrar/RegistrarDoctorEditor";
 import { RegistrarDocumentsBlock } from "@/components/registrar/RegistrarDocumentsBlock";
 import { RegistrarPaymentsBlock } from "@/components/registrar/RegistrarPaymentsBlock";
+import { RegistrarVideoEditor } from "@/components/registrar/RegistrarVideoEditor";
 
 interface PageProps {
   params: {
@@ -164,41 +165,18 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase text-gray-500">
-                      Формат связи
-                    </h3>
-                    <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
-                      <div>
-                        <div className="text-xs text-gray-500">Платформа</div>
-                        <div className="font-medium text-gray-900">
-                          {appointment.videoPlatform === "yandex_telemost" ||
-                          !appointment.videoPlatform
-                            ? "Яндекс Телемост"
-                            : appointment.videoPlatform}
-                        </div>
-                      </div>
-
-                      {appointment.videoUrl ? (
-                        <div className="text-[11px]">
-                          <a
-                            href={appointment.videoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-emerald-700 hover:underline"
-                          >
-                            Открыть ссылку Телемоста
-                          </a>
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-gray-400">
-                          Ссылка на Телемост пока не указана. Можно добавить её
-                          позже при редактировании консультации или через
-                          кабинет врача.
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                 <div>
+  <h3 className="text-xs font-semibold uppercase text-gray-500">
+    Формат связи
+  </h3>
+  <div className="rounded-xl bg-gray-50 p-3 text-sm">
+    <RegistrarVideoEditor
+      appointmentId={appointment.id}
+      videoPlatform={appointment.videoPlatform ?? null}
+      videoUrl={appointment.videoUrl ?? null}
+    />
+  </div>
+</div>
                 </div>
               </div>
             </section>
