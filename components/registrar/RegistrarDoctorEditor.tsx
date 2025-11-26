@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { doctors } from "@/lib/data";
@@ -16,10 +16,48 @@ export function RegistrarDoctorEditor({
 }: RegistrarDoctorEditorProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [doctor, setDoctor] = useState<string>(doctorId ?? "");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
+    doctorId ?? ""
+  );
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wasEdited, setWasEdited] = useState<boolean>(!!doctorId);
+
+  // предполагаем, что в doctors есть поле specialty / specialisation / specialization
+  const extendedDoctors = useMemo(
+    () =>
+      doctors.map((d: any) => ({
+        ...d,
+        specialty:
+          d.specialty || d.specialisation || d.specialization || "Без специализации",
+      })),
+    []
+  );
+
+  const specialties = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          extendedDoctors
+            .map((d: any) => d.specialty as string)
+            .filter((s) => s && s.trim().length > 0)
+        )
+      ),
+    [extendedDoctors]
+  );
+
+  // Доктор из текущего doctorId
+  const currentDoctor =
+    extendedDoctors.find((d: any) => d.id === doctorId)?.name || "Не назначен";
+  const currentDoctorSpecialty =
+    extendedDoctors.find((d: any) => d.id === doctorId)?.specialty || null;
+
+  // Доктора по выбранной специальности
+  const filteredDoctors = useMemo(() => {
+    if (!selectedSpecialty) return extendedDoctors;
+    return extendedDoctors.filter((d: any) => d.specialty === selectedSpecialty);
+  }, [extendedDoctors, selectedSpecialty]);
 
   const handleSave = async () => {
     if (!supabase) {
@@ -35,10 +73,12 @@ export function RegistrarDoctorEditor({
     setError(null);
 
     try {
+      const finalDoctorId = selectedDoctorId.trim() || null;
+
       const { error: updateError } = await supabase
         .from("appointments")
         .update({
-          doctor_id: doctor.trim() || null,
+          doctor_id: finalDoctorId,
         })
         .eq("id", appointmentId);
 
@@ -49,7 +89,7 @@ export function RegistrarDoctorEditor({
         return;
       }
 
-      setWasEdited(!!doctor.trim());
+      setWasEdited(!!finalDoctorId);
       setEditing(false);
       router.refresh();
     } catch (err: any) {
@@ -61,96 +101,132 @@ export function RegistrarDoctorEditor({
   };
 
   const handleCancel = () => {
-    setDoctor(doctorId ?? "");
+    setSelectedDoctorId(doctorId ?? "");
+    setSelectedSpecialty("");
     setEditing(false);
     setError(null);
   };
 
-  const currentDoctor =
-    doctors.find((d: any) => d.id === doctorId)?.name || "Не назначен";
-
   return (
-    <div className="space-y-1">
-      <div className="flex items-center.justify-between gap-2">
-        <div className="text-xs text-gray-500 font-semibold uppercase">
-          Врач (для работы регистратуры)
-        </div>
-        <button
-          type="button"
-          onClick={() => setEditing((prev) => !prev)}
-          className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-2.py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-          disabled={loading}
-        >
-          {editing ? "Отмена" : "✎ Редактировать"}
-        </button>
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase text-gray-500">
+        Врач (для работы регистратуры)
       </div>
 
-      {!editing && (
-        <>
-          <div className="font-medium text-sm">{currentDoctor}</div>
-          {!doctorId && (
-            <div className="text-[10px] text-gray-400 mt-1">
-              Врач ещё не назначен регистратурой.
-            </div>
-          )}
-          <div className="text-[11px] text-gray-400 mt-1">
-            Этот врач увидит заявку в своём кабинете. Справа показано, кого
-            выбирал клиент.
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] text-gray-600">
+            Этот врач увидит заявку в своём кабинете
           </div>
-          {wasEdited && (
-            <div className="text-[11px] text-gray-400">
-              отредактировано регистратурой (подробности в истории изменений)
-            </div>
-          )}
-          {error && (
-            <div className="text-[11px] text-red-600 mt-1">{error}</div>
-          )}
-        </>
-      )}
-
-      {editing && (
-        <div className="space-y-2 text-sm">
-          <div className="space-y-1">
-            <div className="text-xs text-gray-500">Врач</div>
-            <select
-              className="w-full rounded-xl border border-gray-200 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
-              value={doctor}
-              onChange={(e) => setDoctor(e.target.value)}
-            >
-              <option value="">Не назначен</option>
-              {doctors.map((d: any) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-wrap.items-center gap-2 text-[11px] mt-1">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={loading}
-              className="inline-flex.items-center rounded-xl bg-emerald-600 px-3.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              Сохранить
-            </button>
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={loading}
-              className="inline-flex.items-center rounded-xl border border-gray-300 bg-white px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Отменить
-            </button>
-            {error && <span className="text-red-600">{error}</span>}
-          </div>
-
-          <div className="text-[11px] text-gray-400">
-            Справа видно желаемого врача со стороны клиента.
-          </div>
+          <button
+            type="button"
+            onClick={() => setEditing((prev) => !prev)}
+            className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+            disabled={loading}
+          >
+            {editing ? "Отмена" : "Редактировать"}
+          </button>
         </div>
-      )}
+
+        {/* Просмотр */}
+        {!editing && (
+          <>
+            <div className="rounded-lg bg-white px-3 py-2 text-sm space-y-1">
+              <div className="font-medium">{currentDoctor}</div>
+              {currentDoctorSpecialty && (
+                <div className="text-[11px] text-gray-500">
+                  Специализация: {currentDoctorSpecialty}
+                </div>
+              )}
+              {!doctorId && (
+                <div className="text-[10px] text-gray-400 mt-1">
+                  Врач ещё не назначен регистратурой.
+                </div>
+              )}
+            </div>
+            <div className="text-[11px] text-gray-400">
+              Справа видно врача, которого выбирал клиент при записи. Здесь —
+              финальное решение регистратуры.
+            </div>
+            {wasEdited && (
+              <div className="text-[11px] text-gray-400">
+                Отредактировано регистратурой (подробности будут в истории
+                изменений).
+              </div>
+            )}
+            {error && (
+              <div className="text-[11px] text-red-600 mt-1">{error}</div>
+            )}
+          </>
+        )}
+
+        {/* Редактирование */}
+        {editing && (
+          <>
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="space-y-1 text-sm">
+                <div className="text-xs text-gray-500">Специальность</div>
+                <select
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+                  value={selectedSpecialty}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedSpecialty(value);
+                    // сбрасываем врача, если сменили спец.
+                    setSelectedDoctorId("");
+                  }}
+                >
+                  <option value="">Все специальности</option>
+                  {specialties.map((spec) => (
+                    <option key={spec} value={spec}>
+                      {spec}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1 text-sm">
+                <div className="text-xs text-gray-500">Врач</div>
+                <select
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                >
+                  <option value="">Не назначен</option>
+                  {filteredDoctors.map((d: any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 text-[11px] mt-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={loading}
+                className="inline-flex.items-center rounded-full bg-emerald-600 px-4.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                Сохранить
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={loading}
+                className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-4.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Отменить
+              </button>
+            </div>
+
+            {error && (
+              <div className="text-[11px] text-red-600 mt-1">{error}</div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
