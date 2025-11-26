@@ -77,35 +77,35 @@ export function RegistrarComplaintEditor({
       : "— пока не заполнено";
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <div className="text-xs font-semibold uppercase text-gray-500">
         Формулировка регистратуры
       </div>
 
-      {/* Карточка с рамкой */}
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm space-y-2">
+      {/* Карточка с текстом/редактором */}
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] font-medium text-gray-700">
-            Текст, который увидит врач
+          <div className="text-[11px] text-gray-600">
+            Этот текст увидит врач
           </div>
           <button
             type="button"
             onClick={() => setEditing((prev) => !prev)}
-            className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+            className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
             disabled={loading}
           >
-            {editing ? "Отмена" : "✎ Редактировать"}
+            {editing ? "Отмена" : "Редактировать"}
           </button>
         </div>
 
-        {/* Режим просмотра */}
+        {/* Просмотр */}
         {!editing && (
-          <div className="rounded-lg bg-white px-3 py-2 min-h-[60px] whitespace-pre-line">
+          <div className="rounded-lg bg-white px-3 py-2 min-h-[60px] text-sm whitespace-pre-line">
             {displayText}
           </div>
         )}
 
-        {/* Режим редактирования */}
+        {/* Редактирование */}
         {editing && (
           <div className="space-y-2">
             <textarea
@@ -114,12 +114,12 @@ export function RegistrarComplaintEditor({
               onChange={(e) => setValue(e.target.value)}
               placeholder="Как регистратура формулирует жалобу/направление для врача..."
             />
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <div className="flex justify-end gap-2 text-[11px]">
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={loading}
-                className="inline-flex.items-center rounded-xl bg-emerald-600 px-3.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 Сохранить
               </button>
@@ -127,26 +127,29 @@ export function RegistrarComplaintEditor({
                 type="button"
                 onClick={handleCancel}
                 disabled={loading}
-                className="inline-flex.items-center rounded-xl border border-gray-300 bg-white px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center rounded-full border border-gray-300 bg-white px-4 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
               >
                 Отменить
               </button>
-              {error && <span className="text-red-600">{error}</span>}
             </div>
           </div>
         )}
       </div>
 
-      {/* Подписи под карточкой */}
+      {/* Подписи под блоком */}
       <div className="text-[11px] text-gray-400">
-        Этот текст увидят врач и медкарта. Справа показывается исходный текст
-        клиента из онлайн-формы, он не изменяется регистратурой.
+        Эта формулировка видна врачу и в медкарте. Справа показывается исходный
+        текст клиента из онлайн-формы, он не изменяется регистратурой.
       </div>
+
       {wasEdited && !editing && (
         <div className="text-[11px] text-gray-400">
-          отредактировано регистратурой (подробности появятся в истории
-          изменений)
+          Отредактировано регистратурой (подробности будут в истории изменений).
         </div>
+      )}
+
+      {error && (
+        <div className="text-[11px] text-red-600 mt-1">{error}</div>
       )}
     </div>
   );
