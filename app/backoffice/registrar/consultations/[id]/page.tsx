@@ -183,7 +183,10 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
             {/* ======= Оплата по приёму ======= */}
 <section className="rounded-2xl border bg-white p-4 space-y-4">
   <h2 className="text-base font-semibold">Оплата по приёму</h2>
-  <RegistrarPaymentsBlock appointmentId={appointment.id} />
+  <RegistrarPaymentsBlock
+    appointmentId={appointment.id}
+    serviceCode={appointment.serviceCode ?? null}
+  />
 </section>
             {/* ======= Питомец ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
