@@ -1,186 +1,275 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 interface DocumentRecord {
   id: string;
   title: string | null;
   summary: string | null;
-  source: "clinic" | "client";
+  source: "clinic" | "client" | null;
   file_path: string | null;
   file_type: string | null;
   created_at: string;
 }
 
-interface Props {
+interface RegistrarDocumentsBlockProps {
   appointmentId: string;
-  documents: DocumentRecord[];
 }
 
-export function RegistrarDocumentsBlock({ appointmentId, documents }: Props) {
+/**
+ * Блок "Документы" для карточки консультации.
+ *
+ * - Сам загружает документы из appointment_documents по appointment_id.
+ * - Делит на "clinic" / "client".
+ * - Позволяет добавлять документ клиникой (с текстом + ссылкой на файл).
+ *
+ * Позже вместо ссылки file_path можно будет сделать реальную загрузку файлов
+ * в Supabase Storage.
+ */
+export function RegistrarDocumentsBlock({
+  appointmentId,
+}: RegistrarDocumentsBlockProps) {
+  const [docsClinic, setDocsClinic] = useState<DocumentRecord[]>([]);
+  const [docsClient, setDocsClient] = useState<DocumentRecord[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // форма добавления
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [filePath, setFilePath] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const clinicDocs = documents.filter((d) => d.source === "clinic");
-  const clientDocs = documents.filter((d) => d.source === "client");
+  const canSave = title.trim().length > 0;
 
-  async function handleAddDocument() {
-    if (!title.trim()) {
-      setError("Введите название документа");
-      return;
-    }
+  async function loadDocuments() {
+    if (!supabase) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const { error: insertErr } = await supabase
+      const { data, error: docsError } = await supabase
+        .from("appointment_documents")
+        .select(
+          "id, title, summary, source, file_path, file_type, created_at"
+        )
+        .eq("appointment_id", appointmentId)
+        .order("created_at", { ascending: true });
+
+      if (docsError) {
+        console.error(docsError);
+        setError("Не удалось загрузить документы");
+      } else {
+        const all = (data ?? []) as any[];
+        const clinic = all.filter(
+          (d) => (d.source ?? "clinic") === "clinic"
+        ) as DocumentRecord[];
+        const client = all.filter(
+          (d) => (d.source ?? "clinic") === "client"
+        ) as DocumentRecord[];
+
+        setDocsClinic(clinic);
+        setDocsClient(client);
+      }
+    } catch (e: any) {
+      console.error(e);
+      setError("Ошибка при загрузке документов: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [appointmentId]);
+
+  async function handleAdd() {
+    if (!supabase) return;
+    if (!canSave) {
+      setError("Введите название документа");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Добавить документ к этой консультации?"
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const { error: insertError } = await supabase
         .from("appointment_documents")
         .insert({
           appointment_id: appointmentId,
           title: title.trim(),
-          summary: summary.trim(),
+          summary: summary.trim() || null,
           source: "clinic",
           file_path: filePath.trim() || null,
           created_by: "registrar",
         });
 
-      if (insertErr) {
-        setError("Ошибка сохранения: " + insertErr.message);
+      if (insertError) {
+        console.error(insertError);
+        setError("Не удалось добавить документ: " + insertError.message);
       } else {
         setTitle("");
         setSummary("");
         setFilePath("");
-        window.location.reload();
+        await loadDocuments();
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (e: any) {
+      console.error(e);
+      setError("Ошибка при добавлении документа: " + e.message);
+    } finally {
+      setSaving(false);
     }
-
-    setLoading(false);
   }
 
-  function DocumentItem({ d }: { d: DocumentRecord }) {
+  function DocumentItem({ doc }: { doc: DocumentRecord }) {
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1 text-sm">
-        <div className="font-medium">{d.title}</div>
-        {d.summary && (
+        <div className="font-medium">
+          {doc.title || "Документ без названия"}
+        </div>
+        {doc.summary && (
           <div className="text-xs text-gray-600 whitespace-pre-line">
-            {d.summary}
+            {doc.summary}
           </div>
         )}
-
-        {d.file_path ? (
+        {doc.file_path ? (
           <a
-            href={d.file_path}
+            href={doc.file_path}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
+            className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline"
           >
             📎 Открыть файл
           </a>
         ) : (
           <div className="text-[10px] text-gray-400">
-            Этот документ пока без файла.
+            Файл не прикреплён.
           </div>
         )}
-
         <div className="text-[10px] text-gray-400">
-          Добавлен: {new Date(d.created_at).toLocaleString()}
+          Добавлено: {new Date(doc.created_at).toLocaleString("ru-RU")}
         </div>
       </div>
     );
   }
 
   return (
-    <section className="rounded-2xl border bg-white p-4 space-y-4">
-      <h2 className="text-base font-semibold">Документы</h2>
-
-      {/* Клиника */}
-      <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Документы клиники */}
+      <div className="space-y-2">
         <div className="text-xs font-semibold uppercase text-gray-500">
           Документы клиники
         </div>
 
-        {clinicDocs.length === 0 && (
-          <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
+        {loading && (
+          <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs.text-gray-500">
+            Загружаем документы…
+          </div>
+        )}
+
+        {!loading && docsClinic.length === 0 && (
+          <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
             Пока нет документов, добавленных клиникой.
           </div>
         )}
 
-        {clinicDocs.length > 0 && (
+        {!loading && docsClinic.length > 0 && (
           <div className="space-y-2">
-            {clinicDocs.map((d) => (
-              <DocumentItem key={d.id} d={d} />
+            {docsClinic.map((d) => (
+              <DocumentItem key={d.id} doc={d} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Форма добавления */}
-      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 space-y-3">
-        <div className="text-xs font-semibold text-gray-500">
+      {/* Добавление документа клиникой */}
+      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 space-y-2">
+        <div className="text-xs.font-semibold text-gray-500">
           Добавить документ
+        </div>
+        <div className="text-[11px] text-gray-500">
+          Сюда можно добавить анализы, заключения, заметки по звонку и т.д.
+          Позже сюда привяжем загрузку файлов в систему.
         </div>
 
         <input
+          type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Название документа"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+          placeholder="Название документа (например, 'Анализы крови от 24.11')"
+          className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
         />
 
         <textarea
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          placeholder="Краткое описание или комментарий"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none min-h-[60px] focus:ring-1 focus:ring-emerald-600"
+          placeholder="Краткое содержание / комментарий для врача..."
+          className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white min-h-[60px]"
         />
 
         <input
+          type="text"
           value={filePath}
           onChange={(e) => setFilePath(e.target.value)}
-          placeholder="Ссылка на файл (временно, пока не сделаем загрузку)"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+          placeholder="Ссылка на файл (временно, пока не настроена загрузка)"
+          className="w-full.rounded-lg border border-gray-300 px-3.py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
         />
 
-        {error && <div className="text-xs text-red-600">{error}</div>}
+        {error && (
+          <div className="text-[11px] text-red-600">
+            {error}
+          </div>
+        )}
 
         <div className="flex justify-end">
           <button
-            onClick={handleAddDocument}
-            disabled={loading}
-            className="rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            type="button"
+            onClick={handleAdd}
+            disabled={!canSave || saving}
+            className="inline-flex items-center rounded-full bg-emerald-600 px-4.py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {loading ? "Сохраняем…" : "Сохранить документ"}
+            {saving ? "Сохраняем…" : "Сохранить документ"}
           </button>
         </div>
       </div>
 
-      {/* Клиент */}
-      <div className="space-y-3">
+      {/* Документы клиента */}
+      <div className="space-y-2">
         <div className="text-xs font-semibold uppercase text-gray-500">
           Документы от клиента
         </div>
 
-        {clientDocs.length === 0 && (
-          <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
+        {loading && (
+          <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
+            Загружаем документы клиента…
+          </div>
+        )}
+
+        {!loading && docsClient.length === 0 && (
+          <div className="rounded-xl bg-gray-50 px-3.py-2 text-xs text-gray-500">
             Клиент пока не присылал документы через онлайн-систему.
           </div>
         )}
 
-        {clientDocs.length > 0 && (
+        {!loading && docsClient.length > 0 && (
           <div className="space-y-2">
-            {clientDocs.map((d) => (
-              <DocumentItem key={d.id} d={d} />
+            {docsClient.map((d) => (
+              <DocumentItem key={d.id} doc={d} />
             ))}
           </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }
