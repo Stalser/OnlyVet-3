@@ -202,11 +202,25 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
               </div>
             </section>
 
-            {/* ======= Документы ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <h2 className="text-base font-semibold">Документы</h2>
-              <RegistrarDocumentsBlock appointmentId={appointment.id} />
-            </section>
+           <section className="rounded-2xl border bg-white p-4 space-y-4">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <h2 className="text-base font-semibold">Документы</h2>
+
+    <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
+      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+        Слева — документы клиники
+      </span>
+      <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5">
+        Справа — документы клиента
+      </span>
+    </div>
+  </div>
+
+  <RegistrarDocumentsBlock
+    appointmentId={appointment.id}
+    documents={appointment.documents || []}
+  />
+</section>
 
             {/* ======= Питомец ======= */}
             <section className="rounded-2xl border bg-white p-4 space-y-4">
