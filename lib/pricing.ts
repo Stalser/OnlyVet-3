@@ -4,7 +4,8 @@
 export type PriceItem = {
   id: string;        // внутренний ID (совпадает с кодом услуги)
   code: string;      // код услуги
-  section: string;   // раздел (категория)
+  section: string;   // раздел (крупная группа)
+  category: string;  // категория (для фильтров в UI)
   name: string;      // название услуги
   description: string;
   priceRUB?: number; // цена в рублях
@@ -17,6 +18,7 @@ export const servicesPricing: PriceItem[] = [
     id: "OC1",
     code: "OC1",
     section: "Онлайн-консультации",
+    category: "Онлайн-консультации",
     name: "Первичная онлайн-консультация",
     description: "Разбор ситуации, сбор анамнеза, первичный план действий.",
     priceRUB: 1500,
@@ -26,6 +28,7 @@ export const servicesPricing: PriceItem[] = [
     id: "OC2",
     code: "OC2",
     section: "Онлайн-консультации",
+    category: "Онлайн-консультации",
     name: "Повторная консультация",
     description: "С тем же врачом по текущему случаю.",
     priceRUB: 1200,
@@ -35,6 +38,7 @@ export const servicesPricing: PriceItem[] = [
     id: "OC3",
     code: "OC3",
     section: "Онлайн-консультации",
+    category: "Онлайн-консультации",
     name: "Разбор анализов",
     description: "Интерпретация загруженных результатов анализов.",
     priceRUB: 1000,
@@ -44,6 +48,7 @@ export const servicesPricing: PriceItem[] = [
     id: "SM1",
     code: "SM1",
     section: "Второе мнение",
+    category: "Второе мнение",
     name: "Второе мнение по диагнозу",
     description: "Анализ истории и заключений других специалистов.",
     priceRUB: 2000,
@@ -55,7 +60,7 @@ export const servicesPricing: PriceItem[] = [
 export const doctorServicesMap: Record<string, string[]> = {
   "doc-ivanova": ["OC1", "OC2", "OC3"],
   "doc-kuznetsov": ["OC1", "OC2"],
-  "doc-пetrov": ["SM1"],
+  "doc-petrov": ["SM1"],       // <= здесь была опечатка с русской "п"
   "doc-sidorova": ["OC1", "OC3"],
 };
 
