@@ -78,7 +78,7 @@ export function RegistrarDoctorEditor({
         <button
           type="button"
           onClick={() => setEditing((prev) => !prev)}
-          className="inline-flex items-center.rounded-full border border-gray-300 bg-white px-2.py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+          className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-2.py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
           disabled={loading}
         >
           {editing ? "Отмена" : "✎ Редактировать"}
@@ -99,8 +99,7 @@ export function RegistrarDoctorEditor({
           </div>
           {wasEdited && (
             <div className="text-[11px] text-gray-400">
-              отредактировано регистратурой (подробности будут в истории
-              изменений)
+              отредактировано регистратурой (подробности в истории изменений)
             </div>
           )}
           {error && (
@@ -114,7 +113,7 @@ export function RegistrarDoctorEditor({
           <div className="space-y-1">
             <div className="text-xs text-gray-500">Врач</div>
             <select
-              className="w-full rounded-xl border border-gray-200 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+              className="w-full rounded-xl border border-gray-200 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
               value={doctor}
               onChange={(e) => setDoctor(e.target.value)}
             >
@@ -127,7 +126,7 @@ export function RegistrarDoctorEditor({
             </select>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.text-[11px] mt-1">
+          <div className="flex flex-wrap.items-center gap-2 text-[11px] mt-1">
             <button
               type="button"
               onClick={handleSave}
@@ -148,8 +147,7 @@ export function RegistrarDoctorEditor({
           </div>
 
           <div className="text-[11px] text-gray-400">
-            Здесь выбирается врач, который реально будет работать с этой
-            консультацией.
+            Справа видно желаемого врача со стороны клиента.
           </div>
         </div>
       )}
