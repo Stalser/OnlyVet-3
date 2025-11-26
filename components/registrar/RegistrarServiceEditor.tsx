@@ -1,244 +1,364 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { servicesPricing } from "@/lib/pricing";
 
+interface AppointmentServiceRow {
+  id: number;
+  service_code: string | null;
+  quantity: number | null;
+  price_per_unit: number | null;
+  comment: string | null;
+}
+
 interface RegistrarServiceEditorProps {
   appointmentId: string;
-  serviceCode: string | null;
+  serviceCode: string | null; // пока не используем активно, но оставляем для совместимости
 }
 
 /**
- * Редактор услуги для регистратуры.
- * Слева в блоке «Услуга»:
- *  - сначала выбираем категорию услуги,
- *  - затем конкретную услугу внутри категории,
- *  - сохраняем service_code в appointments.
+ * Редактор услуг для консультации.
  *
- * Справа в блоке остаётся услуга из заявки клиента.
+ * Работает через appointment_services:
+ *  - загружает список услуг по appointment_id,
+ *  - позволяет добавить несколько услуг,
+ *  - позволяет удалить услугу.
+ *
+ * Позже сюда можно будет добавить редактирование количества и цены.
  */
 export function RegistrarServiceEditor({
   appointmentId,
-  serviceCode,
 }: RegistrarServiceEditorProps) {
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [selectedServiceCode, setSelectedServiceCode] = useState<string>(
-    serviceCode ?? ""
-  );
-  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<AppointmentServiceRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [editing, setEditing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [wasEdited, setWasEdited] = useState<boolean>(!!serviceCode);
 
-  // расширяем услуги локальным полем category
-  const extendedServices = useMemo(
-    () =>
-      (servicesPricing as any[]).map((s) => ({
-        ...s,
-        category: s.category || "Без категории",
-      })),
-    []
-  );
+  // выбор категории и услуги
+  const [selectedSection, setSelectedSection] = useState<string>("all");
+  const [selectedCode, setSelectedCode] = useState<string>("");
 
-  const categories = useMemo(
+  const [saving, setSaving] = useState<boolean>(false);
+
+  // Категории услуг из servicesPricing
+  const sections = useMemo(
     () =>
       Array.from(
         new Set(
-          extendedServices
-            .map((s) => s.category as string)
-            .filter((c) => c && c.trim().length > 0)
+          servicesPricing
+            .map((s) => s.section)
+            .filter((s) => s && s.trim().length > 0)
         )
       ),
-    [extendedServices]
+    []
   );
 
-  const currentService =
-    extendedServices.find((s) => s.code === serviceCode)?.name || "Не выбрана";
-  const currentCategory =
-    extendedServices.find((s) => s.code === serviceCode)?.category || null;
-
   const filteredServices = useMemo(() => {
-    if (!selectedCategory) return extendedServices;
-    return extendedServices.filter((s) => s.category === selectedCategory);
-  }, [extendedServices, selectedCategory]);
+    return servicesPricing.filter((s) => {
+      if (selectedSection === "all") return true;
+      return s.section === selectedSection;
+    });
+  }, [selectedSection]);
 
-  const handleSave = async () => {
-    if (!supabase) {
-      setError("Supabase не сконфигурирован.");
-      return;
-    }
-
-    if (
-      !window.confirm(
-        "Сохранить выбранную услугу как рабочую для этой консультации?"
-      )
-    ) {
-      return;
-    }
-
+  async function loadServices() {
+    if (!supabase) return;
     setLoading(true);
     setError(null);
 
     try {
-      const finalCode = selectedServiceCode.trim() || null;
+      const { data, error: svcErr } = await supabase
+        .from("appointment_services")
+        .select("id, service_code, quantity, price_per_unit, comment")
+        .eq("appointment_id", appointmentId)
+        .order("id", { ascending: true });
 
-      const { error: updateError } = await supabase
-        .from("appointments")
-        .update({
-          service_code: finalCode,
-        })
-        .eq("id", appointmentId);
-
-      if (updateError) {
-        console.error(updateError);
-        setError("Не удалось сохранить услугу: " + updateError.message);
-        setLoading(false);
-        return;
+      if (svcErr) {
+        console.error(svcErr);
+        setError("Не удалось загрузить услуги по консультации");
+      } else {
+        setRows((data ?? []) as AppointmentServiceRow[]);
       }
-
-      setWasEdited(!!finalCode);
-      setEditing(false);
-      router.refresh();
-    } catch (err: any) {
-      console.error(err);
-      setError("Ошибка при сохранении услуги: " + err.message);
+    } catch (e: any) {
+      console.error(e);
+      setError("Ошибка при загрузке услуг: " + e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleCancel = () => {
-    setSelectedServiceCode(serviceCode ?? "");
-    setSelectedCategory("");
-    setEditing(false);
+  useEffect(() => {
+    void loadServices();
+  }, [appointmentId]);
+
+  async function handleAddService() {
+    if (!supabase) return;
+    if (!selectedCode) {
+      setError("Выберите услугу из списка.");
+      return;
+    }
+
+    const service = servicesPricing.find((s) => s.code === selectedCode);
+    if (!service) {
+      setError("Выбранная услуга не найдена в прайсе.");
+      return;
+    }
+
+    const basePrice =
+      typeof service.priceRUB === "number" ? service.priceRUB : null;
+
+    const confirmText = [
+      "Добавить услугу к этой консультации?",
+      "",
+      `Услуга: ${service.name}`,
+      service.section ? `Категория: ${service.section}` : "",
+      basePrice != null ? `Базовая цена: ${basePrice} ₽` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    if (!window.confirm(confirmText)) {
+      return;
+    }
+
+    setSaving(true);
     setError(null);
-  };
+
+    try {
+      const { error: insertErr } = await supabase
+        .from("appointment_services")
+        .insert({
+          appointment_id: appointmentId,
+          service_code: service.code,
+          quantity: 1,
+          price_per_unit: basePrice,
+          comment: null,
+        });
+
+      if (insertErr) {
+        console.error(insertErr);
+        setError("Не удалось добавить услугу: " + insertErr.message);
+      } else {
+        setSelectedCode("");
+        await loadServices();
+      }
+    } catch (e: any) {
+      console.error(e);
+      setError("Ошибка при добавлении услуги: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteService(id: number) {
+    if (!supabase) return;
+
+    if (!window.confirm("Удалить эту услугу из консультации?")) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const { error: delErr } = await supabase
+        .from("appointment_services")
+        .delete()
+        .eq("id", id);
+
+      if (delErr) {
+        console.error(delErr);
+        setError("Не удалось удалить услугу: " + delErr.message);
+      } else {
+        await loadServices();
+      }
+    } catch (e: any) {
+      console.error(e);
+      setError("Ошибка при удалении услуги: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function renderServiceRow(r: AppointmentServiceRow) {
+    const svc =
+      r.service_code &&
+      servicesPricing.find((s) => s.code === r.service_code);
+
+    const name = svc ? svc.name : r.service_code || "Неизвестная услуга";
+    const section = svc?.section;
+    const basePrice = r.price_per_unit ?? svc?.priceRUB ?? null;
+
+    return (
+      <div
+        key={r.id}
+        className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+      >
+        <div className="space-y-0.5">
+          <div className="font-medium">{name}</div>
+          {section && (
+            <div className="text-[11px] text-gray-500">{section}</div>
+          )}
+          {basePrice != null && (
+            <div className="text-[11px] text-gray-500">
+              Цена: {basePrice} ₽
+            </div>
+          )}
+          {r.comment && (
+            <div className="text-[11px] text-gray-600 whitespace-pre-line">
+              Комментарий: {r.comment}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => handleDeleteService(r.id)}
+          disabled={saving}
+          className="text-[11px] text-red-600 hover:underline"
+        >
+          Удалить
+        </button>
+      </div>
+    );
+  }
+
+  // ---------- UI ----------
+
+  if (loading && !editing && rows.length === 0) {
+    return (
+      <div className="text-xs text-gray-500">Загружаем услуги…</div>
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold uppercase text-gray-500">
-        Услуга (для работы регистратуры)
-      </div>
+    <div className="space-y-3">
+      {/* Просмотр */}
+      {!editing && (
+        <>
+          {rows.length === 0 ? (
+            <div className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-500">
+              Пока ни одна услуга не назначена. Выберите нужные услуги в режиме
+              редактирования.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {rows.map((r) => renderServiceRow(r))}
+            </div>
+          )}
 
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3">
-        <div className="flex items-center.justify-between gap-2">
-          <div className="text-[11px] text-gray-600">
-            Эта услуга пойдёт в расчёт стоимости и документы
-          </div>
+          {error && (
+            <div className="text-[11px] text-red-600">
+              {error}
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={() => setEditing((prev) => !prev)}
-            className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-3.py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-            disabled={loading}
+            onClick={() => setEditing(true)}
+            className="mt-2 inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] text-gray-600 hover:bg-gray-50"
           >
-            {editing ? "Отмена" : "Редактировать"}
+            Редактировать услуги
           </button>
-        </div>
+        </>
+      )}
 
-        {/* Просмотр */}
-        {!editing && (
-          <>
-            <div className="rounded-lg bg-white px-3 py-2 text-sm space-y-1">
-              <div className="font-medium">
-                {currentService}
-              </div>
-              {currentCategory && (
+      {/* Редактирование */}
+      {editing && (
+        <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-semibold text-gray-600">
+              Услуги (для работы регистратуры)
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setError(null);
+              }}
+              className="text-[11px] text-gray-500 hover:underline"
+            >
+              Закрыть
+            </button>
+          </div>
+
+          {/* Список текущих услуг */}
+          {rows.length > 0 ? (
+            <div className="space-y-2">
+              {rows.map((r) => renderServiceRow(r))}
+            </div>
+          ) : (
+            <div className="rounded-lg bg-white px-3 py-2 text-xs text-gray-500">
+              Пока ни одна услуга не назначена.
+            </div>
+          )}
+
+          {/* Добавление новой услуги */}
+          <div className="space-y-2 pt-2 border-t border-gray-200 mt-2">
+            <div className="text-xs font-semibold text-gray-600">
+              Добавить услугу
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="space-y-1">
                 <div className="text-[11px] text-gray-500">
-                  Категория: {currentCategory}
+                  Категория услуги
                 </div>
-              )}
-              {!serviceCode && (
-                <div className="text-[10px] text-gray-400 mt-1">
-                  Услуга ещё не назначена регистратурой.
-                </div>
-              )}
-            </div>
-            <div className="text-[11px] text-gray-400">
-              Справа видно услугу, которую выбирал клиент при записи.
-            </div>
-            {wasEdited && (
-              <div className="text-[11px] text-gray-400">
-                Отредактировано регистратурой (подробности будут в истории
-                изменений).
+                <select
+                  value={selectedSection}
+                  onChange={(e) => {
+                    setSelectedSection(e.target.value);
+                    setSelectedCode("");
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
+                >
+                  <option value="all">Все категории</option>
+                  {sections.map((sec) => (
+                    <option key={sec} value={sec}>
+                      {sec}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              <div className="space-y-1">
+                <div className="text-[11px] text-gray-500">Услуга</div>
+                <select
+                  value={selectedCode}
+                  onChange={(e) => setSelectedCode(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600 bg-white"
+                >
+                  <option value="">Выберите услугу</option>
+                  {filteredServices.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}
+                      {typeof s.priceRUB === "number"
+                        ? ` — ${s.priceRUB} ₽`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {error && (
-              <div className="text-[11px] text-red-600 mt-1">
+              <div className="text-[11px] text-red-600">
                 {error}
               </div>
             )}
-          </>
-        )}
 
-        {/* Редактирование */}
-        {editing && (
-          <>
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
-              <div className="space-y-1">
-                <div className="text-xs text-gray-500">Категория услуги</div>
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
-                  value={selectedCategory}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedCategory(value);
-                    setSelectedServiceCode("");
-                  }}
-                >
-                  <option value="">Все категории</option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-xs text-gray-500">Услуга</div>
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
-                  value={selectedServiceCode}
-                  onChange={(e) => setSelectedServiceCode(e.target.value)}
-                >
-                  <option value="">Не выбрана</option>
-                  {filteredServices.map((s: any) => (
-                    <option key={s.code} value={s.code}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 text-[11px] mt-2">
+            <div className="flex justify-end">
               <button
                 type="button"
-                onClick={handleSave}
-                disabled={loading}
-                className="inline-flex.items-center rounded-full bg-emerald-600 px-4.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                onClick={handleAddService}
+                disabled={saving}
+                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                Сохранить
-              </button>
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={loading}
-                className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-4.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Отменить
+                {saving ? "Добавляем…" : "Добавить услугу"}
               </button>
             </div>
-
-            {error && (
-              <div className="text-[11px] text-red-600 mt-1">{error}</div>
-            )}
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
