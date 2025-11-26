@@ -1,184 +1,209 @@
-// components/registrar/RegistrarAssignSlot.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { doctors } from "@/lib/data";
 
-type Props = {
+interface RegistrarAssignSlotProps {
   appointmentId: string;
-  doctorId?: string | null;
-};
+  doctorId: string | null;
+}
 
-type FormState = {
-  doctorId: string;
-  date: string;
-  time: string;
-};
+/**
+ * Блок «Расписание консультации» для регистратуры.
+ *
+ * Функционал:
+ *  - показывает текущую дату/время консультации (appointments.starts_at);
+ *  - позволяет регистратуре назначить / изменить дату и время;
+ *  - если передан doctorId — показывает, к какому врачу относится это расписание.
+ *
+ * ВАЖНО: врач выбирается в блоке «Врач». Здесь мы только работаем с датой/временем.
+ */
+export function RegistrarAssignSlot({
+  appointmentId,
+  doctorId,
+}: RegistrarAssignSlotProps) {
+  const router = useRouter();
 
-export function RegistrarAssignSlot({ appointmentId, doctorId }: Props) {
-  const client: SupabaseClient | null = supabase;
+  const [date, setDate] = useState<string>("");
+  const [time, setTime] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState<FormState>({
-    doctorId: doctorId ?? "",
-    date: "",
-    time: "",
-  });
+  // Имя врача по doctorId (для отображения)
+  const doctorName =
+    doctors.find((d: any) => d.id === doctorId)?.name || "Не назначен";
 
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Подставляем сегодняшнюю дату и ближайшее время по умолчанию
+  // Загружаем текущий starts_at из appointments, чтобы заполнить дату/время
   useEffect(() => {
-    const now = new Date();
-    const date = now.toISOString().slice(0, 10);
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    setForm((prev) => ({
-      ...prev,
-      date: prev.date || date,
-      time: prev.time || `${hh}:${mm}`,
-    }));
-  }, []);
+    const loadAppointment = async () => {
+      if (!supabase) return;
+      setInitialLoading(true);
+      setError(null);
 
-  const handleChange = (
-    field: keyof FormState,
-    value: string
-  ) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+      try {
+        const { data, error: apptError } = await supabase
+          .from("appointments")
+          .select("starts_at")
+          .eq("id", appointmentId)
+          .maybeSingle();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
-    setErrorMsg(null);
+        if (apptError) {
+          console.error(apptError);
+          setError("Не удалось загрузить текущую дату и время консультации");
+        } else if (data && data.starts_at) {
+          const d = new Date(data.starts_at);
+          // дата в формате YYYY-MM-DD
+          const isoDate = d.toISOString().slice(0, 10);
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          setDate(isoDate);
+          setTime(`${hh}:${mm}`);
+        } else {
+          // если времени нет — ставим сегодняшнюю дату и ближайшие 30 минут
+          const now = new Date();
+          const isoDate = now.toISOString().slice(0, 10);
+          const hh = String(now.getHours()).padStart(2, "0");
+          const mm = String(Math.round(now.getMinutes() / 5) * 5).padStart(
+            2,
+            "0"
+          );
+          setDate(isoDate);
+          setTime(`${hh}:${mm}`);
+        }
+      } catch (e: any) {
+        console.error(e);
+        setError("Ошибка при загрузке консультации: " + e.message);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
 
-    if (!client) {
-      setErrorMsg("Supabase не сконфигурирован.");
+    void loadAppointment();
+  }, [appointmentId]);
+
+  const handleSave = async () => {
+    if (!supabase) {
+      setError("Supabase не сконфигурирован.");
       return;
     }
 
-    if (!form.date || !form.time) {
-      setErrorMsg("Укажите дату и время.");
+    if (!date || !time) {
+      setError("Укажите дату и время консультации.");
+      return;
+    }
+
+    const isoString = new Date(`${date}T${time}:00`).toISOString();
+
+    if (
+      !window.confirm(
+        `Сохранить назначенное время консультации: ${date} ${time}?`
+      )
+    ) {
       return;
     }
 
     setLoading(true);
+    setError(null);
 
     try {
-      const startsAt = new Date(`${form.date}T${form.time}:00`);
-      const startsIso = startsAt.toISOString();
-
-      const updates: Record<string, any> = {
-        starts_at: startsIso,
-      };
-
-      if (form.doctorId) {
-        updates.doctor_id = form.doctorId;
-      }
-
-      const { error } = await client
+      const { error: updateError } = await supabase
         .from("appointments")
-        .update(updates)
+        .update({
+          starts_at: isoString,
+        })
         .eq("id", appointmentId);
 
-      if (error) {
-        console.error("RegistrarAssignSlot update error:", error);
-        setErrorMsg("Не удалось сохранить слот и врача.");
-      } else {
-        setMsg("Время и врач обновлены.");
+      if (updateError) {
+        console.error(updateError);
+        setError(
+          "Не удалось сохранить дату и время консультации: " +
+            updateError.message
+        );
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error("RegistrarAssignSlot error:", err);
-      setErrorMsg("Ошибка при обработке даты/времени.");
+
+      router.refresh();
+    } catch (e: any) {
+      console.error(e);
+      setError("Ошибка при сохранении: " + e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-3 text-xs"
-    >
-      <div className="grid gap-2 md:grid-cols-3">
-        {/* Врач */}
-        <div className="space-y-1">
-          <label className="text-[11px] text-gray-600">
-            Врач
-          </label>
-          <select
-            className="w-full rounded-xl border border-gray-200 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600"
-            value={form.doctorId}
-            onChange={(e) =>
-              handleChange("doctorId", e.target.value)
-            }
-          >
-            <option value="">Не указан</option>
-            {doctors.map((d: any) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
+  if (initialLoading) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-[11px] text-gray-500">
+        Загружаем текущее расписание консультации…
+      </div>
+    );
+  }
 
-        {/* Дата */}
+  return (
+    <div className="space-y-3 text-sm">
+      {/* Врач — информативно, без возможности выбора */}
+      <div className="space-y-1">
+        <div className="text-xs text-gray-500">Врач</div>
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm">
+          {doctorName}
+        </div>
+        {!doctorId && (
+          <div className="text-[11px] text-gray-400 mt-1">
+            Врач ещё не назначен. Обычно сначала выбирают врача в блоке выше, а
+            затем ставят время.
+          </div>
+        )}
+      </div>
+
+      {/* Дата / время */}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-1">
-          <label className="text-[11px] text-gray-600">
-            Дата
-          </label>
+          <div className="text-xs text-gray-500">Дата</div>
           <input
             type="date"
-            className="w-full rounded-xl border border-gray-200 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600"
-            value={form.date}
-            onChange={(e) =>
-              handleChange("date", e.target.value)
-            }
+            className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
           />
         </div>
 
-        {/* Время */}
         <div className="space-y-1">
-          <label className="text-[11px] text-gray-600">
-            Время
-          </label>
+          <div className="text-xs text-gray-500">Время</div>
           <input
             type="time"
-            className="w-full rounded-xl border border-gray-200 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-600"
-            value={form.time}
-            onChange={(e) =>
-              handleChange("time", e.target.value)
-            }
+            className="w-full rounded-lg border.border-gray-300 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
           />
         </div>
-      </div>
 
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <div className="text-[10px] text-gray-400">
-          Эти данные увидит врач в своём кабинете.
+        {/* Кнопка сохранения справа на широких экранах */}
+        <div className="flex items-end justify-start md:justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading}
+            className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            Сохранить
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {loading ? "Сохраняем…" : "Сохранить"}
-        </button>
       </div>
 
-      {msg && (
-        <p className="text-[11px] text-emerald-700">
-          {msg}
-        </p>
+      {error && (
+        <div className="text-[11px] text-red-600">
+          {error}
+        </div>
       )}
-      {errorMsg && (
-        <p className="text-[11px] text-red-600">
-          {errorMsg}
-        </p>
-      )}
-    </form>
+
+      <div className="text-[11px] text-gray-400">
+        Эти данные увидит врач в своём кабинете. Настройки определяют, когда и
+        с кем фактически пройдёт консультация.
+      </div>
+    </div>
   );
 }
