@@ -90,11 +90,7 @@ export function RegistrarPaymentsBlock({
     if (!priceItem) return;
 
     const price =
-      typeof priceItem.priceRUB === "number"
-        ? priceItem.priceRUB
-        : typeof priceItem.price === "number"
-        ? priceItem.price
-        : null;
+  typeof priceItem.priceRUB === "number" ? priceItem.priceRUB : null;
 
     if (price != null && !Number.isNaN(price)) {
       setAmount(String(price));
