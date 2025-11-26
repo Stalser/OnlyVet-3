@@ -76,14 +76,14 @@ export function RegistrarServiceEditor({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs text-gray-500 font-semibold uppercase">
+      <div className="flex.items-center justify-between gap-2">
+        <div className="text-xs.text-gray-500 font-semibold uppercase">
           Услуга (для работы регистратуры)
         </div>
         <button
           type="button"
           onClick={() => setEditing((prev) => !prev)}
-          className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+          className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-2.py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
           disabled={loading}
         >
           {editing ? "Отмена" : "✎ Редактировать"}
@@ -121,7 +121,7 @@ export function RegistrarServiceEditor({
           <div className="space-y-1">
             <div className="text-xs text-gray-500">Услуга</div>
             <select
-              className="w-full rounded-xl border border-gray-200 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+              className="w-full rounded-xl border border-gray-200 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
               value={service}
               onChange={(e) => setService(e.target.value)}
             >
@@ -139,7 +139,7 @@ export function RegistrarServiceEditor({
               type="button"
               onClick={handleSave}
               disabled={loading}
-              className="inline-flex items-center rounded-xl bg-emerald-600 px-3.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex.items-center rounded-xl bg-emerald-600 px-3.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               Сохранить
             </button>
@@ -147,15 +147,16 @@ export function RegistrarServiceEditor({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="inline-flex.items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex.items-center rounded-xl border border-gray-300 bg-white px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
             >
               Отменить
             </button>
             {error && <span className="text-red-600">{error}</span>}
           </div>
+
           <div className="text-[11px] text-gray-400">
-            Справа отображается, какую услугу выбирал клиент. Здесь — финальное
-            решение регистратуры.
+            Справа видно услугу, которую выбрал клиент, — здесь решение
+            регистратуры.
           </div>
         </div>
       )}
