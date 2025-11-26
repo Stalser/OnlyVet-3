@@ -307,9 +307,9 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
 
               <div className="space-y-2">
                 <RegistrarAssignSlot
-                  appointmentId={appointment.id}
-                  doctorId={appointment.doctorId}
-                />
+  appointmentId={appointment.id}
+  doctorId={appointment.doctorId ?? null}
+/>
               </div>
 
               <p className="text-[11px] text-gray-400">
