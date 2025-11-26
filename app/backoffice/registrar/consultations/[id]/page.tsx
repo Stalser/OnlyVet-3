@@ -59,9 +59,9 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
         {/* Если заявка найдена */}
         {appointment && (
           <>
-            {/* ======= Основная информация ======= */}
+{/* ======= Основная информация ======= */}
 <section className="rounded-2xl border bg-white p-4 space-y-4">
-  {/* Заголовок + статус */}
+  {/* Заголовок + бейдж статуса */}
   <div className="flex flex-wrap items-center justify-between gap-3">
     <div>
       <h1 className="text-xl font-bold tracking-tight">
@@ -82,9 +82,9 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
     </span>
   </div>
 
-  {/* Две колонки: слева клиент/документы, справа статус обработки и формат связи */}
+  {/* Две колонки под шапкой */}
   <div className="grid gap-4 md:grid-cols-2">
-    {/* Левая колонка: ID + Клиент + Документы/оплата */}
+    {/* Левая колонка: ID, клиент, документы/оплата */}
     <div className="space-y-3">
       {/* ID заявки */}
       <div>
@@ -145,33 +145,8 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
       </div>
     </div>
 
-    {/* Правая колонка: статус обработки + формат связи */}
+    {/* Правая колонка: только формат связи */}
     <div className="space-y-3">
-      {/* Статус обработки */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase text-gray-500">
-          Статус обработки
-        </h3>
-        <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-2">
-          <div>
-            <span className="text-xs text-gray-500">Статус:</span>{" "}
-            <span className="font-medium">
-              {appointment.statusLabel}
-            </span>
-          </div>
-          {appointment.cancellationReason && (
-            <div className="text-xs text-red-700">
-              Причина отмены: {appointment.cancellationReason}
-            </div>
-          )}
-          <div className="text-[11px] text-gray-400">
-            Изменения статуса и причины отмены будут отображаться в
-            истории изменений.
-          </div>
-        </div>
-      </div>
-
-      {/* Формат связи */}
       <div>
         <h3 className="text-xs font-semibold uppercase text-gray-500">
           Формат связи
