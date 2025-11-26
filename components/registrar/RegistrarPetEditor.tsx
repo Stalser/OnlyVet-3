@@ -91,14 +91,13 @@ export function RegistrarPetEditor({
         <button
           type="button"
           onClick={() => setEditing((prev) => !prev)}
-          className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+          className="inline-flex.items-center rounded-full border border-gray-300.bg-white px-2.py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
           disabled={loading}
         >
           {editing ? "Отмена" : "✎ Редактировать"}
         </button>
       </div>
 
-      {/* просмотр */}
       {!editing && (
         <>
           <div className="font-medium text-sm">{displayName}</div>
@@ -115,8 +114,7 @@ export function RegistrarPetEditor({
           </div>
           {wasEdited && (
             <div className="text-[11px] text-gray-400">
-              отредактировано регистратурой (точное время будет видно в истории
-              изменений)
+              отредактировано регистратурой (подробности в истории изменений)
             </div>
           )}
           {error && (
@@ -125,14 +123,13 @@ export function RegistrarPetEditor({
         </>
       )}
 
-      {/* редактирование */}
       {editing && (
         <div className="space-y-2">
           <div className="space-y-1">
             <label className="text-[11px] text-gray-600">Кличка</label>
             <input
               type="text"
-              className="w-full rounded-xl border border-gray-200 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+              className="w-full rounded-xl border border-gray-200 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Например: Персик"
@@ -142,7 +139,7 @@ export function RegistrarPetEditor({
             <label className="text-[11px] text-gray-600">Вид</label>
             <input
               type="text"
-              className="w-full rounded-xl border border-gray-200 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
+              className="w-full.rounded-xl border border-gray-200 px-3.py-1.5 text-sm outline-none focus:ring-1 focus:ring-emerald-600"
               value={species}
               onChange={(e) => setSpecies(e.target.value)}
               placeholder="Кот, собака, хорёк…"
@@ -153,7 +150,7 @@ export function RegistrarPetEditor({
               type="button"
               onClick={handleSave}
               disabled={loading}
-              className="inline-flex items-center rounded-xl bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex items-center.rounded-xl bg-emerald-600 px-3.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               Сохранить
             </button>
@@ -161,15 +158,14 @@ export function RegistrarPetEditor({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center.rounded-xl border border-gray-300 bg-white px-3.py-1.5 font-medium text-gray-700 hover:bg-gray-50"
             >
               Отменить
             </button>
             {error && <span className="text-red-600">{error}</span>}
           </div>
           <div className="text-[11px] text-gray-400">
-            Это официальные данные по питомцу для врачей. Справа отображается
-            исходный выбор клиента.
+            Справа всегда видно, что указал клиент при записи.
           </div>
         </div>
       )}
