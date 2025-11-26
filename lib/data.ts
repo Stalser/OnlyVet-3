@@ -4,7 +4,7 @@
 export type Doctor = {
   id: string;
   name: string;
-  speciality: string;
+  specialty: string;    // специализация врача
   bio?: string;
   rating?: number;
   avatar?: string;      // аватар врача
@@ -67,7 +67,7 @@ export const doctors: Doctor[] = legacyDoctors.map((d) => ({
   id: d.id,
   name: d.name,
   email: d.email,
-  speciality: d.specialty || "",
+  specialty: d.specialty || "Без специализации",
   bio: d.bio,
   rating: 4.9,
   avatar: d.photo || "/avatar.png",
