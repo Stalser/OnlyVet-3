@@ -78,23 +78,24 @@ export function RegistrarComplaintEditor({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-semibold uppercase text-gray-500">
+      <div className="flex.items-center justify-between gap-2">
+        <div className="text-xs.font-semibold.uppercase text-gray-500">
           Формулировка регистратуры
         </div>
         <button
           type="button"
           onClick={() => setEditing((prev) => !prev)}
-          className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+          className="inline-flex.items-center rounded-full border border-gray-300 bg-white px-2.py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-60"
           disabled={loading}
         >
           {editing ? "Отмена" : "✎ Редактировать"}
         </button>
       </div>
 
+      {/* просмотр */}
       {!editing && (
         <>
-          <div className="rounded-xl bg-gray-50 p-3 text-sm min-h-[60px] whitespace-pre-line">
+          <div className="rounded-xl.bg-gray-50 p-3 text-sm min-h-[60px] whitespace-pre-line">
             {displayText}
           </div>
           <div className="text-[11px] text-gray-400">
@@ -113,20 +114,21 @@ export function RegistrarComplaintEditor({
         </>
       )}
 
+      {/* редактирование */}
       {editing && (
         <div className="space-y-2">
           <textarea
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-600 min-h-[80px]"
+            className="w-full rounded-xl border border-gray-200 px-3.py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-600 min-h-[80px]"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Как регистратура формулирует жалобу/направление для врача..."
           />
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <div className="flex.flex-wrap items-center gap-2 text-[11px]">
             <button
               type="button"
               onClick={handleSave}
               disabled={loading}
-              className="inline-flex items-center rounded-xl bg-emerald-600 px-3 py-1.5.font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex.items-center rounded-xl bg-emerald-600 px-3.py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               Сохранить
             </button>
