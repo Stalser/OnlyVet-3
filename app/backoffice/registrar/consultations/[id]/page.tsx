@@ -336,20 +336,49 @@ export default async function RegistrarConsultationPage({ params }: PageProps) {
             </section>
 
             {/* ======= Жалоба / описание проблемы ======= */}
-            <section className="rounded-2xl border bg-white p-4 space-y-4">
-              <div className="flex flex-wrap.items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">
-                  Жалоба / описание проблемы
-                </h2>
-                <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
-                  <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
-                    Слева — формулировка регистратуры
-                  </span>
-                  <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
-                    Справа — текст клиента
-                  </span>
-                </div>
-              </div>
+<section className="rounded-2xl border.bg-white p-4 space-y-4">
+  <div className="flex flex-wrap.items-center justify-between gap-3">
+    <h2 className="text-base font-semibold">
+      Жалоба / описание проблемы
+    </h2>
+    <div className="flex flex-wrap.gap-2 text-[10px] text-gray-500">
+      <span className="inline-flex.items-center rounded-full bg-gray-100 px-2.py-0.5">
+        Слева — формулировка регистратуры
+      </span>
+      <span className="inline-flex.items-center rounded-full bg-gray-50 px-2.py-0.5">
+        Справа — что писал клиент
+      </span>
+    </div>
+  </div>
+
+  <div className="grid.gap-4 md:grid-cols-2">
+    {/* Левая колонка: регистратура (редактируемая) */}
+    <div className="space-y-1">
+      <RegistrarComplaintEditor
+        appointmentId={appointment.id}
+        complaint={appointment.complaint ?? null}
+        requestedComplaint={appointment.requestedComplaint ?? null}
+      />
+    </div>
+
+    {/* Правая колонка: клиент (read-only) */}
+    <div className="space-y-1">
+      <div className="text-xs.font-semibold.uppercase text-gray-500">
+        Писал клиент при записи
+      </div>
+      <div className="rounded-xl.bg-white border border-dashed.border-gray-200 p-3 text-sm min-h-[60px] whitespace-pre-line">
+        {appointment.requestedComplaint &&
+        appointment.requestedComplaint.trim()
+          ? appointment.requestedComplaint
+          : "Клиент не указал жалобу при записи."}
+      </div>
+      <div className="text-[11px] text-gray-400">
+        Это исходный текст владельца из онлайн-формы. Он не изменяется
+        регистратурой.
+      </div>
+    </div>
+  </div>
+</section>
 
               <div className="grid.gap-4 md:grid-cols-2">
                 {/* Регистратура */}
